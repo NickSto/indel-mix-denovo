@@ -37,28 +37,48 @@ def main():
     cigars = TESTS
   else:
     cigars = arguments
-  
+
   if not cigars:
     parser.print_help()
     fail("Provide one or more CIGAR strings as arguments")
 
   for cigar in cigars:
-    print cigar
-    pos = 0
+    print "\n"+cigar
+    ref_pos = 0
+    alt_pos = 0
     for move in re.findall(r'[^A-Z]*[A-Z]', cigar):
+      print move
       match = re.search(r'^(\d+)([MIDSHPN])$', move)
       if match:
-        length = match.group(1)
-        type = match.group(2)
+        length = int(match.group(1))
+        op = match.group(2)
       else:
         match = re.search(r'^([MIDSHPN])$', move)
         if match:
           length = 1
-          type = match.group(1)
+          op = match.group(1)
         else:
           fail("Error: CIGAR contains movement in unrecognized format.\n"
             +"CIGAR: "+cigar+"\tmovement: "+move)
-      print type+" "+str(length)
+      if op == 'M':
+        ref_pos += length
+        alt_pos += length
+      elif op == 'I':
+        print "insertion at "+str(ref_pos)
+        alt_pos += length
+      elif op == 'D':
+        print "deletion from "+str(ref_pos)+" to "+str(ref_pos+length)
+        ref_pos += length
+      elif op == 'N':
+        print "N from "+str(ref_pos)+" to "+str(ref_pos+length)
+        ref_pos += length
+      elif op == 'S':
+        alt_pos += length
+      elif op == 'H':
+        pass
+      elif op == 'P':
+        pass
+
 
 
 def fail(message):
