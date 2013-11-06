@@ -95,10 +95,12 @@ def parse_cigar(cigar, seq, pos):
       alt_pos += length
     elif op == 'I':
       # ref_pos-1 is the (1-based) base to the left of the insertion
+      # if ref_pos-1 > 0 and ref_pos < ref_end:
       print ("insertion after  "+str(ref_pos-1)+": "+seq[alt_pos-4:alt_pos]+"{"
         +seq[alt_pos:alt_pos+length]+"}"+seq[alt_pos+length:alt_pos+length+4])
       alt_pos += length
     elif op == 'D':
+      # if ref_pos-1 > 0 and ref_pos+length < ref_end:
       print ("deletion between "+str(ref_pos-1)+" and "+str(ref_pos+length)+": "
         +seq[alt_pos-4:alt_pos]+"["+("-"*length)+"]"
         +seq[alt_pos:alt_pos+4])
