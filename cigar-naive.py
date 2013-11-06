@@ -8,10 +8,12 @@ import os
 import sys
 from optparse import OptionParser
 
-OPT_DEFAULTS = {'str':'', 'int':0, 'float':0.0, 'test':False}
 USAGE = "USAGE: %prog [options] file.sam"
-DESCRIPTION = """Give "-" as the input filename to read from stdin."""
+DESCRIPTION = """A quick-and-dirty script to parse the CIGAR strings in a SAM
+file.
+Give "-" as the input filename to read from stdin."""
 EPILOG = """"""
+OPT_DEFAULTS = {'str':'', 'int':0, 'float':0.0, 'test_output':False}
 
 TESTS = [
   '251M',       # M
@@ -32,14 +34,14 @@ def main():
     default=OPT_DEFAULTS.get('int'), help='')
   parser.add_option('-f', '--float', dest='float', type='float',
     default=OPT_DEFAULTS.get('float'), help='')
-  parser.add_option('-t', '--test', dest='test', action='store_const',
-    const=not OPT_DEFAULTS.get('test'), default=OPT_DEFAULTS.get('test'),
-    help='Run tests.')
+  parser.add_option('-T', '--test-output', dest='test_output',
+    action='store_const', const=not OPT_DEFAULTS.get('test_output'),
+    default=OPT_DEFAULTS.get('test_output'),
+    help='Generate original test output format on the data.')
 
   (options, arguments) = parser.parse_args()
 
-  if options.test:
-    fail("not available right now")
+  test_output = options.test_output
 
   if not arguments:
     parser.print_help()
@@ -66,14 +68,15 @@ def main():
     cigar = fields[5]
     seq   = fields[9]
     pos   = int(fields[3])
-    print "\n"+name+"\n"+str(pos)+": "+cigar
-    parse_cigar(cigar, seq, pos)
+    if test_output:
+      print "\n"+name+"\n"+str(pos)+": "+cigar
+    parse_cigar(cigar, seq, pos, test_output)
 
   if infilehandle is not sys.stdin:
     infilehandle.close()
 
 
-def parse_cigar(cigar, seq, pos):
+def parse_cigar(cigar, seq, pos, test_output):
 
   ref_pos = pos
   alt_pos = 0
@@ -96,17 +99,20 @@ def parse_cigar(cigar, seq, pos):
     elif op == 'I':
       # ref_pos-1 is the (1-based) base to the left of the insertion
       # if ref_pos-1 > 0 and ref_pos < ref_end:
-      print ("insertion after  "+str(ref_pos-1)+": "+seq[alt_pos-4:alt_pos]+"{"
-        +seq[alt_pos:alt_pos+length]+"}"+seq[alt_pos+length:alt_pos+length+4])
+      if test_output:
+        print ("insertion after  "+str(ref_pos-1)+": "+seq[alt_pos-4:alt_pos]+"{"
+          +seq[alt_pos:alt_pos+length]+"}"+seq[alt_pos+length:alt_pos+length+4])
       alt_pos += length
     elif op == 'D':
       # if ref_pos-1 > 0 and ref_pos+length < ref_end:
-      print ("deletion between "+str(ref_pos-1)+" and "+str(ref_pos+length)+": "
-        +seq[alt_pos-4:alt_pos]+"["+("-"*length)+"]"
-        +seq[alt_pos:alt_pos+4])
+      if test_output:
+        print ("deletion between "+str(ref_pos-1)+" and "+str(ref_pos+length)+": "
+          +seq[alt_pos-4:alt_pos]+"["+("-"*length)+"]"
+          +seq[alt_pos:alt_pos+4])
       ref_pos += length
     elif op == 'N':
-      print "N from "+str(ref_pos)+" to "+str(ref_pos+length)
+      if test_output:
+        print "N from "+str(ref_pos)+" to "+str(ref_pos+length)
       ref_pos += length
     elif op == 'S':
       alt_pos += length
