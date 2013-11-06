@@ -19,6 +19,7 @@ Output format is tab delimited:
   -s: Print a full SAM file as output instead. Instead of printing the normal 3
       columns for each pattern, instead it will print a read with that pattern
       (still one per unique pattern, and in order of abundance).
+  -H: Don't print SAM headers if using SAM output (ignored otherwise).
   -n: The maximum number of patterns (or reads) to print
   -r: Which read to pick as the example for the pattern. The default is 1,
       meaning it will pick the first read it encounters with that pattern. 2
@@ -46,22 +47,25 @@ for my $arg (@ARGV) {
   }
 }
 
-my $which_read = 1;
-my $maximum    = 0;
-my $help       = 0;
-my $sam        = 0;
+my $skip_header = 0;
+my $which_read  = 1;
+my $maximum     = 0;
+my $help        = 0;
+my $sam         = 0;
 
 my %opt;
-getopts('n:r:sh', \%opt);
-$which_read = $opt{r} if (defined($opt{r}));
-$maximum    = $opt{n} if (defined($opt{n}));
-$help       = $opt{h} if (defined($opt{h}));
-$sam        = $opt{s} if (defined($opt{s}));
+getopts('n:r:shH', \%opt);
+$skip_header = $opt{H} if (defined($opt{H}));
+$which_read  = $opt{r} if (defined($opt{r}));
+$maximum     = $opt{n} if (defined($opt{n}));
+$help        = $opt{h} if (defined($opt{h}));
+$sam         = $opt{s} if (defined($opt{s}));
 
 # print "-s: $sam\n";
 # print "-h: $help\n";
 # print "-n: $maximum\n";
 # print "-r: $which_read\n";
+# print "-H: $skip_header\n";
 # exit();
 
 if ($help) {
@@ -109,9 +113,9 @@ my @patterns_sorted =
   map  { [ $_, $patterns{$_} ] }
   @pattern_list;
 
-print "";
-print "";
-if ($sam) {
+
+
+if ($sam && ! $skip_header) {
   print $header;
 }
 my $printed = 0;
