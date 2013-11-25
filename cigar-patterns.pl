@@ -16,10 +16,12 @@ removed, leaving the sequence of operations without regard to their lengths.
 Output format is tab delimited:
   Columns:  OCCURRENCES  PATTERN  EXAMPLE
   e.g.:     10946        MIM      4M2I245M
-  -s: Print a full SAM file as output instead. Instead of printing the normal 3
+  -S: Print a full SAM file as output instead. Instead of printing the normal 3
       columns for each pattern, instead it will print a read with that pattern
       (still one per unique pattern, and in order of abundance).
   -H: Don't print SAM headers if using SAM output (ignored otherwise).
+  -s: Simple output: just translate each read's CIGAR into a pattern and print
+      that (one line per read).
   -n: The maximum number of patterns (or reads) to print
   -r: Which read to pick as the example for the pattern. The default is 1,
       meaning it will pick the first read it encounters with that pattern. 2
@@ -50,16 +52,18 @@ for my $arg (@ARGV) {
 my $skip_header = 0;
 my $which_read  = 1;
 my $maximum     = 0;
+my $simple      = 0;
 my $help        = 0;
 my $sam         = 0;
 
 my %opt;
-getopts('n:r:shH', \%opt);
+getopts('n:r:sShH', \%opt);
 $skip_header = $opt{H} if (defined($opt{H}));
 $which_read  = $opt{r} if (defined($opt{r}));
 $maximum     = $opt{n} if (defined($opt{n}));
+$simple      = $opt{s} if (defined($opt{s}));
 $help        = $opt{h} if (defined($opt{h}));
-$sam         = $opt{s} if (defined($opt{s}));
+$sam         = $opt{S} if (defined($opt{S}));
 
 # print "-s: $sam\n";
 # print "-h: $help\n";
@@ -86,7 +90,8 @@ my %patterns = ();
 my $header = "";
 while (<$infilehandle>) {
   my $line = $_;
-  if (substr($line, 0, 1) eq '@' && $line =~ m/^@\w\w\t/) {
+  # header lines
+  if (substr($line, 0, 1) eq '@' && $line =~ m/^@[A-Z]{2}\t[A-Z]{2}/) {
     $header .= $line;
     next;
   }
@@ -94,6 +99,10 @@ while (<$infilehandle>) {
   my $cigar = $fields[5];
   my $pattern = $cigar;
   $pattern =~ s/\d//g;
+  if ($simple) {
+    print "$pattern\n";
+    next;
+  }
   if (! $patterns{$pattern} || $patterns{$pattern} < $which_read) {
     if ($sam) {
       $reads{$pattern} = $line;
@@ -103,6 +112,10 @@ while (<$infilehandle>) {
     # print "$cigar:\t$pattern\n";
   }
   $patterns{$pattern}++;
+}
+
+if ($simple) {
+  exit(0);
 }
 
 # sort patterns by frequency of occurrence
