@@ -9,6 +9,7 @@ my $script_name = basename($0);
 my $USAGE = <<USAGE;
 USAGE:
   \$ $script_name [options] reads.sam
+  \$ samtools view -Sh reads.bam | $script_name [options] -
 Prints each unique CIGAR "pattern", from most to least common, with totals and
 example full CIGAR strings. A "pattern" is a CIGAR string with all digits
 removed, leaving the sequence of operations without regard to their lengths.
