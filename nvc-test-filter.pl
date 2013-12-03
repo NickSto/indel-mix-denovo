@@ -9,40 +9,32 @@ if (@ARGV && $ARGV[0] =~ m/^-?-h/) {
 USAGE:
   \$ $script_name naive-variant-caller.vcf
   \$ cat naive-variant-caller.vcf | $script_name
-Finds all the types of variants output in the sample columns of the Naive
-Variant Caller and prints them, sorted by frequency of occurrence (not read
-count).
+For testing nvc-filter.py. Does a simple parsing of an input VCF and prints a
+summary of the variants in the sample columns of each line.
 USAGE
   exit(0);
 }
 
-my %types;
 while (<>) {
   chomp();
   my $line = $_;
   next if (substr($line, 0, 1) eq '#');
   my @columns = split("\t", $line);
   next if (@columns < 10);
+  my $coverage = 0;
+  my %variants;
   for my $column (@columns[9..$#columns]) {
     my @fields = split(':', $column);
     next if (@fields < 4);
     my @variants = split(',', $fields[3]);
     for my $variant (@variants) {
       if ($variant =~ m/^[+-]?([^=]+)=(\d+)/) {
-        $types{$1} += $2;
+        $variants{$1} += $2;
+        $coverage += $2;
       }
     }
   }
-}
-
-# sort patterns by frequency of occurrence
-my @type_list = keys(%types);
-my @types_sorted =
-  map  { $_->[0] }
-  sort { $b->[1] <=> $a->[1] }
-  map  { [ $_, $types{$_} ] }
-  @type_list;
-
-for my $type (@types_sorted) {
-  print "$types{$type}\t$type\n";
+  print "$columns[0] $columns[1]:\t";
+  my @vartypes = sort(keys %variants);
+  print "@vartypes\n";
 }
