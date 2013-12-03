@@ -6,8 +6,9 @@ from optparse import OptionParser
 from bioreaders import VCFReader
 from bioreaders import VCFSite
 
-OPT_DEFAULTS = {'output':'-', 'freq_thres':0.0, 'minor':False, 'strand':False,
-  'keep_types':'', 'rm_types':'', 'compliant':False, 'split_file':False}
+OPT_DEFAULTS = {'output':'-', 'frequency':0.0, 'coverage':0, 'minor':False,
+  'strand':False, 'keep_types':'', 'rm_types':'', 'compliant':False,
+  'split_file':False}
 USAGE = """USAGE: %prog [options] nvc-results.vcf -o filtered-variants.vcf
        cat nvc-results.vcf | %prog [options] - > filtered-variants.vcf"""
 DESCRIPTION = """Filters the output of the Naive Variant Caller, removing
@@ -24,10 +25,14 @@ def main():
   parser.add_option('-o', '--output', dest='output',
     default=OPT_DEFAULTS.get('output'), help="""Write output to the given file
 instead of stdout.""")
-  parser.add_option('-f', '--freq_thres', dest='freq_thres', type='float',
-    default=OPT_DEFAULTS.get('freq_thres'),
+  parser.add_option('-f', '--frequency', dest='frequency', type='float',
+    default=OPT_DEFAULTS.get('frequency'),
     help="""Frequency threshold. Variants less abundant than this will be
 filtered out. Given in %. Default: %default%""")
+  parser.add_option('-c', '--coverage', dest='coverage', type='int',
+    default=OPT_DEFAULTS.get('coverage'),
+    help="""Coverage threshold. Sites with fewer total reads than this will be
+filtered out. Default: %default%""")
   parser.add_option('-k', '--keep-types', dest='keep_types',
     default=OPT_DEFAULTS.get('keep_types'), help="""Preserve these types of
 variants always, regardless of filters. Give a string of letters, e.g. "SID" to
@@ -45,7 +50,7 @@ not""")
     const=not OPT_DEFAULTS.get('strand'), default=OPT_DEFAULTS.get('strand'),
     help="""***NOT YET IMPLEMENTED*** Attempt to filter out indels which show
 strand bias.""")
-  parser.add_option('-c', '--compliant', dest='compliant',
+  parser.add_option('-C', '--compliant', dest='compliant',
     action='store_const', const=not OPT_DEFAULTS.get('compliant'),
     default=OPT_DEFAULTS.get('compliant'),
     help="""***NOT YET IMPLEMENTED*** Produce standard-compliant VCF output.
@@ -60,7 +65,7 @@ sample in the input.""")
   (options, arguments) = parser.parse_args()
 
   stranded = options.strand
-  freq_thres = options.freq_thres
+  frequency = options.frequency
 
   if not arguments:
     parser.print_help()
@@ -81,7 +86,7 @@ sample in the input.""")
   else:
     outfile = open(options.output, 'w')
 
-  #TODO: first implement it all with only one filter: freq_thres
+  #TODO: first implement it all with only one filter: frequency
   vcfreader = VCFReader(infile)
   header = vcfreader.get_header()
   try:
@@ -98,21 +103,25 @@ sample in the input.""")
       varcount = varcounts[sample_name]
       coverage = coverages[sample_name]
       for variant in varcount:
-        if varcount[variant]/coverage * 100 > freq_thres:
+        if varcount[variant]/coverage * 100 > frequency:
           passed.add(variant)
 
-    passed_alts = []
+    passed_alts = set()
     for variant in passed:
-      passed_alts.append(site.variant_to_alt(variant))
+      passed_alts.add(site.variant_to_alt(variant))
     alts_old = site.get_alt()
     alts_new = []
-    #TODO: add reference allele if it passes thresholds
-    # - might require making alts_new by adding passed_alts instead of
-    #   subtracting from alts_old
     #TODO: see if VCF allows the REF allele in the ALT column
+    # want alts_new to be in same order as original, with additions on the end
     for alt in alts_old:
       if alt in passed_alts:
         alts_new.append(alt)
+        passed_alts.discard(alt)
+    for alt in passed_alts:
+      if options.compliant and alt == site.get_ref():
+        #TODO: add INFO flag
+        continue
+      alts_new.append(alt)
 
     #TODO: recompute INFO and genotype values to be consistent with new ALTs
 
