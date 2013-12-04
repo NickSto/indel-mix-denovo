@@ -8,7 +8,7 @@ from optparse import OptionParser
 from bioreaders import VCFReader
 from bioreaders import VCFSite
 
-OPT_DEFAULTS = {'output':'-', 'frequency':0.0, 'coverage':0, 'minor':False,
+OPT_DEFAULTS = {'output':'-', 'freq_thres':0.0, 'covg_thres':0, 'minor':False,
   'strand':False, 'keep_types':'', 'rm_types':'', 'compliant':False,
   'split_file':False}
 USAGE = """USAGE: %prog [options] nvc-results.vcf -o filtered-variants.vcf
@@ -27,12 +27,12 @@ def main():
   parser.add_option('-o', '--output', dest='output',
     default=OPT_DEFAULTS.get('output'), help="""Write output to the given file
 instead of stdout.""")
-  parser.add_option('-f', '--frequency', dest='frequency', type='float',
-    default=OPT_DEFAULTS.get('frequency'),
+  parser.add_option('-f', '--freq-thres', dest='freq_thres', type='float',
+    default=OPT_DEFAULTS.get('freq_thres'),
     help="""Frequency threshold. Variants less abundant than this will be
 filtered out. Given in %. Default: %default%""")
-  parser.add_option('-c', '--coverage', dest='coverage', type='int',
-    default=OPT_DEFAULTS.get('coverage'),
+  parser.add_option('-c', '--covg-thres', dest='covg_thres', type='int',
+    default=OPT_DEFAULTS.get('covg_thres'),
     help="""Coverage threshold. Sites with fewer total reads than this will be
 filtered out. Default: %default%""")
   parser.add_option('-k', '--keep-types', dest='keep_types',
@@ -45,9 +45,9 @@ variants always, regardless of filters. Use same notation as for keep-types.
 Default: "%default" """)
   parser.add_option('-m', '--minor', dest='minor', action='store_const',
     const=not OPT_DEFAULTS.get('minor'), default=OPT_DEFAULTS.get('minor'),
-    help="""Use this to find minority variants only. When selected, variants
-that are the majority will be filtered (whether the same as the reference or
-not""")
+    help="""***NOT YET IMPLEMENTED*** Use this to find minority variants only.
+When selected, variants that are the majority will be filtered (whether the
+same as the reference or not""")
   parser.add_option('-s', '--strand', dest='strand', action='store_const',
     const=not OPT_DEFAULTS.get('strand'), default=OPT_DEFAULTS.get('strand'),
     help="""***NOT YET IMPLEMENTED*** Attempt to filter out indels which show
@@ -61,15 +61,19 @@ flag instead of putting it in the ALT column.""")
   parser.add_option('-S', '--split-file', dest='split_file',
     action='store_const', const=not OPT_DEFAULTS.get('split_file'),
     default=OPT_DEFAULTS.get('split_file'),
-    help="""***NOT YET IMPLEMENTED*** Create an output VCF file for every
-sample in the input.""")
+    help="""Create an output VCF file for every sample in the input. Currently,
+this leaves some fields in an inconsistent state. The ones that will be correct
+are CHROM, POS, REF, ALT, and the sample genotype columns.""")
 
   (options, arguments) = parser.parse_args()
 
   output = options.output
   stranded = options.strand
-  frequency = options.frequency
+  covg_thres = options.covg_thres
+  freq_thres = options.freq_thres
   split_file = options.split_file
+  keep_types = options.keep_types
+  rm_types = options.rm_types
 
   if not arguments:
     parser.print_help()
@@ -123,17 +127,29 @@ sample in the input.""")
     for (site, outfile) in zip(sites, outfiles):
       varcounts = site.get_varcounts(stranded=False)
       coverages = site.get_coverages()
-      passed = set()
+      passed_vars = set()
 
       for sample_name in varcounts:
         varcount = varcounts[sample_name]
         coverage = coverages[sample_name]
         for variant in varcount:
-          if varcount[variant]/coverage * 100 > frequency:
-            passed.add(variant)
+          # frequency threshold
+          passed = varcount[variant]/coverage * 100 > freq_thres
+          # coverage threshold
+          passed = passed and coverage >= covg_thres
+          # always keep types
+          vartype = get_vartype(variant)
+          if vartype in keep_types:
+            passed = True
+          # always remove types
+          if vartype in rm_types:
+            passed = False
+          # final verdict
+          if passed:
+            passed_vars.add(variant)
 
       passed_alts = set()
-      for variant in passed:
+      for variant in passed_vars:
         passed_alts.add(site.variant_to_alt(variant))
       alts_old = site.get_alt()
       alts_new = []
@@ -207,6 +223,17 @@ def get_unique_filename(base, ext):
     if tries >= 1000:
       fail("Error finding unused filename like "+proposed)
   return proposed
+
+
+def get_vartype(variant):
+  """Return 'S', 'I', or 'D' based on whether it's an SNV, insertion or
+  deletion, respectively."""
+  if len(variant) == 1:
+    return 'S'
+  elif re.match(r'^d\d+$', variant):
+    return 'D'
+  elif len(variant) > 1:
+    return 'I'
 
 
 def fail(message):
