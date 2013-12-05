@@ -4,13 +4,16 @@ import os
 import re
 import sys
 import errno
+from collections import deque
 from optparse import OptionParser
 from bioreaders import VCFReader
 from bioreaders import VCFSite
 
+# Command line options
+
 OPT_DEFAULTS = {'output':'-', 'freq_thres':0.0, 'covg_thres':0, 'minor':False,
   'strand':False, 'keep_types':'', 'rm_types':'', 'compliant':False,
-  'split_file':False}
+  'split_file':False, 'drop_end_len':0, 'ends':''}
 USAGE = """USAGE: %prog [options] nvc-results.vcf -o filtered-variants.vcf
        cat nvc-results.vcf | %prog [options] - > filtered-variants.vcf"""
 DESCRIPTION = """Filters the output of the Naive Variant Caller, removing
@@ -52,34 +55,64 @@ same as the reference or not""")
     const=not OPT_DEFAULTS.get('strand'), default=OPT_DEFAULTS.get('strand'),
     help="""***NOT YET IMPLEMENTED*** Attempt to filter out indels which show
 strand bias.""")
+  parser.add_option('-S', '--split-file', dest='split_file',
+    action='store_const', const=not OPT_DEFAULTS.get('split_file'),
+    default=OPT_DEFAULTS.get('split_file'),
+    help="""Create an output VCF file for every sample in the input. Currently,
+this leaves some fields in an inconsistent state. The ones that will be correct
+are CHROM, POS, REF, ALT, and the variant counts. The names for the new files
+will be based on the either the output filename, the input filename, or the
+name of the first sample, preferred in that order.""")
   parser.add_option('-C', '--compliant', dest='compliant',
     action='store_const', const=not OPT_DEFAULTS.get('compliant'),
     default=OPT_DEFAULTS.get('compliant'),
     help="""***NOT YET IMPLEMENTED*** Produce standard-compliant VCF output.
 Currently this means the presence of the REF allele is indicated with an INFO
 flag instead of putting it in the ALT column.""")
-  parser.add_option('-S', '--split-file', dest='split_file',
-    action='store_const', const=not OPT_DEFAULTS.get('split_file'),
-    default=OPT_DEFAULTS.get('split_file'),
-    help="""Create an output VCF file for every sample in the input. Currently,
-this leaves some fields in an inconsistent state. The ones that will be correct
-are CHROM, POS, REF, ALT, and the sample genotype columns.""")
+  parser.add_option('-e', '--ends', dest='ends',
+    default=OPT_DEFAULTS.get('ends'),
+    help="""Specify the start and end coordinates of the reference. Give a
+comma-separated pair of numbers like "1,23000". Leave one coordinate
+unspecified by omitting it, but leaving the comma, like "100," """)
+  parser.add_option('-E', '--drop-end-len', dest='drop_end_len', type='int',
+    default=OPT_DEFAULTS.get('drop_end_len'),
+    help="""Exclude (filter out) sites this many bases from either end. If no
+--ends are given, """)
 
   (options, arguments) = parser.parse_args()
 
+  ends = options.ends
   output = options.output
-  stranded = options.strand
+  strand = options.strand
+  rm_types = options.rm_types
+  keep_types = options.keep_types
   covg_thres = options.covg_thres
   freq_thres = options.freq_thres
   split_file = options.split_file
-  keep_types = options.keep_types
-  rm_types = options.rm_types
+  drop_end_len = options.drop_end_len
+
+  start = None
+  end = None
+  if ',' in ends:
+    (start_str, end_str) = ends.split(',')
+    if start_str:
+      try:
+        start = int(start_str)
+      except ValueError:
+        fail("Error: Bad --ends value \""+start_str+"\"")
+    if end_str:
+      try:
+        end = int(end_str)
+      except ValueError:
+        fail("Error: Bad --ends value \""+end_str+"\"")
 
   if not arguments:
     parser.print_help()
     fail("Please provide an input VCF file or \"-\" for stdin.")
   else:
     vcfpath = arguments[0]
+
+  # Setup I/O
 
   global infile
   if vcfpath == '-':
@@ -90,7 +123,7 @@ are CHROM, POS, REF, ALT, and the sample genotype columns.""")
     else:
       fail("Error: Input VCF file "+vcfpath+" not found.")
 
-  if output == '-':
+  if output == '-' and not split_file:
     outfile = sys.stdout
   else:
     outfile = open(output, 'w')
@@ -105,7 +138,7 @@ are CHROM, POS, REF, ALT, and the sample genotype columns.""")
     (outfile_base, outfile_ext) = get_outfile_base(output, vcfpath)
     outfiles = get_outfiles(outfile_base, sample_names, outfile_ext)
     headers = []
-    column_header_pre = '\t'.join(column_header.split('\t')[:8])
+    column_header_pre = '\t'.join(column_header.split('\t')[:9])
     for sample_name in sample_names:
       headers.append(meta_header+column_header_pre+'\t'+sample_name+'\n')
   else:
@@ -118,17 +151,35 @@ are CHROM, POS, REF, ALT, and the sample genotype columns.""")
     except IOError as ioerror:
       handle_broken_pipe(ioerror)
 
+  buffers = []
+  for file_ in outfiles:
+    buffers.append(deque())
+
+  # Main loop: parse VCF line-by-line
+
+  first_pos = last_pos = 0
+  if start is not None:
+    first_pos = start
   for site in vcfreader:
+    pos = site.get_pos()
+    if not first_pos:
+      first_pos = pos
+    if pos - first_pos < drop_end_len:
+      continue
+    last_pos = pos
+
     if split_file:
       sites = site.split()
     else:
       sites = [site]
 
-    for (site, outfile) in zip(sites, outfiles):
+    # sys.stderr.write(str(len(site.get_varcounts()))+"\t")
+    for (site, buffer_, outfile) in zip(sites, buffers, outfiles):
       varcounts = site.get_varcounts(stranded=False)
       coverages = site.get_coverages()
       passed_vars = set()
 
+      # sys.stderr.write(str(site.get_pos())+":"+str(len(varcounts))+"\t")
       for sample_name in varcounts:
         varcount = varcounts[sample_name]
         coverage = coverages[sample_name]
@@ -168,8 +219,29 @@ are CHROM, POS, REF, ALT, and the sample genotype columns.""")
       if alts_new:
         site.set_alt(alts_new)
         #TODO: recompute INFO and genotype values to be consistent with new ALTs
+        #TODO: revise the REF to the shortest sequence necessary to represent
+        #      the new set of ALTs
+        line = str(site)+'\n'
+        # sys.stderr.write(sample_name+" ")
+        buffer_.append((line, pos))
+        while len(buffer_) > drop_end_len:
+          (line, pos) = buffer_.popleft()
+          try:
+            # sys.stderr.write('printing')
+            outfile.write(line)
+          except IOError as ioerror:
+            handle_broken_pipe(ioerror)
+        # sys.stderr.write("\t")
+    # sys.stderr.write("\n")
+
+  # flush buffers
+  if end is not None:
+    last_pos = end
+  for (buffer_, outfile) in zip(buffers, outfiles):
+    for (line, pos) in buffer_:
+      if last_pos - pos > drop_end_len:
         try:
-          outfile.write(str(site)+'\n')
+          outfile.write(line)
         except IOError as ioerror:
           handle_broken_pipe(ioerror)
 

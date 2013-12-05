@@ -10,8 +10,9 @@ my $USAGE = <<USAGE;
 USAGE:
   \$ $script_name [options] naive-variant-caller.vcf
   \$ cat naive-variant-caller.vcf | $script_name [options]
-For testing nvc-filter.py. Does a simple parsing of an input VCF and prints a
-summary of the variants in the sample columns of each line.
+For summarizing the output of the Naive Variant Caller (or nvc-filter.py). Does
+a simple parsing of an input VCF and prints a summary of the variants in the
+sample columns of each line (Note: it combines all samples on each line).
   -r: Print the reference allele from the REF column
   -c: Give read counts for each variant
   -f: Give frequency percentages for each variant
