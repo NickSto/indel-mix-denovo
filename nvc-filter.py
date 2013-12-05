@@ -123,9 +123,9 @@ unspecified by omitting it, but leaving the comma, like "100," """)
     else:
       fail("Error: Input VCF file "+vcfpath+" not found.")
 
-  if output == '-' and not split_file:
+  if output == '-':
     outfile = sys.stdout
-  else:
+  elif not split_file:
     outfile = open(output, 'w')
 
   vcfreader = VCFReader(infile)
