@@ -18,6 +18,7 @@ sample columns of each line (Note: it combines all samples on each line).
   -f: Give frequency percentages for each variant
   -a: Order variants alphabetically instead of by frequency, for consistency
   -p: Give more precise frequencies (two decimal points instead of one)
+  -i: Only print indel variants
   -l: Limit the number of variants printed to this number
   -m: Print a different, tab-delimited format: the chromosome, the location,
       the top variant (major allele), its frequency, the #2 variant (minor
@@ -30,6 +31,7 @@ my $freqs = 0;
 my $alpha = 0;
 my $counts = 0;
 my $majmin = 0;
+my $indels = 0;
 my $precise = 0;
 my $limit = $LIMIT_DEFAULT;
 my $last_was_limit = 0;
@@ -46,28 +48,25 @@ for my $arg (@ARGV) {
     $opt = 1;
   }
   if ($arg =~ m/^-\w*r\w*$/) {
-    $refs = 1;
-    $opt = 1;
+    $refs = 1; $opt = 1;
   }
   if ($arg =~ m/^-\w*f\w*$/) {
-    $freqs = 1;
-    $opt = 1;
-  }
-  if ($arg =~ m/^-\w*c\w*$/) {
-    $counts = 1;
-    $opt = 1;
-  }
-  if ($arg =~ m/^-\w*p\w*$/) {
-    $precise = 1;
-    $opt = 1;
-  }
-  if ($arg =~ m/^-\w*m\w*$/) {
-    $majmin = 1;
-    $opt = 1;
+    $freqs = 1; $opt = 1;
   }
   if ($arg =~ m/^-\w*a\w*$/) {
-    $alpha = 1;
-    $opt = 1;
+    $alpha = 1; $opt = 1;
+  }
+  if ($arg =~ m/^-\w*c\w*$/) {
+    $counts = 1; $opt = 1;
+  }
+  if ($arg =~ m/^-\w*p\w*$/) {
+    $precise = 1; $opt = 1;
+  }
+  if ($arg =~ m/^-\w*m\w*$/) {
+    $majmin = 1; $opt = 1;
+  }
+  if ($arg =~ m/^-\w*i\w*$/) {
+    $indels = 1; $opt = 1;
   }
   if ($arg =~ m/^-\w*l\w*$/) {
     $last_was_limit = 1;
@@ -126,6 +125,7 @@ while (<>) {
   }
   my $varcount = 0;
   for my $variant (@vartypes) {
+    next if ($indels && length($variant) == 1);
     print $variant;
     if ($counts && ! $majmin) {
       print ":$variants{$variant}";
