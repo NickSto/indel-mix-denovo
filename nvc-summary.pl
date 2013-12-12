@@ -18,7 +18,7 @@ sample columns of each line (Note: it combines all samples on each line).
   -f: Give frequency percentages for each variant
   -a: Order variants alphabetically instead of by frequency, for consistency
   -p: Give more precise frequencies (two decimal points instead of one)
-  -i: Only print indel variants
+  -i, -d: Print only certain variants: -i for insertions, -d for deletions
   -l: Limit the number of variants printed to this number
   -F: Print the filename as the last column.
   -m: Print a different, tab-delimited format: the chromosome, the location,
@@ -27,12 +27,13 @@ sample columns of each line (Note: it combines all samples on each line).
         chrM    12417   C       94.94   d1      4.53
 USAGE
 
+my $ins = 0;
+my $del = 0;
 my $refs = 0;
 my $freqs = 0;
 my $alpha = 0;
 my $counts = 0;
 my $majmin = 0;
-my $indels = 0;
 my $precise = 0;
 my $filename = 0;
 my $limit = $LIMIT_DEFAULT;
@@ -68,7 +69,10 @@ for my $arg (@ARGV) {
     $majmin = 1; $opt = 1;
   }
   if ($arg =~ m/^-\w*i\w*$/) {
-    $indels = 1; $opt = 1;
+    $ins = 1; $opt = 1;
+  }
+  if ($arg =~ m/^-\w*d\w*$/) {
+    $del = 1; $opt = 1;
   }
   if ($arg =~ m/^-\w*F\w*$/) {
     $filename = 1; $opt = 1;
@@ -110,15 +114,16 @@ while (<>) {
       }
     }
   }
-  # print chrom, coordinate, and maybe ref allele
+  my $buffer = "";
+  # print (to buffer) chrom, coordinate, and maybe ref allele
   if ($majmin) {
-    print "$columns[0]\t$columns[1]\t"
+    $buffer .= "$columns[0]\t$columns[1]\t";
   } else {
     print "$columns[0] $columns[1]";
     if ($refs) {
-      print " $ref:\t";
+      $buffer .= " $ref:\t";
     } else {
-      print ": \t";
+      $buffer .= ": \t";
     }
   }
   # print variants
@@ -130,36 +135,44 @@ while (<>) {
   }
   my $varcount = 0;
   for my $variant (@vartypes) {
-    next if ($indels && length($variant) == 1);
-    print $variant;
+    if ($ins || $del) {
+      my $print = 0;
+      $print = 1 if ($ins && $variant =~ m/^[GATCN][GATCN]+$/i);
+      $print = 1 if ($del && $variant =~ m/^d\d+$/i);
+      next unless ($print);
+    }
+    $buffer .= $variant;
     if ($counts && ! $majmin) {
-      print ":$variants{$variant}";
+      $buffer .= ":$variants{$variant}";
     }
     if ($freqs || $majmin) {
       my $percent = 100*$variants{$variant}/$coverage;
       my $format = "%.1f";
       $format = "%.2f" if ($precise);
       if ($majmin) {
-        printf("\t".$format, $percent);
+        $buffer .= sprintf("\t".$format, $percent);
       } else {
-        print ":".sprintf($format, "$percent")."%";
+        $buffer .= ":".sprintf($format, "$percent")."%";
       }
     }
-    print "\t";
+    $buffer .= "\t";
     $varcount++;
     if ($varcount >= $limit) {
       last;
     }
   }
-  # always print a constant number of columns, even empty ones
-  while ($varcount < $limit) {
-    print "\t\t";
-    $varcount++;
+  if ($varcount) {
+    print $buffer;
+    # always print a constant number of columns, even empty ones
+    while ($varcount < $limit) {
+      print "\t\t";
+      $varcount++;
+    }
+    if ($filename) {
+      print "$ARGV\t";
+    }
+    print "\n";
   }
-  if ($filename) {
-    print "$ARGV\t";
-  }
-  print "\n";
 }
 
 # sorts keys by their associated values, in descending order
