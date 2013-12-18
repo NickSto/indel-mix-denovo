@@ -5,7 +5,7 @@ nvc-filter.py can use the statistics as a filter."""
 import bamslicer
 import sys
 import os
-from optparse import OptionParser
+import optparse
 
 OPT_DEFAULTS = {'variants':'', 'vcf':'', 'output_bam':'', 'all':False,
   'opposing':False, 'containing':False}
@@ -17,11 +17,11 @@ EPILOG = """"""
 
 def main():
 
-  parser = OptionParser(usage=USAGE, description=DESCRIPTION, epilog=EPILOG)
+  parser = optparse.OptionParser(usage=USAGE, description=DESCRIPTION, epilog=EPILOG)
 
   parser.add_option('-v', '--variants', dest='variants',
     default=OPT_DEFAULTS.get('variants'),
-    help="""Use these variants. Give a list, in the format
+    help="""Use these variants. Give a comma-separated list, in the format
 "chrom:pos-type[:alt]" e.g. "chr1:2345-D:2". "pos" is the 1-based coordinate
 of the SNV, or the base before the insertion or deletion. "type" is "S", "I", or
 "D", for SNV, insertion, or deletion. "alt" is optional, and specifies the
@@ -53,9 +53,69 @@ have the same start coordinates.""")
 
   (options, arguments) = parser.parse_args()
 
-  if not arguments:
+  if arguments:
+    #TODO: support multiple BAMs
+    bamfilepath = arguments[0]
+  else:
     parser.print_help()
-    fail("")
+    fail("Error: Please provide a BAM file and a list of variants.")
+
+  if options.vcf:
+    variants = variants_from_vcf(options.vcf)
+  elif options.variants:
+    variants = variants_from_str(options.variants)
+  else:
+    parser.print_help()
+    fail("Error: Please provide a list of variants in either a VCF file or a "
+      +"command line option.")
+
+  #TODO: make sure BAM is sorted
+  #TODO: take chrom in to account when sorting variants: use order in BAM header
+  variants.sort(key=lambda variant: variant['coord'])
+  variant_deque = collections.deque(variants)
+
+  for variant in variant_deque:
+    print variant
+
+
+
+
+def variants_from_str(variants_str):
+  """Parse the list of variants passed in from the command line.
+  Example list: "chrM:310-S,1:2345-D:2,pUC18:4210-I:GAT"
+  Will return: [
+    {'chrom':'chrM', 'coord':310, 'type':'S', 'alt':None},
+    {'chrom':'1', 'coord':2345, 'type':'D', 'alt':'2'},
+    {'chrom':'pUC18', 'coord':4210, 'type':'I', 'alt':'GAT'},
+  ]
+  """
+  variants = []
+  for variant_str in variants_str.split(','):
+    try:
+      (location, var_details) = variant_str.split('-')
+      (chrom, coord) = location.split(':')
+      coord = int(coord)
+    except ValueError:
+      fail('Error: Incorrect format in variants list: "'+variant_str+'"')
+    if ':' in var_details:
+      (vartype, alt) = var_details.split(':')
+      if not (vartype in 'SID' and valid_variant(vartype, alt)):
+        fail('Error: Incorrect format in variants list: "'+variant_str+'"')
+    else:
+      vartype = var_details
+      alt = None
+    variants.append({'chrom':chrom, 'coord':coord, 'type':vartype, 'alt':alt})
+  return variants
+
+#TODO
+def valid_variant(vartype, alt):
+  """Make sure the alt is the correct format, based on the vartype"""
+  return True
+
+#TODO
+def variants_from_vcf(vcffilename):
+  variants = []
+  return variants
 
 
 def fail(message):
