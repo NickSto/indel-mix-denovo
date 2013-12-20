@@ -7,6 +7,9 @@ import collections
 import sys
 import os
 
+NUM_FLAGS = 12
+DEFAULT_MAX_MAPQ = 40
+STAT_NAMES = ['flags', 'mapqs']
 
 """End uses of this library:
 
@@ -23,88 +26,14 @@ containing, or covering the variants, and statistics on those reads.
 
 """Design:
 
-Both uses will be inspecting one variant at a time, but in sequential order, in
-the same BAM file. Going through all the reads every time is a non-starter,
-especially for nvc-filter.py.
+This is a problem that really needs to take advantage of BAM indexing. The main
+issue is figuring out which reads overlap with each variant, and that's what
+the index's bins are made for.
 
-How about making an object that you add variants to, and it moves through the
-BAM file as you add them, discarding reads before the current variants?
+So for now, a totally naive implementation. It will have to go through the
+entire BAM file on each call. This makes it basically impossible to use by
+nvc-filter.py, which has to call it once for every variant it investigates.
 """
-
-class Variant(object):
-  """Simple representation of a variant, mainly to make it hashable.
-  Types for attributes: chrom = str, pos = int, type = str, alt = str
-  type should be one of 'S', 'I', or 'D' for SNV, insertion, or deletion.
-  alt is optional, and should be the alternate base for SNVs, the inserted
-  sequence for insertions (INCLUDING the preceding base, as in VCF), or the
-  length of the deletion."""
-
-  def __init__(self, chrom, pos, vartype, alt=None):
-    self.chrom = chrom
-    self.pos = pos
-    self.type = vartype
-    self.alt = alt
-
-  # representation as a tuple, for equality and hashing purposes
-  def __key(self):
-    return (self.chrom, self.pos, self.type, self.alt)
-
-  def __eq__(a, b):
-    return type(a) == type(b) and a.__key() == b.__key()
-
-  def __hash__(self):
-    return hash(self.__key())
-
-
-class BamVariants(object):
-  """Go through a list of Variants, building information on their presence in
-  a BAM file. The BAM file must be sorted, and the Variants must be added in
-  order (of their pos)."""
-
-  def __init__(self, bamfilepath):
-    #TODO: a check on whether the BAM file is sorted
-    self._bam_reader = Reader(bamfilepath)
-    self._read_buffer = collections.deque()
-    self._read_buffer_ends = collections.deque()
-    self._next_read
-    self._stats = {}
-    self._reads = {}
-    self._last_stats = {}
-    self._last_reads = []
-
-
-  def add_variant(self, variant):
-    """Add a variant
-    Variant format examples:
-    {'chrom':'chrM', 'coord':310, 'type':'S', 'alt':None}
-    {'chrom':'1', 'coord':2345, 'type':'D', 'alt':'2'}
-    {'chrom':'pUC18', 'coord':4210, 'type':'I', 'alt':'GAT'}
-    """
-
-    var_pos = variant.pos
-    done = False
-    while self._read_buffer:
-      read_end = self._read_buffer_ends[0]
-      if variant.pos < read.get_position():
-        # we're past this 
-        self._read_buffer.popleft()
-
-
-  def get_stats(self, variant):
-    return self._stats.get(variant, None)
-
-  def get_reads(self, variant):
-    return self._reads.get(variant, None)
-
-  def get_last_stats(self):
-    """Return the statistics of the last variant added"""
-    return self._last_stats
-
-  def get_last_reads(self, supporting=True, opposing=False):
-    """Return the reads associated with the last variant added"""
-    return self._last_reads
-
-
 
 
 def get_reads(bamfilepath, variants, supporting=True, opposing=False):
@@ -113,36 +42,98 @@ def get_reads(bamfilepath, variants, supporting=True, opposing=False):
   # The sorting of the BAM and variants list is crucial to keeping this from
   # taking fully quadratic time. It still is, really, but this way I effectively
   # only look at variants between the start and end of the current read.
-  #TODO: see about chromosome issues in order reads and variants
+  #TODO: see about chromosome issues in order of reads and variants
 
   bam_reader = Reader(bamfilepath)
-  variants_deque = collections.deque(variants)
+  
 
   reads = []
   for read in bam_reader:
-    read_pos   = read.get_position()
-    read_end   = read.get_end_position()
-    read_rname = read.get_reference_name()
-    # read_qname = read.get_read_name()
-    # read_cigar = read.get_sam_cigar()
+    read_pos    = read.get_position()
+    read_end    = read.get_end_position()
+    read_rname  = read.get_reference_name()
+    read_indels = read.get_indels()
 
-    popleft = 0
-    for variant in variants_deque:
+    #TODO: use deque for local variants by discarding variants we've moved past
+    #      and only adding ones to the end when needed
+    #current_variants = collections.deque()
+    for variant in variants:
       var_pos = variant['coord']
-      if var_pos < read_pos:
-        # drop this variant from the queue: we're at reads beyond it
-        popleft += 1
-      elif var_pos > read_end:
-        # finished: we're at variants beyond the current read
-        break
+      if not (read_pos <= var_pos <= read_end):
+        continue
       var_chrom = variant['chrom']
       if read_rname != var_chrom:
         continue
-      # now check if the read contains the variants that are left
+      if supporting and opposing:
+        reads.append(read)
+        break
+      # now check if the read supports the variant
+      var_type = variant['type']
+      supports = False
+      if var_type == 'I':
+        for (ins_pos, ins_len) in read_indels[0]:
+          if ins_pos == var_pos:
+            supports = True
+      elif var_type == 'D':
+        for (del_pos, del_len) in read_indels[1]:
+          if del_pos == var_pos:
+            supports = True
+      else:
+        raise Exception('Unsupported variant type "'+var_type+'"')
+      if (supporting and supports) or (opposing and not supports):
+        reads.append(read)
+        break
+
+  return reads
 
 
+def get_read_stats(reads, variant, stats_to_get=STAT_NAMES):
+  """Calculate a set of summary statistics for the set of reads.
+  Returns a dict. Descriptions of the keys and their values:
+    'flags':
+  The totals of how many reads have each flag set.
+  Format: a list, where flags[i] = the total number of reads that have the
+  flag 2**i set.
+    'mapqs':
+  The totals of how many reads have each MAPQ value.
+  Format: a list, where mapq[value] = the total number of reads that have a
+  MAPQ equal to "value". Note the list is 0-based, so MAPQ value 40 will be the
+  41st element in it.
+    'read_pos':
+  ***PLANNED*** The distribution of where the variant occurs along the length of
+  the reads
+    'flank_quals':
+  ***PLANNED*** The PHRED quality of the bases flanking the
+  variant
+    'nm_edits':
+  ***PLANNED*** NM tag edit distances.
+  """
+
+  stats = {}
+  stats['flags'] = [0] * NUM_FLAGS
+  stats['mapqs'] = [0] * (DEFAULT_MAX_MAPQ + 1)
+  for read in reads:
+
+    if 'flags' in stats_to_get:
+      set_flags = get_set_flags(read.get_flag())
+      for i in range(NUM_FLAGS):
+        if set_flags[i]:
+          stats['flags'][i]+=1
+
+    if 'mapqs' in stats_to_get:
+      read_mapq = read.get_mapq()
+      if read_mapq > len(stats['mapqs']) - 1:
+        stats['mapqs'].extend([0] * (read_mapq - len(stats['mapqs']) + 1))
+      stats['mapqs'][read_mapq]+=1
+
+  return stats
 
 
-
-
-
+def get_set_flags(flagint):
+  flagbin = ('{0:0'+str(NUM_FLAGS)+'b}').format(flagint)
+  i = 0
+  set_flags = [False] * NUM_FLAGS
+  for bit in reversed(flagbin):
+    set_flags[i] = bit == '1'
+    i+=1
+  return set_flags

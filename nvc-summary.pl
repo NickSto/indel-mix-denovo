@@ -1,4 +1,6 @@
 #!/usr/bin/env perl
+# Warning: This grew organically from a quick script and is a mess.
+# It's kept because it's useful, but needs a total rewrite.
 use warnings;
 use strict;
 use File::Basename;
@@ -27,6 +29,7 @@ sample columns of each line (Note: it combines all samples on each line).
         chrM    12417   C       94.94   d1      4.53
 USAGE
 
+# homegrown option system because getopt has problems
 my $ins = 0;
 my $del = 0;
 my $refs = 0;
