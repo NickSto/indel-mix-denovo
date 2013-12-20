@@ -62,8 +62,15 @@ def bamslicer_get_reads_and_stats(bamfilepath, options):
 
   for (reads, stats, variant) in zip(read_sets, stat_sets, variants):
     print variant['chrom'], variant['coord'], variant['type']
+    print "  flags:", stats['flags']
+    sys.stdout.write("  mapqs:")
+    for (quality, total) in enumerate(stats['mapqs']):
+      if total > 0:
+        sys.stdout.write(" "+str(quality)+"="+str(total))
+    print
+    print "  reads:"
     for read in reads:
-      print " ",read.get_read_name().split(':')[-1]
+      print "   ", read.get_read_name().split(':')[-1]
 
 
 def variants_from_str(variants_str):
@@ -85,22 +92,12 @@ def variants_from_str(variants_str):
       fail('Error: Incorrect format in variants list: "'+variant_str+'"')
     if ':' in var_details:
       (vartype, alt) = var_details.split(':')
-      if not (vartype in 'SID' and valid_variant(vartype, alt)):
+      if vartype not in 'SID':
         fail('Error: Incorrect format in variants list: "'+variant_str+'"')
     else:
       vartype = var_details
       alt = None
     variants.append({'chrom':chrom, 'coord':coord, 'type':vartype, 'alt':alt})
-  return variants
-
-#TODO
-def valid_variant(vartype, alt):
-  """Make sure the alt is the correct format, based on the vartype"""
-  return True
-
-#TODO
-def variants_from_vcf(vcffilename):
-  variants = []
   return variants
 
 

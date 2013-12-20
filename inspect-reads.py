@@ -15,7 +15,9 @@ report statistics on them. Provide the variants in a VCF or in a list on the
 command line."""
 EPILOG = """WARNING: Work in progress. Not yet implemented features:
 --containing option, --vcf option, considering the "alt" information of variants
-(the only thing considered right now is the location and type)."""
+(the only thing considered right now is the location and type). And most
+important of all, ***SNVS ARE NOT SUPPORTED!*** Right now only indels are
+recognized."""
 
 def main():
 

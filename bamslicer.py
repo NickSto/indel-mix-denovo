@@ -33,6 +33,10 @@ This is a problem that really needs to take advantage of BAM indexing. The main
 issue is figuring out which reads overlap with each variant, and that's what
 the index's bins are made for.
 
+UPDATE:
+It turns out BAM indexing won't help for my use case. The smallest bin is 16kb,
+which is the size of the entire chromosome I'm working with.
+
 So for now, a totally naive implementation. It will have to go through the
 entire BAM file on each call. This makes it basically impossible to use by
 nvc-filter.py, which has to call it once for every variant it investigates.
@@ -103,6 +107,9 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False):
       if (supporting and supports) or (opposing and not supports):
         read_sets[i].append(read)
         break
+
+  for (i, reads) in enumerate(read_sets):
+    stat_sets[i] = get_read_stats(reads, variants[i])
 
   return (read_sets, stat_sets)
 
