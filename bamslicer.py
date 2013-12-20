@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 """Methods to select reads from a BAM that contain given variants, and return
 statistics on their characteristics."""
-from pyBamParser.read import BAMRead
-from pyBamParser.bam import Reader
 import collections
 import sys
 import os
+# for development
+sys.path.remove('/usr/local/lib/python2.7/dist-packages/pyBamParser-0.0.1-py2.7.egg')
+sys.path.append('/home/me/bx/code/indels/pybamparser/lib/')
+from pyBamParser.bam import Reader
+
 
 NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
@@ -36,18 +39,34 @@ nvc-filter.py, which has to call it once for every variant it investigates.
 """
 
 
-def get_reads(bamfilepath, variants, supporting=True, opposing=False):
+def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False):
   """Take a BAM and a list of variants, and return the reads covering the
-  variants. The BAM and variants list should be sorted by start coordinate."""
-  # The sorting of the BAM and variants list is crucial to keeping this from
-  # taking fully quadratic time. It still is, really, but this way I effectively
-  # only look at variants between the start and end of the current read.
+  variants, as well as statistics on those reads.
+  The selected reads support and/or oppose the given variants, depending on the
+  value of those arguments (if both supporting and opposing are True, it will
+  select all reads covering that site). The statistics summarize whatever reads
+  are selected.
+  The BAM file and variants list should be sorted by start coordinate. Each
+  variant is a dict, e.g.:
+    {'chrom':'chrM', 'coord':310, 'type':'S', 'alt':None}
+    {'chrom':'1', 'coord':2345, 'type':'D', 'alt':'2'}
+    {'chrom':'pUC18', 'coord':4210, 'type':'I', 'alt':'GAT'}
+  Return value: A 2-tuple of reads and stats. Both are lists where each element
+  corresponds to a variant of the same index in the input variants list. Each
+  element in the reads list is a list of BAMReads which support and/or oppose
+  that variant. The elements of the stats list summarize each set of reads. See
+  the description of get_read_stats() for the format.
+  """
   #TODO: see about chromosome issues in order of reads and variants
 
   bam_reader = Reader(bamfilepath)
-  
 
-  reads = []
+  read_sets = [None] * len(variants)
+  stat_sets = [None] * len(variants)
+  for i in range(len(variants)):
+    read_sets[i] = []
+    stat_sets[i] = {}
+
   for read in bam_reader:
     read_pos    = read.get_position()
     read_end    = read.get_end_position()
@@ -57,7 +76,7 @@ def get_reads(bamfilepath, variants, supporting=True, opposing=False):
     #TODO: use deque for local variants by discarding variants we've moved past
     #      and only adding ones to the end when needed
     #current_variants = collections.deque()
-    for variant in variants:
+    for (i, variant) in enumerate(variants):
       var_pos = variant['coord']
       if not (read_pos <= var_pos <= read_end):
         continue
@@ -65,9 +84,10 @@ def get_reads(bamfilepath, variants, supporting=True, opposing=False):
       if read_rname != var_chrom:
         continue
       if supporting and opposing:
-        reads.append(read)
+        read_sets[i].append(read)
         break
       # now check if the read supports the variant
+      #TODO: add support for checking the alt allele identity
       var_type = variant['type']
       supports = False
       if var_type == 'I':
@@ -81,10 +101,10 @@ def get_reads(bamfilepath, variants, supporting=True, opposing=False):
       else:
         raise Exception('Unsupported variant type "'+var_type+'"')
       if (supporting and supports) or (opposing and not supports):
-        reads.append(read)
+        read_sets[i].append(read)
         break
 
-  return reads
+  return (read_sets, stat_sets)
 
 
 def get_read_stats(reads, variant, stats_to_get=STAT_NAMES):
@@ -130,6 +150,8 @@ def get_read_stats(reads, variant, stats_to_get=STAT_NAMES):
 
 
 def get_set_flags(flagint):
+  """Give a SAM flag as an integer, return a list of whether each flag is set.
+  Returns a list of booleans, where set_flags[i] = whether flag 2**i is set"""
   flagbin = ('{0:0'+str(NUM_FLAGS)+'b}').format(flagint)
   i = 0
   set_flags = [False] * NUM_FLAGS
