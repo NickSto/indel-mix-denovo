@@ -13,7 +13,7 @@ def main():
     'bamslicer.get_reads_and_stats':bamslicer_get_reads_and_stats,
   }
 
-  OPT_DEFAULTS = {'variants':''}
+  OPT_DEFAULTS = {'variants':'', 'no_reads':False}
   USAGE = "USAGE: %prog [options] function.to.test reads.bam"
   DESCRIPTION = """Run test on a given function and input BAM and print results.
     Give one of the following function names: """+', '.join(FUNCTIONS)
@@ -30,6 +30,9 @@ of the SNV, or the base before the insertion or deletion. "type" is "S", "I", or
 alternate allele: the SNV alternate base, the length of the deletion, or the
 inserted sequence (including the preceding base, as in VCF). If "alt" is not
 provided, it will select any read with that type of variant at that location.""")
+  parser.add_option('-R', '--no-reads', dest='no_reads', action='store_const',
+    const=not OPT_DEFAULTS.get('no_reads'), default=OPT_DEFAULTS.get('no_reads'),
+    help="Don't print info on individual reads.")
 
   (options, arguments) = parser.parse_args()
 
@@ -68,9 +71,10 @@ def bamslicer_get_reads_and_stats(bamfilepath, options):
       if total > 0:
         sys.stdout.write(" "+str(quality)+"="+str(total))
     print
-    print "  reads:"
-    for read in reads:
-      print "   ", read.get_read_name().split(':')[-1]
+    if not options.no_reads:
+      print "  reads:"
+      for read in reads:
+        print "   ", read.get_read_name().split(':')[-1]
 
 
 def variants_from_str(variants_str):
@@ -84,15 +88,19 @@ def variants_from_str(variants_str):
   """
   variants = []
   for variant_str in variants_str.split(','):
+    if '-' not in variant_str:
+      fail('Error: Incorrect format in variants list: "'+variant_str+'"')
+    fields = variant_str.split('-')
+    location = '-'.join(fields[:-1])
+    var_details = fields[-1]
     try:
-      (location, var_details) = variant_str.split('-')
       (chrom, coord) = location.split(':')
       coord = int(coord)
     except ValueError:
       fail('Error: Incorrect format in variants list: "'+variant_str+'"')
     if ':' in var_details:
       (vartype, alt) = var_details.split(':')
-      if vartype not in 'SID':
+      if not (vartype in 'SID' and valid_variant(vartype, alt)):
         fail('Error: Incorrect format in variants list: "'+variant_str+'"')
     else:
       vartype = var_details

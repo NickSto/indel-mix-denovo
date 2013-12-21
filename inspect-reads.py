@@ -2,10 +2,13 @@
 """The guts of the read selection and statistics calculation will be done by the
 bamslicer module, so that it can also be used by nvc-filter.py. Then
 nvc-filter.py can use the statistics as a filter."""
+from __future__ import division
 import bamslicer
+import optparse
 import sys
 import os
-import optparse
+# ./inspect-reads.py ~/backuphide/bfx/R19S5-new-nm.bam -v chrM-R19S5-new-nm-dedup:15873-I,chrM-R19S5-new-nm-dedup:15873-D,chrM-R19S5-new-nm-dedup:13718-D,chrM-R19S5-new-nm-dedup:11571-D,chrM-R19S5-new-nm-dedup:3757-D
+# ./inspect-reads.py tests/cigar-tests.bam -v chrM:5-I,chrM:199-D,chrM:199-I,chrM:3106-D,chrM:6110-D,chrM:16568-I
 
 OPT_DEFAULTS = {'variants':'', 'vcf':'', 'output_bam':'', 'all':False,
   'opposing':False, 'containing':False}
@@ -79,7 +82,26 @@ have the same start coordinates.""")
 
   (read_sets, stat_sets) = bamslicer.get_reads_and_stats(bamfilepath, variants)
 
-
+  for (variant, reads, stats) in zip(variants, read_sets, stat_sets):
+    print variant['chrom']+':'+str(variant['coord'])+'-'+variant['type']
+    total = len(reads)
+    print "  total: "+str(total)
+    if total == 0:
+      continue
+    flags = stats['flags']
+    print ("  unmapped:            "+pct(flags[2], total))
+    print ("  not proper pair:     "+pct(total-flags[1], total))
+    print ("  forward/reverse:     "+pct(flags[5], total)+"/"
+      +pct(flags[4], total, const_width=False))
+    print ("  1st/2nd mate:        "+pct(flags[6], total)+"/"
+      +pct(flags[7], total, const_width=False))
+    print ("  secondary alignment: "+pct(flags[8], total))
+    print ("  marked duplicate:    "+pct(flags[11], total))
+    mapqs = stats['mapqs']
+    print "  MAPQ == 0:  "+pct(mapqs[0], total)
+    print "  MAPQ >= 20: "+pct(mapq_ge_thres(mapqs, 20), total)
+    print "  MAPQ >= 30: "+pct(mapq_ge_thres(mapqs, 30), total)
+    print "  MAPQ == "+str(len(mapqs)-1)+": "+pct(mapqs[-1], total)
 
 
 def variants_from_str(variants_str):
@@ -93,8 +115,12 @@ def variants_from_str(variants_str):
   """
   variants = []
   for variant_str in variants_str.split(','):
+    if '-' not in variant_str:
+      fail('Error: Incorrect format in variants list: "'+variant_str+'"')
+    fields = variant_str.split('-')
+    location = '-'.join(fields[:-1])
+    var_details = fields[-1]
     try:
-      (location, var_details) = variant_str.split('-')
       (chrom, coord) = location.split(':')
       coord = int(coord)
     except ValueError:
@@ -118,6 +144,36 @@ def valid_variant(vartype, alt):
 def variants_from_vcf(vcffilename):
   variants = []
   return variants
+
+
+def pct(count, total, decimals=1, const_width=True):
+  """Calculate a percentage and return a formatted, constant-width and constant-
+  precision string."""
+  if const_width:
+    width = str(decimals+3)
+    if count <= 0 or total <= 0:
+      return ("%"+width+"d%%") % 0
+    if count == total:
+      return ("%"+width+"d%%") % 100
+    fraction = 100*count/total
+    return ("%"+width+"."+str(decimals)+"f%%") % fraction
+  else:
+    if count <= 0 or total <= 0:
+      return "0%"
+    if count == total:
+      return "100%"
+    fraction = 100*count/total
+    return str(round(fraction, decimals))+"%"
+
+
+def mapq_ge_thres(mapqs, thres):
+  """Return the number of reads greater than or equal to a given MAPQ."""
+  count = 0
+  i = thres
+  while i < len(mapqs):
+    count += mapqs[i]
+    i+=1
+  return count
 
 
 def fail(message):
