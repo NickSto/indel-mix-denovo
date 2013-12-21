@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Methods to select reads from a BAM that contain given variants, and return
 statistics on their characteristics."""
+from __future__ import division
 import collections
 import sys
 import os
@@ -67,9 +68,11 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False):
 
   read_sets = [None] * len(variants)
   stat_sets = [None] * len(variants)
+  read_sets_opposite = [None] * len(variants)
   for i in range(len(variants)):
     read_sets[i] = []
     stat_sets[i] = {}
+    read_sets_opposite[i] = []
 
   for read in bam_reader:
     read_pos    = read.get_position()
@@ -106,16 +109,23 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False):
         raise Exception('Unsupported variant type "'+var_type+'"')
       if (supporting and supports) or (opposing and not supports):
         read_sets[i].append(read)
-        break
+      else:
+        read_sets_opposite[i].append(read)
 
   for (i, reads) in enumerate(read_sets):
-    stat_sets[i] = get_read_stats(reads, variants[i])
+    if supporting and opposing:
+      stat_sets[i] = get_read_stats(reads, variants[i])
+    else:
+      stat_sets[i] = get_read_stats(reads, variants[i],
+        reads_opposite=read_sets_opposite[i])
 
   return (read_sets, stat_sets)
 
 
-def get_read_stats(reads, variant, stats_to_get=STAT_NAMES):
+def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES):
   """Calculate a set of summary statistics for the set of reads.
+  If stats_to_get is given, it will only include the statistics whose keys are
+  provided in that list. Other statistics will be None.
   Returns a dict. Descriptions of the keys and their values:
     'flags':
   The totals of how many reads have each flag set.
@@ -126,6 +136,14 @@ def get_read_stats(reads, variant, stats_to_get=STAT_NAMES):
   Format: a list, where mapq[value] = the total number of reads that have a
   MAPQ equal to "value". Note the list is 0-based, so MAPQ value 40 will be the
   41st element in it.
+    'freq':
+  The frequency of the variant.
+  freq = len(reads)/(len(reads)+len(reads_opposing))
+  None if no opposing reads are provided.
+    'strand_bias':
+  Strand bias of the variant.
+  Based on method 1 (SB) of Guo et al., 2012.
+  None if no opposing reads are provided.
     'read_pos':
   ***PLANNED*** The distribution of where the variant occurs along the length of
   the reads
@@ -137,26 +155,59 @@ def get_read_stats(reads, variant, stats_to_get=STAT_NAMES):
   """
 
   stats = {}
-  stats['flags'] = [0] * NUM_FLAGS
-  stats['mapqs'] = [0] * (DEFAULT_MAX_MAPQ + 1)
-  for read in reads:
 
-    if 'flags' in stats_to_get:
-      set_flags = get_set_flags(read.get_flag())
-      for i in range(NUM_FLAGS):
-        if set_flags[i]:
-          stats['flags'][i]+=1
+  if 'mapqs' in stats_to_get:
+    stats['mapqs'] = sum_mapqs(reads)
+  else:
+    stats['mapqs'] = None
 
-    if 'mapqs' in stats_to_get:
-      read_mapq = read.get_mapq()
-      if read_mapq > len(stats['mapqs']) - 1:
-        stats['mapqs'].extend([0] * (read_mapq - len(stats['mapqs']) + 1))
-      stats['mapqs'][read_mapq]+=1
+  if 'flags' in stats_to_get:
+    stats['flags'] = sum_flags(reads)
+  else:
+    stats['flags'] = None
+
+  if 'strand_bias' in stats_to_get and reads_opposite is not None:
+    if stats['flags'] is None:
+      flags_for = sum_flags(reads)
+    else:
+      flags_for = stats['flags']
+    flags_against = sum_flags(reads_opposite)
+    stats['strand_bias'] = get_strand_bias(flags_for, flags_against,
+      len(reads), len(reads_opposite))
+  else:
+    stats['strand_bias'] = None
+
+  if ('freq' in stats_to_get and
+      reads_opposite is not None and
+      len(reads) + len(reads_opposite) > 0):
+    stats['freq'] = len(reads)/(len(reads)+len(reads_opposite))
+  else:
+    stats['freq'] = None
 
   return stats
 
 
-def get_set_flags(flagint):
+def sum_mapqs(reads):
+  mapqs = [0] * (DEFAULT_MAX_MAPQ + 1)
+  for read in reads:
+    read_mapq = read.get_mapq()
+    if read_mapq > len(mapqs) - 1:
+      mapqs.extend([0] * (read_mapq - len(mapqs) + 1))
+    mapqs[read_mapq]+=1
+  return mapqs
+
+
+def sum_flags(reads):
+  flags_sum = [0] * NUM_FLAGS
+  for read in reads:
+    set_flags = get_flags(read.get_flag())
+    for i in range(NUM_FLAGS):
+      if set_flags[i]:
+        flags_sum[i]+=1
+  return flags_sum
+
+
+def get_flags(flagint):
   """Give a SAM flag as an integer, return a list of whether each flag is set.
   Returns a list of booleans, where set_flags[i] = whether flag 2**i is set"""
   flagbin = ('{0:0'+str(NUM_FLAGS)+'b}').format(flagint)
@@ -166,3 +217,22 @@ def get_set_flags(flagint):
     set_flags[i] = bit == '1'
     i+=1
   return set_flags
+
+
+def get_strand_bias(flags_for, flags_against, total_for, total_against):
+  """Based on method 1 (SB) of Guo et al., 2012
+  If there a denominator that would be 0, there is no valid result and this will
+  return None. This occurs when there are no reads on one of the strands, or
+  when there are no minor allele reads."""
+  # using same variable names as in the paper
+  a = total_against - flags_against[4]
+  b = total_for - flags_for[4]
+  c = flags_against[4]
+  d = flags_for[4]
+  # make sure b and d are the minor allele
+  if total_for > total_against:
+    (a, b, c, d) = (b, a, d, c)
+  try:
+    return abs(b/(a+b) - d/(c+d)) / ((b+d) / (a+b+c+d))
+  except ZeroDivisionError:
+    return None

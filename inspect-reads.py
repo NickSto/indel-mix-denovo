@@ -17,10 +17,10 @@ DESCRIPTION = """Retrieve the reads supporting a given set of variants, and
 report statistics on them. Provide the variants in a VCF or in a list on the
 command line."""
 EPILOG = """WARNING: Work in progress. Not yet implemented features:
---containing option, --vcf option, considering the "alt" information of variants
-(the only thing considered right now is the location and type). And most
-important of all, ***SNVS ARE NOT SUPPORTED!*** Right now only indels are
-recognized."""
+--containing, --vcf, --output-bam, --all, and --opposing options, and
+considering the "alt" information of variants (the only thing considered right
+now is the location and type). And most important of all, ***SNVS ARE NOT
+SUPPORTED!*** Right now only indels are recognized."""
 
 def main():
 
@@ -41,6 +41,9 @@ provided, it will select any read with that type of variant at that location."""
   parser.add_option('-o', '--output-bam', dest='output_bam',
     default=OPT_DEFAULTS.get('output_bam'),
     help='Output the selected reads to this BAM file.')
+  parser.add_option('-H', '--human', dest='human', action='store_const',
+    const=not OPT_DEFAULTS.get('human'),default=OPT_DEFAULTS.get('human'),
+    help="""Print statistics in a human-readable format.""")
   parser.add_option('-a', '--all', dest='all', action='store_const',
     const=not OPT_DEFAULTS.get('all'), default=OPT_DEFAULTS.get('all'),
     help="""Select all the reads covering the variants, not just those
@@ -83,25 +86,8 @@ have the same start coordinates.""")
   (read_sets, stat_sets) = bamslicer.get_reads_and_stats(bamfilepath, variants)
 
   for (variant, reads, stats) in zip(variants, read_sets, stat_sets):
-    print variant['chrom']+':'+str(variant['coord'])+'-'+variant['type']
-    total = len(reads)
-    print "  total: "+str(total)
-    if total == 0:
-      continue
-    flags = stats['flags']
-    print ("  unmapped:            "+pct(flags[2], total))
-    print ("  not proper pair:     "+pct(total-flags[1], total))
-    print ("  forward/reverse:     "+pct(flags[5], total)+"/"
-      +pct(flags[4], total, const_width=False))
-    print ("  1st/2nd mate:        "+pct(flags[6], total)+"/"
-      +pct(flags[7], total, const_width=False))
-    print ("  secondary alignment: "+pct(flags[8], total))
-    print ("  marked duplicate:    "+pct(flags[11], total))
-    mapqs = stats['mapqs']
-    print "  MAPQ == 0:  "+pct(mapqs[0], total)
-    print "  MAPQ >= 20: "+pct(mapq_ge_thres(mapqs, 20), total)
-    print "  MAPQ >= 30: "+pct(mapq_ge_thres(mapqs, 30), total)
-    print "  MAPQ == "+str(len(mapqs)-1)+": "+pct(mapqs[-1], total)
+    if options.human:
+      print human_stats(variant, reads, stats)
 
 
 def variants_from_str(variants_str):
@@ -144,6 +130,30 @@ def valid_variant(vartype, alt):
 def variants_from_vcf(vcffilename):
   variants = []
   return variants
+
+
+def human_stats(variant, reads, stats):
+  output = ""
+  output += variant['chrom']+':'+str(variant['coord'])+'-'+variant['type']+"\n"
+  total = len(reads)
+  output += "  total: "+str(total)+"\n"
+  if total == 0:
+    return output
+  flags = stats['flags']
+  output += ("  unmapped:            "+pct(flags[2], total)+"\n")
+  output += ("  not proper pair:     "+pct(total-flags[1], total)+"\n")
+  output += ("  forward/reverse:     "+pct(total-flags[4], total)+"/"
+    +pct(flags[4], total, const_width=False)+"\n")
+  output += ("  1st/2nd mate:        "+pct(flags[6], total)+"/"
+    +pct(flags[7], total, const_width=False)+"\n")
+  output += ("  secondary alignment: "+pct(flags[8], total)+"\n")
+  output += ("  marked duplicate:    "+pct(flags[11], total)+"\n")
+  mapqs = stats['mapqs']
+  output += "  MAPQ == 0:  "+pct(mapqs[0], total)+"\n"
+  output += "  MAPQ >= 20: "+pct(mapq_ge_thres(mapqs, 20), total)+"\n"
+  output += "  MAPQ >= 30: "+pct(mapq_ge_thres(mapqs, 30), total)+"\n"
+  output += "  MAPQ == "+str(len(mapqs)-1)+": "+pct(mapqs[-1], total)
+  return output
 
 
 def pct(count, total, decimals=1, const_width=True):
