@@ -13,7 +13,7 @@ from pyBamParser.bam import Reader
 
 NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
-STAT_NAMES = ['flags', 'mapqs']
+STAT_NAMES = ['supporting', 'coverage', 'flags', 'mapqs', 'freq', 'strand_bias']
 
 """End uses of this library:
 
@@ -125,8 +125,15 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False):
 def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES):
   """Calculate a set of summary statistics for the set of reads.
   If stats_to_get is given, it will only include the statistics whose keys are
-  provided in that list. Other statistics will be None.
+  provided in that list. Other statistics will be None. reads_opposite is a list
+  of reads that oppose the variant, if reads is the list of reads supporting it.
+  If reads are the reads opposing the variant, then vice-versa.
   Returns a dict. Descriptions of the keys and their values:
+    'supporting':
+  The number of supporting reads.
+    'coverage':
+  Total number of reads spanning this position.
+  None if no opposite reads are provided.
     'flags':
   The totals of how many reads have each flag set.
   Format: a list, where flags[i] = the total number of reads that have the
@@ -139,11 +146,11 @@ def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES)
     'freq':
   The frequency of the variant.
   freq = len(reads)/(len(reads)+len(reads_opposing))
-  None if no opposing reads are provided.
+  None if no opposite reads are provided.
     'strand_bias':
   Strand bias of the variant.
   Based on method 1 (SB) of Guo et al., 2012.
-  None if no opposing reads are provided.
+  None if no opposite reads are provided.
     'read_pos':
   ***PLANNED*** The distribution of where the variant occurs along the length of
   the reads
@@ -155,6 +162,16 @@ def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES)
   """
 
   stats = {}
+
+  if 'supporting' in stats_to_get:
+    stats['supporting'] = len(reads)
+  else:
+    stats['supporting'] = None
+
+  if 'coverage' in stats_to_get and reads_opposite is not None:
+    stats['coverage'] = len(reads) + len(reads_opposite)
+  else:
+    stats['coverage'] = None
 
   if 'mapqs' in stats_to_get:
     stats['mapqs'] = sum_mapqs(reads)

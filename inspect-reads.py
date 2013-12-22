@@ -135,8 +135,10 @@ def variants_from_vcf(vcffilename):
 def human_stats(variant, reads, stats):
   output = ""
   output += variant['chrom']+':'+str(variant['coord'])+'-'+variant['type']+"\n"
-  total = len(reads)
-  output += "  total: "+str(total)+"\n"
+  output += "  coverage: "+str(stats['coverage'])+"\n"
+  total = stats['supporting']
+  freq = str(round(100*stats['freq'],2))+"%"
+  output += "  supporting reads: "+str(total)+" ("+freq+")\n"
   if total == 0:
     return output
   flags = stats['flags']
@@ -152,7 +154,8 @@ def human_stats(variant, reads, stats):
   output += "  MAPQ == 0:  "+pct(mapqs[0], total)+"\n"
   output += "  MAPQ >= 20: "+pct(mapq_ge_thres(mapqs, 20), total)+"\n"
   output += "  MAPQ >= 30: "+pct(mapq_ge_thres(mapqs, 30), total)+"\n"
-  output += "  MAPQ == "+str(len(mapqs)-1)+": "+pct(mapqs[-1], total)
+  output += "  MAPQ == "+str(len(mapqs)-1)+": "+pct(mapqs[-1], total)+"\n"
+  output += "  strand bias: "+str(stats['strand_bias'])
   return output
 
 
