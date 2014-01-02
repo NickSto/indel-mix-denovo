@@ -3,6 +3,7 @@
 bamslicer module, so that it can also be used by nvc-filter.py. Then
 nvc-filter.py can use the statistics as a filter."""
 from __future__ import division
+import bioreaders
 import bamslicer
 import optparse
 import sys
@@ -126,10 +127,43 @@ def valid_variant(vartype, alt):
   """Make sure the alt is the correct format, based on the vartype"""
   return True
 
-#TODO
+
 def variants_from_vcf(vcffilename):
+  #TODO: support multiple samples
   variants = []
+  vcfreader = bioreaders.VCFReader(open(vcffilename, 'rU'))
+  for site in vcfreader:
+    chrom = site.get_chrom()
+    pos = site.get_pos()
+    ref = site.get_ref()
+    for alt in site.get_alt():
+      #TODO: make sure this is the desired handling of reference allele
+      if alt == ref:
+        continue
+      varstr = site.alt_to_variant(alt)
+      variants.append(parse_varstr(varstr, chrom, pos))
   return variants
+
+
+def parse_varstr(varstr, chrom, coord):
+  """Take in a variant string like in the NVC sample columns and return a data
+  structure of the format specified in variants_from_str().
+  Input string examples:
+    SNV:        'A', 'C'
+    insertion:  'AG', 'GAATC'
+    deletion:   'd1', 'd4'
+  """
+  #TODO: handle reference allele (currently classified as an SNV)
+  if len(varstr) == 1:
+    return {'chrom':chrom, 'coord':coord, 'type':'S', 'alt':varstr}
+  elif varstr[0] == 'd':
+    try:
+      int(varstr[1:])
+      return {'chrom':chrom, 'coord':coord, 'type':'D', 'alt':varstr[1:]}
+    except ValueError:
+      return None
+  elif len(varstr) > 1:
+    return {'chrom':chrom, 'coord':coord, 'type':'I', 'alt':varstr}
 
 
 def human_stats(variant, reads, stats):

@@ -299,11 +299,15 @@ def get_unique_filename(base, ext):
 
 def get_vartype(variant):
   """Return 'S', 'I', or 'D' based on whether it's an SNV, insertion or
-  deletion, respectively."""
+  deletion, respectively. If it is unrecognized, return None"""
   if len(variant) == 1:
     return 'S'
-  elif re.match(r'^d\d+$', variant):
-    return 'D'
+  elif variant[0] == 'd':
+    try:
+      int(variant[1:])
+      return 'D'
+    except ValueError:
+      return None
   elif len(variant) > 1:
     return 'I'
 

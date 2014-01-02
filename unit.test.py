@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-"""The guts of the read selection and statistics calculation will be done by the
-bamslicer module, so that it can also be used by nvc-filter.py. Then
-nvc-filter.py can use the statistics as a filter."""
 import bamslicer
 import optparse
 import sys
@@ -11,16 +8,21 @@ def main():
 
   FUNCTIONS = {
     'bamslicer.get_reads_and_stats':bamslicer_get_reads_and_stats,
+    'inspect-reads.variants_from_vcf':inspect_reads_variants_from_vcf,
   }
 
-  OPT_DEFAULTS = {'variants':'', 'no_reads':False}
-  USAGE = "USAGE: %prog [options] function.to.test reads.bam"
+  OPT_DEFAULTS = {'bam':'', 'vcf':'', 'variants':'', 'no_reads':False}
+  USAGE = "USAGE: %prog [options] function.to.test"
   DESCRIPTION = """Run test on a given function and input BAM and print results.
     Give one of the following function names: """+', '.join(FUNCTIONS)
   EPILOG = """"""
 
   parser = optparse.OptionParser(usage=USAGE, description=DESCRIPTION, epilog=EPILOG)
 
+  parser.add_option('-b', '--bam', dest='bam', default=OPT_DEFAULTS.get('bam'),
+    help="""Input BAM file. Necessary for some functions.""")
+  parser.add_option('-V', '--vcf', dest='vcf', default=OPT_DEFAULTS.get('vcf'),
+    help="""Input VCF file. Necessary for some functions.""")
   parser.add_option('-v', '--variants', dest='variants',
     default=OPT_DEFAULTS.get('variants'),
     help="""Use these variants. Give a comma-separated list, in the format
@@ -36,22 +38,28 @@ provided, it will select any read with that type of variant at that location."""
 
   (options, arguments) = parser.parse_args()
 
-  if len(arguments) == 2:
-    (function, bamfilepath) = arguments
+  if len(arguments) == 1:
+    function = arguments[0]
   else:
     parser.print_help()
-    fail("Error: Please provide a BAM file and a list of variants.")
+    fail("Error: Please only give a function name as a single positional "
+      +"argument.")
 
   if function not in FUNCTIONS:
     fail('Error: function "'+function+'" not supported. Please pick one from '
       +'the list: '+', '.join(FUNCTIONS))
-  if not os.path.exists(bamfilepath):
-    fail('Error: cannot find BAM file "'+bamfilepath+'"')
 
-  FUNCTIONS[function](bamfilepath, options)
+  FUNCTIONS[function](options)
 
 
-def bamslicer_get_reads_and_stats(bamfilepath, options):
+##### UNIT TEST FUNCTIONS #####
+
+def bamslicer_get_reads_and_stats(options):
+  if options.bam:
+    if not os.path.exists(options.bam):
+      fail('Error: Cannot find BAM file "'+options.bam+'"')
+  else:
+    fail("Error: A BAM file is required for this function.")
   if options.variants:
     variants = variants_from_str(options.variants)
   else:
@@ -61,7 +69,7 @@ def bamslicer_get_reads_and_stats(bamfilepath, options):
   #TODO: take chrom in to account when sorting variants: use order in BAM header
   variants.sort(key=lambda variant: variant['coord'])
 
-  (read_sets, stat_sets) = bamslicer.get_reads_and_stats(bamfilepath, variants)
+  (read_sets, stat_sets) = bamslicer.get_reads_and_stats(options.bam, variants)
 
   for (reads, stats, variant) in zip(read_sets, stat_sets, variants):
     print variant['chrom'], variant['coord'], variant['type']
@@ -76,6 +84,26 @@ def bamslicer_get_reads_and_stats(bamfilepath, options):
       for read in reads:
         print "   ", read.get_read_name().split(':')[-1]
 
+
+def inspect_reads_variants_from_vcf(options):
+  # kludge to get around dash in name
+  inspect_reads = __import__("inspect-reads")
+  if options.vcf:
+    if not os.path.exists(options.vcf):
+      fail('Error: Cannot find VCF file "'+options.vcf+'"')
+  else:
+    fail('Error: A VCF file is required for this function.')
+  variants = inspect_reads.variants_from_vcf(options.vcf)
+  for variant in variants:
+    sys.stdout.write(str(variant.get('chrom')))
+    sys.stdout.write(':'+str(variant.get('coord')))
+    sys.stdout.write('-'+str(variant.get('type')))
+    if variant.get('alt') is not None:
+      sys.stdout.write(':'+str(variant.get('alt')))
+    print
+
+
+##### UTILITY FUNCTIONS #####
 
 def variants_from_str(variants_str):
   """Parse the list of variants passed in from the command line.
