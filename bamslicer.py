@@ -5,9 +5,17 @@ from __future__ import division
 import collections
 import sys
 import os
-# for development
-sys.path.remove('/usr/local/lib/python2.7/dist-packages/pyBamParser-0.0.1-py2.7.egg')
-sys.path.append('/home/me/bx/code/indels/pybamparser/lib/')
+# temporary development workaround
+try:
+  sys.path.remove('/usr/local/lib/python2.7/dist-packages/pyBamParser-0.0.1-py2.7.egg')
+  sys.path.append('/home/me/bx/code/indels/pybamparser/lib/')
+except ValueError:
+  pass
+try:
+  sys.path.remove('/afs/bx.psu.edu/user/n/nick/.local/lib/python2.7/site-packages/pyBamParser-0.0.1-py2.7.egg')
+  sys.path.append('/afs/bx.psu.edu/user/n/nick/code/pybamparser/lib')
+except ValueError:
+  pass
 from pyBamParser.bam import Reader
 
 
