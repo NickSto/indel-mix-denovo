@@ -21,7 +21,8 @@ from pyBamParser.bam import Reader
 
 NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
-STAT_NAMES = ['supporting', 'coverage', 'flags', 'mapqs', 'freq', 'strand_bias']
+STAT_NAMES = ['supporting', 'coverage', 'flags', 'mapqs', 'freq', 'strand_bias',
+  'mate_bias']
 
 """End uses of this library:
 
@@ -159,6 +160,9 @@ def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES)
   Strand bias of the variant.
   Based on method 1 (SB) of Guo et al., 2012.
   None if no opposite reads are provided.
+    'mate_bias':
+  Mate bias of the variant toward 1st or 2nd read in the pair.
+  Calculated in same way as strand_bias.
     'read_pos':
   ***PLANNED*** The distribution of where the variant occurs along the length of
   the reads
@@ -199,6 +203,16 @@ def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES)
     flags_against = sum_flags(reads_opposite)
     stats['strand_bias'] = get_strand_bias(flags_for, flags_against,
       len(reads), len(reads_opposite))
+  else:
+    stats['strand_bias'] = None
+
+  if 'mate_bias' in stats_to_get and reads_opposite is not None:
+    if stats['flags'] is None:
+      flags_for = sum_flags(reads)
+    else:
+      flags_for = stats['flags']
+    flags_against = sum_flags(reads_opposite)
+    stats['mate_bias'] = get_mate_bias(flags_for, flags_against)
   else:
     stats['strand_bias'] = None
 
@@ -245,17 +259,35 @@ def get_flags(flagint):
 
 
 def get_strand_bias(flags_for, flags_against, total_for, total_against):
-  """Based on method 1 (SB) of Guo et al., 2012
+  """Based on method 1 (SB) of Guo et al., 2012.
   If there a denominator that would be 0, there is no valid result and this will
   return None. This occurs when there are no reads on one of the strands, or
   when there are no minor allele reads."""
-  # using same variable names as in the paper
   a = total_against - flags_against[4]
   b = total_for - flags_for[4]
   c = flags_against[4]
   d = flags_for[4]
-  # make sure b and d are the minor allele
-  if total_for > total_against:
+  return get_bias(a, b, c, d)
+
+
+def get_mate_bias(flags_for, flags_against):
+  """Based on method 1 (SB) of Guo et al., 2012.
+  If there a denominator that would be 0, there is no valid result and this will
+  return None. This occurs when there are no reads from one of the mates, or
+  when there are no minor allele reads."""
+  a = flags_against[6]
+  b = flags_for[6]
+  c = flags_against[7]
+  d = flags_for[7]
+  return get_bias(a, b, c, d)
+
+
+def get_bias(a, b, c, d):
+  """Bare equation from Guo et al., 2012 (SB, strand bias method 1).
+  One modification: a/b and c/d will be swapped if necessary to make sure b and
+  d are the minor allele..
+  """
+  if b + d > a + c:
     (a, b, c, d) = (b, a, d, c)
   try:
     return abs(b/(a+b) - d/(c+d)) / ((b+d) / (a+b+c+d))

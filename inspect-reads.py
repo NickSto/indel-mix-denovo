@@ -12,8 +12,8 @@ import os
 # ./inspect-reads.py tests/cigar-tests.bam -v chrM:5-I,chrM:199-D,chrM:199-I,chrM:3106-D,chrM:6110-D,chrM:16568-I
 
 OPT_DEFAULTS = {'variants':'', 'vcf':'', 'output_bam':'', 'all':False,
-  'opposing':False, 'containing':False}
-USAGE = "USAGE: %prog [options] reads.bam"
+  'opposing':False, 'containing':False, 'strand_bias':0}
+USAGE = "USAGE: %prog [options] (-v variantslist|-V variants.vcf) reads.bam"
 DESCRIPTION = """Retrieve the reads supporting a given set of variants, and
 report statistics on them. Provide the variants in a VCF or in a list on the
 command line."""
@@ -61,6 +61,11 @@ be on these reads, not the supporting reads.""")
 specified one. So if chr1:2345-D:2 is a variant of interest, and a read has the
 variant chr1:2344-D:3, it will select that read even though the variants don't
 have the same start coordinates.""")
+  parser.add_option('-s', '--strand-bias', dest='strand_bias', type='float',
+    default=OPT_DEFAULTS.get('strand_bias'),
+    help="""Filter out variants with a higher strand bias value than this. The
+strand bias statistic is method 1 (SB) of Guo et al., 2012. A typical cutoff is
+1.0.""")
 
   (options, arguments) = parser.parse_args()
 
@@ -69,7 +74,7 @@ have the same start coordinates.""")
     bamfilepath = arguments[0]
   else:
     parser.print_help()
-    fail("Error: Please provide a BAM file and a list of variants.")
+    fail("\nError: Please provide a BAM file and a list of variants.")
 
   if options.vcf:
     variants = variants_from_vcf(options.vcf)
@@ -77,11 +82,12 @@ have the same start coordinates.""")
     variants = variants_from_str(options.variants)
   else:
     parser.print_help()
-    fail("Error: Please provide a list of variants in either a VCF file or a "
+    fail("\nError: Please provide a list of variants in either a VCF file or a "
       +"command line option.")
 
   #TODO: make sure BAM is sorted
   #TODO: take chrom in to account when sorting variants: use order in BAM header
+  # sort variants by coordinate
   variants.sort(key=lambda variant: variant['coord'])
 
   (read_sets, stat_sets) = bamslicer.get_reads_and_stats(bamfilepath, variants)
@@ -166,10 +172,17 @@ def parse_varstr(varstr, chrom, coord):
     return {'chrom':chrom, 'coord':coord, 'type':'I', 'alt':varstr}
 
 
+def filter_out(variant, reads, stats, options):
+  filter_out = False
+  if options.strand_bias and stats['strand_bias'] > options.strand_bias:
+    filter_out = True
+  return filter_out
+
+
 def human_stats(variant, reads, stats):
   output = ""
   output += variant['chrom']+':'+str(variant['coord'])+'-'+variant['type']+"\n"
-  output += "  coverage: "+str(stats['coverage'])+"\n"
+  output += "  coverage:         "+str(stats['coverage'])+"\n"
   total = stats['supporting']
   freq = str(round(100*stats['freq'],2))+"%"
   output += "  supporting reads: "+str(total)+" ("+freq+")\n"
@@ -190,6 +203,7 @@ def human_stats(variant, reads, stats):
   output += "  MAPQ >= 30: "+pct(mapq_ge_thres(mapqs, 30), total)+"\n"
   output += "  MAPQ == "+str(len(mapqs)-1)+": "+pct(mapqs[-1], total)+"\n"
   output += "  strand bias: "+str(stats['strand_bias'])
+  output += "  mate bias:   "+str(stats['mate_bias'])
   return output
 
 
