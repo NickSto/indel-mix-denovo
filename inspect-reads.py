@@ -13,7 +13,7 @@ import os
 # ./inspect-reads.py tests/cigar-tests.bam -H -v chrM:5-I,chrM:199-D,chrM:199-I,chrM:3106-D,chrM:6110-D,chrM:16568-I
 
 OPT_DEFAULTS = {'variants':'', 'vcf':'', 'output_bam':'', 'human':True,
-  'tsv':False, 'no_labels':False, 'all':False, 'opposing':False,
+  'tsv':False, 'no_labels':False, 'vartypes':'ID', 'all':False, 'opposing':False,
   'containing':False, 'strand_bias':0, 'mate_bias':0}
 USAGE = "USAGE: %prog [options] (-v variantslist|-V variants.vcf) reads.bam"
 DESCRIPTION = """Retrieve the reads supporting a given set of variants, and
@@ -24,6 +24,8 @@ EPILOG = """WARNING: Work in progress. Not yet implemented features:
 considering the "alt" information of variants (the only thing considered right
 now is the location and type). And most important of all, ***SNVS ARE NOT
 SUPPORTED!*** Right now only indels are recognized."""
+
+VALID_BASES = 'GATCNgatcn'
 
 def main():
 
@@ -66,6 +68,10 @@ list of the total for each flag, from lowest to highest bit value.""")
     default=OPT_DEFAULTS.get('no_labels'),
     help="""If csv output is selected, do not print column labels (normally the
 first line, begins with #).""")
+  parser.add_option('-T', '--vartypes', dest='vartypes',
+    default=OPT_DEFAULTS.get('vartypes'), help="""Only consider these variant
+types. Give a string of letters, e.g. "SID" to keep SNVs (S), insertions (I),
+and deletions (D). Default: "%default" """)
   parser.add_option('-a', '--all', dest='all', action='store_true',
     default=OPT_DEFAULTS.get('all'),
     help="""Select all the reads covering the variants, not just those
@@ -101,14 +107,17 @@ forward/reverse strand with first/second mate in the pair.""")
     parser.print_help()
     fail("\nError: Please provide a BAM file and a list of variants.")
 
+  variants = []
   if options.vcf:
-    variants = variants_from_vcf(options.vcf)
-  elif options.variants:
-    variants = variants_from_str(options.variants)
-  else:
+    variants.extend(variants_from_vcf(options.vcf))
+  if options.variants:
+    variants.extend(variants_from_str(options.variants))
+  if not variants:
     parser.print_help()
     fail("\nError: Please provide a list of variants in either a VCF file or a "
       +"command line option.")
+  # eliminate variants that aren't one of the specified types
+  variants[:] = [var for var in variants if var['type'] in options.vartypes]
 
   if options.tsv:
     outformat = 'tsv'
@@ -156,7 +165,7 @@ def variants_from_str(variants_str):
       fail('Error: Incorrect format in variants list: "'+variant_str+'"')
     if ':' in var_details:
       (vartype, alt) = var_details.split(':')
-      if not (vartype in 'SID' and valid_variant(vartype, alt)):
+      if not valid_variant(vartype, alt):
         fail('Error: Incorrect format in variants list: "'+variant_str+'"')
     else:
       vartype = var_details
@@ -164,10 +173,31 @@ def variants_from_str(variants_str):
     variants.append({'chrom':chrom, 'coord':coord, 'type':vartype, 'alt':alt})
   return variants
 
-#TODO
+
 def valid_variant(vartype, alt):
-  """Make sure the alt is the correct format, based on the vartype"""
-  return True
+  """Make sure the vartype is valid, and that the alt is the correct format for
+  the vartype."""
+  if vartype == 'S':
+    if len(alt) == 1 and alt in VALID_BASES:
+      return True
+  elif vartype == 'I':
+    if len(alt) < 2:
+      return False
+    for base in alt:
+      if base not in VALID_BASES:
+        return False
+    return True
+  elif vartype == 'D':
+    if len(alt) < 2:
+      return False
+    if alt[0] != 'd':
+      return False
+    try:
+      int(alt[1:])
+      return True
+    except ValueError:
+      return False
+  return False
 
 
 def variants_from_vcf(vcffilename):
