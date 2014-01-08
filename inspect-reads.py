@@ -3,6 +3,7 @@
 bamslicer module, so that it can also be used by nvc-filter.py. Then
 nvc-filter.py can use the statistics as a filter."""
 from __future__ import division
+import collections
 import bioreaders
 import bamslicer
 import optparse
@@ -11,8 +12,9 @@ import os
 # ./inspect-reads.py ~/backuphide/bfx/R19S5-new-nm.bam -H -v chrM-R19S5-new-nm-dedup:15873-I,chrM-R19S5-new-nm-dedup:15873-D,chrM-R19S5-new-nm-dedup:13718-D,chrM-R19S5-new-nm-dedup:11571-D,chrM-R19S5-new-nm-dedup:3757-D
 # ./inspect-reads.py tests/cigar-tests.bam -H -v chrM:5-I,chrM:199-D,chrM:199-I,chrM:3106-D,chrM:6110-D,chrM:16568-I
 
-OPT_DEFAULTS = {'variants':'', 'vcf':'', 'output_bam':'', 'all':False,
-  'opposing':False, 'containing':False, 'strand_bias':0, 'mate_bias':0}
+OPT_DEFAULTS = {'variants':'', 'vcf':'', 'output_bam':'', 'human':True,
+  'tsv':False, 'no_labels':False, 'all':False, 'opposing':False,
+  'containing':False, 'strand_bias':0, 'mate_bias':0}
 USAGE = "USAGE: %prog [options] (-v variantslist|-V variants.vcf) reads.bam"
 DESCRIPTION = """Retrieve the reads supporting a given set of variants, and
 report statistics on them. Provide the variants in a VCF or in a list on the
@@ -42,21 +44,39 @@ provided, it will select any read with that type of variant at that location."""
   parser.add_option('-o', '--output-bam', dest='output_bam',
     default=OPT_DEFAULTS.get('output_bam'),
     help='Output the selected reads to this BAM file.')
-  parser.add_option('-H', '--human', dest='human', action='store_const',
-    const=not OPT_DEFAULTS.get('human'),default=OPT_DEFAULTS.get('human'),
-    help="""Print statistics in a human-readable format.""")
-  parser.add_option('-a', '--all', dest='all', action='store_const',
-    const=not OPT_DEFAULTS.get('all'), default=OPT_DEFAULTS.get('all'),
+  parser.add_option('-H', '--human', dest='human', action='store_true',
+    default=OPT_DEFAULTS.get('human'),
+    help="""Print statistics in a human-readable format (default output).""")
+  parser.add_option('-t', '--tsv', dest='tsv', action='store_true',
+    default=OPT_DEFAULTS.get('tsv'),
+    help="""Print statistics in a tab-delimited columnar format. The first four
+columns are the same data as described in the --variants format. The strand and
+mate bias statistics are described in the -s and -m options. The null value is
+"None".
+Columns: (1) chrom (2) coord (3) variant type (4) alt allele (5) coverage, in #
+of reads (6) # of variant-supporting reads (7) % frequency (8) % of supporting
+reads that are unmapped (9) % not mapped in proper pair (10) % on the forward
+strand (11) % that are the 1st mate in the pair (12) % that are a secondary
+alignment (13) % that are marked duplicates (14) % with a MAPQ == 0 (15) % with
+a MAPQ >= 20 (16) % with a MAPQ >= 30 (17) % with the highest MAPQ (18) the
+highest MAPQ in the supporting reads (19) strand bias (20) mate bias (21) the
+total number of supporting reads with each SAM flag. This is a comma-separated
+list of the total for each flag, from lowest to highest bit value.""")
+  parser.add_option('-L', '--no-labels', dest='no_labels', action='store_true',
+    default=OPT_DEFAULTS.get('no_labels'),
+    help="""If csv output is selected, do not print column labels (normally the
+first line, begins with #).""")
+  parser.add_option('-a', '--all', dest='all', action='store_true',
+    default=OPT_DEFAULTS.get('all'),
     help="""Select all the reads covering the variants, not just those
 supporting the variant. The statistics reported will be on these reads, not the
 supporting reads.""")
-  parser.add_option('-O', '--opposing', dest='opposing', action='store_const',
-    const=not OPT_DEFAULTS.get('opposing'),default=OPT_DEFAULTS.get('opposing'),
+  parser.add_option('-O', '--opposing', dest='opposing', action='store_true',
+    default=OPT_DEFAULTS.get('opposing'),
     help="""Select the reads OPPOSING the variants. The statistics reported will
 be on these reads, not the supporting reads.""")
   parser.add_option('-C', '--containing', dest='containing',
-    action='store_const', const=not OPT_DEFAULTS.get('containing'),
-    default=OPT_DEFAULTS.get('containing'),
+    action='store_true', default=OPT_DEFAULTS.get('containing'),
     help="""For deletions, select any read with a deletion which *contains* the
 specified one. So if chr1:2345-D:2 is a variant of interest, and a read has the
 variant chr1:2344-D:3, it will select that read even though the variants don't
@@ -90,6 +110,11 @@ forward/reverse strand with first/second mate in the pair.""")
     fail("\nError: Please provide a list of variants in either a VCF file or a "
       +"command line option.")
 
+  if options.tsv:
+    outformat = 'tsv'
+  else:
+    outformat = 'human'
+
   #TODO: make sure BAM is sorted
   #TODO: take chrom in to account when sorting variants: use order in BAM header
   # sort variants by coordinate
@@ -100,8 +125,12 @@ forward/reverse strand with first/second mate in the pair.""")
   for (variant, reads, stats) in zip(variants, read_sets, stat_sets):
     if filter_out(variant, reads, stats, options):
       continue
-    if options.human:
-      sys.stdout.write(human_stats(variant, reads, stats))
+    output_stats = get_output_stats(variant, stats)
+    if outformat == 'human':
+      sys.stdout.write(humanize(output_stats))
+    elif outformat == 'tsv':
+      sys.stdout.write("\t".join([str(v) for v in output_stats.values()])+"\n")
+
 
 
 def variants_from_str(variants_str):
@@ -192,52 +221,74 @@ def filter_out(variant, reads, stats, options):
   return filter_out
 
 
-def human_stats(variant, reads, stats):
-  output = ""
-  output += variant['chrom']+':'+str(variant['coord'])+'-'+variant['type']+"\n"
-  output += "  coverage:         "+str(stats['coverage'])+"\n"
-  total = stats['supporting']
-  freq = str(round(100*stats['freq'],2))+"%"
-  output += "  supporting reads: "+str(total)+" ("+freq+")\n"
+def get_output_stats(variant, stats):
+  output = collections.OrderedDict()
+  output['chrom']       = variant.get('chrom')
+  output['coord']       = variant.get('coord')
+  output['type']        = variant.get('type')
+  output['alt']         = variant.get('alt')
+  output['coverage']    = stats.get('coverage')
+  total = stats.get('supporting')
+  output['supporting']  = total
+  output['freq']        = round(100*stats['freq'], 2)
   if total == 0:
+    # the rest of the fields aren't meaningful if no supporting reads
+    for i in range(14):
+      output[i] = None
     return output
   flags = stats['flags']
-  output += ("  unmapped:            "+pct(flags[2], total)+"\n")
-  output += ("  not proper pair:     "+pct(total-flags[1], total)+"\n")
-  output += ("  forward/reverse:     "+pct(total-flags[4], total)+"/"
-    +pct(flags[4], total, const_width=False)+"\n")
-  output += ("  1st/2nd mate:        "+pct(flags[6], total)+"/"
-    +pct(flags[7], total, const_width=False)+"\n")
-  output += ("  secondary alignment: "+pct(flags[8], total)+"\n")
-  output += ("  marked duplicate:    "+pct(flags[11], total)+"\n")
+  output['unmapped']    = pct(flags[2], total)
+  output['improper']    = pct(total-flags[1], total)
+  output['forward']     = pct(total-flags[4], total)
+  output['1st-mate']    = pct(flags[6], total)
+  output['2ndary']      = pct(flags[8], total)
+  output['duplicate']   = pct(flags[11], total)
   mapqs = stats['mapqs']
-  output += "  MAPQ == 0:  "+pct(mapqs[0], total)+"\n"
-  output += "  MAPQ >= 20: "+pct(mapq_ge_thres(mapqs, 20), total)+"\n"
-  output += "  MAPQ >= 30: "+pct(mapq_ge_thres(mapqs, 30), total)+"\n"
-  output += "  MAPQ == "+str(len(mapqs)-1)+": "+pct(mapqs[-1], total)+"\n"
-  output += "  strand bias: "+str(stats['strand_bias'])+"\n"
-  output += "  mate bias:   "+str(stats['mate_bias'])+"\n"
+  output['mapq0']       = pct(mapqs[0], total)
+  output['mapq20']      = pct(mapq_ge_thres(mapqs, 20), total)
+  output['mapq30']      = pct(mapq_ge_thres(mapqs, 30), total)
+  output['mapq-top']    = pct(mapqs[-1], total)
+  output['mapq-best']   = len(mapqs)-1
+  output['strand_bias'] = stats.get('strand_bias')
+  output['mate_bias']   =  stats.get('mate_bias')
+  output['flags'] = ','.join([str(flag) for flag in flags])
   return output
 
 
-def pct(count, total, decimals=1, const_width=True):
-  """Calculate a percentage and return a formatted, constant-width and constant-
-  precision string."""
-  if const_width:
-    width = str(decimals+3)
-    if count <= 0 or total <= 0:
-      return ("%"+width+"d%%") % 0
-    if count == total:
-      return ("%"+width+"d%%") % 100
-    fraction = 100*count/total
-    return ("%"+width+"."+str(decimals)+"f%%") % fraction
-  else:
-    if count <= 0 or total <= 0:
-      return "0%"
-    if count == total:
-      return "100%"
-    fraction = 100*count/total
-    return str(round(fraction, decimals))+"%"
+def humanize(output_stats):
+  """Format variant statistics into a human-readable printout.
+  Input: output of get_output_stats()
+  Output: a string ready to print (including ending newline)
+  """
+  # print 'N/A' as null value
+  for key in output_stats:
+    if output_stats[key] is None and key != 'alt':
+      output_stats[key] = 'N/A'
+  output = ""
+  output += (output_stats['chrom']+':'+str(output_stats['coord'])+'-'
+    +output_stats['type'])
+  if output_stats['alt']:
+    output += ':'+output_stats['alt']
+  output += "\n"
+  output += "  coverage:         %s\n" % output_stats['coverage']
+  output += "  supporting reads: %s (%s%%)\n" % (output_stats['supporting'],
+    output_stats['freq'])
+  if output_stats['supporting'] == 0:
+    return output
+  output += "  unmapped:            %s\n" % pct_str(output_stats['unmapped'])
+  output += "  not proper pair:     %s\n" % pct_str(output_stats['improper'])
+  output += "  forward strand:      %s\n" % pct_str(output_stats['forward'])
+  output += "  1st mate:            %s\n" % pct_str(output_stats['1st-mate'])
+  output += "  secondary alignment: %s\n" % pct_str(output_stats['2ndary'])
+  output += "  marked duplicate:    %s\n" % pct_str(output_stats['duplicate'])
+  output += "  MAPQ == 0:  %s\n" % pct_str(output_stats['mapq0'])
+  output += "  MAPQ >= 20: %s\n" % pct_str(output_stats['mapq20'])
+  output += "  MAPQ >= 30: %s\n" % pct_str(output_stats['mapq30'])
+  output += "  MAPQ == %2s: %s\n" % (output_stats['mapq-best'],
+    pct_str(output_stats['mapq-top']))
+  output += "  strand bias: %s\n" % output_stats['strand_bias']
+  output += "  mate bias:   %s\n" % output_stats['mate_bias']
+  return output
 
 
 def mapq_ge_thres(mapqs, thres):
@@ -248,6 +299,36 @@ def mapq_ge_thres(mapqs, thres):
     count += mapqs[i]
     i+=1
   return count
+
+
+def pct(count, total, decimals=1):
+  try:
+    return round(100*count/total, decimals)
+  except ZeroDivisionError:
+    return None
+
+
+def pct_str(percent, decimals=1, const_width=True):
+  """Format a percentage into a constant-width, constant precision string."""
+  if const_width:
+    width = str(decimals+3)
+    if percent <= 0:
+      return ("%"+width+"d%%") % 0
+    elif percent == 100:
+      return ("%"+width+"d%%") % 100
+    elif percent is None:
+      return ("%"+width+"s%%") % "N/A"
+    else:
+      return ("%"+width+"."+str(decimals)+"f%%") % percent
+  else:
+    if percent <= 0:
+      return "0%"
+    elif percent == 100:
+      return "100%"
+    elif percent is None:
+      return "N/A"
+    else:
+      return str(round(percent, decimals))+"%"
 
 
 def fail(message):

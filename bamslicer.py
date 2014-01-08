@@ -2,56 +2,15 @@
 """Methods to select reads from a BAM that contain given variants, and return
 statistics on their characteristics."""
 from __future__ import division
-import collections
-import sys
 import os
-# temporary development workaround
-try:
-  sys.path.remove('/usr/local/lib/python2.7/dist-packages/pyBamParser-0.0.1-py2.7.egg')
-  sys.path.append('/home/me/bx/code/indels/pybamparser/lib/')
-except ValueError:
-  pass
-try:
-  sys.path.remove('/afs/bx.psu.edu/user/n/nick/.local/lib/python2.7/site-packages/pyBamParser-0.0.1-py2.7.egg')
-  sys.path.append('/afs/bx.psu.edu/user/n/nick/code/pybamparser/lib')
-except ValueError:
-  pass
+import sys
+import collections
 from pyBamParser.bam import Reader
-
 
 NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
 STAT_NAMES = ['supporting', 'coverage', 'flags', 'mapqs', 'freq', 'strand_bias',
   'mate_bias']
-
-"""End uses of this library:
-
-nvc-filter.py:
-Give a variant and a bam file (or a bam_reader), and return statistics on the
-reads containing (and not containing?) the variant.
-If it could do this without nvc-filter.py having to import any pyBamParser
-stuff, that'd be neat.
-
-inspect-reads.py:
-Give a variant and a bam_reader, and return the reads containing, not
-containing, or covering the variants, and statistics on those reads.
-"""
-
-"""Design:
-
-This is a problem that really needs to take advantage of BAM indexing. The main
-issue is figuring out which reads overlap with each variant, and that's what
-the index's bins are made for.
-
-UPDATE:
-It turns out BAM indexing won't help for my use case. The smallest bin is 16kb,
-which is the size of the entire chromosome I'm working with.
-
-So for now, a totally naive implementation. It will have to go through the
-entire BAM file on each call. This makes it basically impossible to use by
-nvc-filter.py, which has to call it once for every variant it investigates.
-"""
-
 
 def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False):
   """Take a BAM and a list of variants, and return the reads covering the
@@ -172,7 +131,7 @@ def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES)
     'nm_edits':
   ***PLANNED*** NM tag edit distances.
   """
-
+  #TODO: doublecheck values that could be incalculable given the input data
   stats = {}
 
   if 'supporting' in stats_to_get:
