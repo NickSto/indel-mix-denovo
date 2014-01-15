@@ -38,13 +38,11 @@ def main():
   lav = bioreaders.LavReader(lavpath)
   lav.convert()
   intervals = lav_to_intervals(lav)
-  print "all intervals:"
+  all_overlaps = get_all_overlaps(intervals)
   for interval in intervals:
-    print interval,":\t",intervals[interval].parent.query['id']
-  overlaps = get_overlaps(intervals.keys()[0], intervals)
-  print "overlapping",intervals.keys()[0],':'
-  for interval in overlaps:
-    print interval,":\t",intervals[interval].parent.query['id']
+    print "overlapping",interval,':\t',intervals[interval].parent.query['id']
+    for overlap in all_overlaps[interval]:
+      print overlap,":    \t",intervals[overlap].parent.query['id']
 
 
 def lav_to_intervals(lav):
@@ -61,18 +59,31 @@ def lav_to_intervals(lav):
   return intervals
 
 
-def get_overlaps(intervalA, intervals):
+def get_all_overlaps(intervals):
+  """Return a dict mapping intervals to lists of the intervals they overlap."""
+  all_overlaps = {}
+  for interval in intervals:
+    overlaps = get_overlaps(interval, intervals)
+    all_overlaps[interval] = overlaps
+  return all_overlaps
+
+
+#TODO: find overlaps for all intervals, using a single tree, if possible
+def get_overlaps(query, intervals):
   # build tree
   tree = None
   for interval in intervals:
-    if interval != intervalA:
+    # Do not include the query interval in the subject tree. This will only
+    # exclude the actual query interval, even if there is another identical one.
+    # ("interval == query and interval is not query" can be True.)
+    if interval is not query:
       if tree is None:
         tree = quicksect.IntervalNode(interval[0], interval[1])
       else:
         tree = tree.insert(interval[0], interval[1])
   # find ones that intersect the interval of interest
   overlaps = []
-  tree.intersect(intervalA[0], intervalA[1], lambda x: overlaps.append(x))
+  tree.intersect(query[0], query[1], lambda x: overlaps.append(x))
   return [(x.start, x.end) for x in overlaps]
 
 

@@ -7,11 +7,12 @@ from __future__ import division
 import re
 import os
 import sys
+import signal
 from optparse import OptionParser
 
 USAGE = "USAGE: %prog [options] file.sam"
 DESCRIPTION = """Slightly more advanced SAM filtering than SAMTools. E.g. CIGAR
-parsing, NM tag, etc.
+parsing, indel location, etc.
 Give "-" as the input filename to read from stdin."""
 EPILOG = """"""
 OPT_DEFAULTS = {'region':'', 'event_types':'', 'clipping':0.0, 'coord':0,
@@ -31,6 +32,9 @@ debug = False
 for opt in sys.argv[1:]:
   if opt == '--debug' or re.search(r'^-\w*d', opt):
     debug = True
+
+# ignore broken pipes
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 def main():
 
