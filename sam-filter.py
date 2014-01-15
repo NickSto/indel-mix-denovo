@@ -200,7 +200,8 @@ def parse_cigar(cigar, pos, seq='', test_output=False):
 
 def clip_pass(cigar, threshold):
   """Find whether the read passes the soft clipping threshold.
-  threshold is a maximum soft-clipping percentage (float)."""
+  threshold is a maximum soft-clipping percentage (float). Null CIGAR strings
+  ("*") pass."""
 
   clip_length = 0
   total_length = 0
@@ -231,7 +232,9 @@ def clip_pass(cigar, threshold):
   # print "clipped:%6.2f (%s)" % (100*clip_length/total_length,
   #   ' '.join(re.findall(r'\d*[MIDNSHPX=]', cigar)))
 
-  if 100*clip_length/total_length > threshold:
+  if total_length == 0:
+    return True
+  elif 100*clip_length/total_length > threshold:
     return False
   else:
     return True
