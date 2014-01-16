@@ -1,0 +1,13 @@
+overlapping:  (1, 16220) 16220 bp:	NODE_1
+(9322, 9617) 296 bp:	NODE_4
+(14286, 14694) 409 bp:	NODE_3
+(14852, 15279) 428 bp:	NODE_2
+(16094, 16569) 476 bp:	NODE_1
+overlapping:  (9322, 9617) 296 bp:	NODE_4
+(1, 16220) 16220 bp:	NODE_1
+overlapping:  (14286, 14694) 409 bp:	NODE_3
+(1, 16220) 16220 bp:	NODE_1
+overlapping:  (14852, 15279) 428 bp:	NODE_2
+(1, 16220) 16220 bp:	NODE_1
+overlapping:  (16094, 16569) 476 bp:	NODE_1
+(1, 16220) 16220 bp:	NODE_1

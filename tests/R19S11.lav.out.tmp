@@ -1,0 +1,51 @@
+overlapping:  (1, 2411) 2411 bp:	NODE_1
+(336, 486) 151 bp:	NODE_2
+(409, 667) 259 bp:	NODE_6
+(1725, 1956) 232 bp:	NODE_5
+(2285, 2614) 330 bp:	NODE_11
+(2286, 2614) 329 bp:	NODE_10
+(2360, 2539) 180 bp:	NODE_13
+overlapping:  (336, 486) 151 bp:	NODE_2
+(1, 2411) 2411 bp:	NODE_1
+(409, 667) 259 bp:	NODE_6
+overlapping:  (409, 667) 259 bp:	NODE_6
+(1, 2411) 2411 bp:	NODE_1
+(336, 486) 151 bp:	NODE_2
+overlapping:  (1725, 1956) 232 bp:	NODE_5
+(1, 2411) 2411 bp:	NODE_1
+overlapping:  (2285, 2614) 330 bp:	NODE_11
+(1, 2411) 2411 bp:	NODE_1
+(2286, 2614) 329 bp:	NODE_10
+(2360, 2539) 180 bp:	NODE_13
+(2488, 16569) 14082 bp:	NODE_1
+overlapping:  (2286, 2614) 329 bp:	NODE_10
+(1, 2411) 2411 bp:	NODE_1
+(2285, 2614) 330 bp:	NODE_11
+(2360, 2539) 180 bp:	NODE_13
+(2488, 16569) 14082 bp:	NODE_1
+overlapping:  (2360, 2539) 180 bp:	NODE_13
+(1, 2411) 2411 bp:	NODE_1
+(2285, 2614) 330 bp:	NODE_11
+(2286, 2614) 329 bp:	NODE_10
+(2488, 16569) 14082 bp:	NODE_1
+overlapping:  (2488, 16569) 14082 bp:	NODE_1
+(2285, 2614) 330 bp:	NODE_11
+(2286, 2614) 329 bp:	NODE_10
+(2360, 2539) 180 bp:	NODE_13
+(6340, 6748) 409 bp:	NODE_4
+(8117, 8535) 419 bp:	NODE_3
+(11600, 11964) 365 bp:	NODE_9
+(11869, 12256) 388 bp:	NODE_7
+(13430, 13815) 386 bp:	NODE_8
+overlapping:  (6340, 6748) 409 bp:	NODE_4
+(2488, 16569) 14082 bp:	NODE_1
+overlapping:  (8117, 8535) 419 bp:	NODE_3
+(2488, 16569) 14082 bp:	NODE_1
+overlapping:  (11600, 11964) 365 bp:	NODE_9
+(2488, 16569) 14082 bp:	NODE_1
+(11869, 12256) 388 bp:	NODE_7
+overlapping:  (11869, 12256) 388 bp:	NODE_7
+(2488, 16569) 14082 bp:	NODE_1
+(11600, 11964) 365 bp:	NODE_9
+overlapping:  (13430, 13815) 386 bp:	NODE_8
+(2488, 16569) 14082 bp:	NODE_1

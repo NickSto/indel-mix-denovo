@@ -42,10 +42,22 @@ def main():
   lav.convert()
   intervals = lav_to_intervals(lav)
   all_overlaps = get_all_overlaps(intervals)
-  for interval in intervals:
-    print "overlapping",interval,':\t',intervals[interval].parent.query['id']
-    for overlap in all_overlaps[interval]:
-      print overlap,":    \t",intervals[overlap].parent.query['id']
+  for interval in sorted(intervals, key=lambda x: x[0]):
+    print "overlapping: ",format_interval(interval, intervals)
+    for overlap in sorted(all_overlaps[interval], key=lambda x: x[0]):
+      print format_interval(overlap, intervals)
+
+
+def format_interval(interval, intervals):
+  output = str(interval)
+  output += ' '+str(interval[1]-interval[0]+1)+' bp:\t'
+  name = intervals[interval].parent.query['id']
+  if name.startswith('NODE_'):
+    fields = name.split('_')
+    if len(fields) > 2:
+      name = '_'.join(fields[:2])
+  output += name
+  return output
 
 
 def lav_to_intervals(lav):
@@ -82,6 +94,10 @@ def get_all_overlaps(intervals):
     overlaps[:] = [overlap for overlap in overlaps if overlap != interval]
     all_overlaps[interval] = overlaps
   return all_overlaps
+
+
+def intlen(interval):
+  return interval[1] - interval[0] + 1
 
 
 def fail(message):
