@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 import sys
+import random
 import quicksect
 import bioreaders
 from optparse import OptionParser
@@ -10,6 +11,8 @@ USAGE = "USAGE: %prog [options] lastz-output.lav assembly.fa"
 DESCRIPTION = """"""
 EPILOG = """"""
 
+#TODO: handle contigs with exactly the same start/end points
+#      maybe use IntervalNode.linenum as unique identifier
 def main():
 
   parser = OptionParser(usage=USAGE, description=DESCRIPTION, epilog=EPILOG)
@@ -60,31 +63,25 @@ def lav_to_intervals(lav):
 
 
 def get_all_overlaps(intervals):
-  """Return a dict mapping intervals to lists of the intervals they overlap."""
-  all_overlaps = {}
-  for interval in intervals:
-    overlaps = get_overlaps(interval, intervals)
-    all_overlaps[interval] = overlaps
-  return all_overlaps
-
-
-#TODO: find overlaps for all intervals, using a single tree, if possible
-def get_overlaps(query, intervals):
   # build tree
   tree = None
+  random.seed(1)
   for interval in intervals:
-    # Do not include the query interval in the subject tree. This will only
-    # exclude the actual query interval, even if there is another identical one.
-    # ("interval == query and interval is not query" can be True.)
-    if interval is not query:
-      if tree is None:
-        tree = quicksect.IntervalNode(interval[0], interval[1])
-      else:
-        tree = tree.insert(interval[0], interval[1])
-  # find ones that intersect the interval of interest
-  overlaps = []
-  tree.intersect(query[0], query[1], lambda x: overlaps.append(x))
-  return [(x.start, x.end) for x in overlaps]
+    if tree is None:
+      tree = quicksect.IntervalNode(interval[0], interval[1])
+    else:
+      tree = tree.insert(interval[0], interval[1])
+  # find ones that intersect each interval
+  all_overlaps = {}
+  for interval in intervals:
+    overlaps = []
+    # reporter function: is given the matching interval when one is found
+    add_overlap = lambda node: overlaps.append((node.start, node.end))
+    tree.intersect(interval[0], interval[1], add_overlap)
+    # remove the query interval from the results
+    overlaps[:] = [overlap for overlap in overlaps if overlap != interval]
+    all_overlaps[interval] = overlaps
+  return all_overlaps
 
 
 def fail(message):
