@@ -52,13 +52,14 @@ def test_output(all_overlaps, intervals):
   for interval in sorted(intervals, key=lambda x: x[0]):
     if interval not in all_overlaps:
       continue
-    print "overlapping: ",format_interval(interval, intervals)
+    print "overlapping",format_interval(interval, intervals)
     for overlap in sorted(all_overlaps[interval], key=lambda x: x[0]):
       print format_interval(overlap, intervals)
-    merged = get_unique(all_overlaps[interval])
-    print "  merged:"
-    for minterval in sorted(merged, key=lambda x: x[0]):
-      print "    "+format_interval(minterval)
+    print "  unique:"
+    merged = merge(all_overlaps[interval])
+    merged.sort(key=lambda x: x[0])
+    for unique in get_uniques(merged, interval):
+      print "    "+format_interval(unique)
 
 
 def format_interval(interval, intervals=None):
@@ -143,34 +144,53 @@ def is_redundant(interval, overlaps, threshold=0):
   unique = get_unique(overlaps)
 
 
-def get_unique(overlaps):
-  """Find all regions in overlaps that do not overlap with any other interval.
-  Implementation is totally naive, and O(n^2)."""
+def merge(intervals):
+  """Merge a list of intervals into a new list of non-overlapping intervals.
+  Merging is 1-based (will merge if end == start).
+  Implementation is totally naive: O(n^2)."""
+  #TODO: replace with an actually efficient merge, e.g. from bx-python
   merged = []
-  for interval in overlaps:
-    merged = add_and_merge(interval, merged)
+  # go through input list, adding 1 interval at a time to a growing merged list
+  for interval in intervals:
+    i = 0
+    while i < len(merged):
+      target = merged[i]
+      # if any overlap
+      if interval[0] <= target[1] and interval[1] >= target[0]:
+        # replace the target with a combination of it and the input interval
+        del(merged[i])
+        # merge the two intervals by taking the widest possible region
+        interval = (min(interval[0], target[0]), max(interval[1], target[1]))
+      else:
+        i+=1
+    merged.append(interval)
   return merged
 
 
-def add_and_merge(interval, merged):
-  """Add an interval to a list of intervals, merging in the case of overlaps.
-  intervals is the growing list of merged intervals. Merging is 1-based
-  (will merge if end == start)."""
-  #TODO: do this with a sort, then reduce?
-  #TODO: then replace with an actually efficient merge, e.g. from bx-python
-  i = 0
-  while i < len(merged):
-    target = merged[i]
-    # if any overlap
-    if interval[0] <= target[1] and interval[1] >= target[0]:
-      # replace the target with a combination of it and the input interval
-      del(merged[i])
-      # merge the two intervals by taking the widest possible region
-      interval = (min(interval[0], target[0]), max(interval[1], target[1]))
-    else:
-      i+=1
-  merged.append(interval)
-  return merged
+def get_uniques(merged, int_of_interest):
+  """Find all regions in overlaps that do not overlap with any other interval.
+  merged is a merge of all the intervals overlapping the one of interest. It
+  must be a set of non-overlapping intervals, in order from lowest to highest
+  coordinate.
+  interval is the interval of interest.
+  Returns a list of intervals representing the unique spans."""
+  begin = int_of_interest[0]
+  end = int_of_interest[1]
+  uniques = []
+  for i in range(len(merged)):
+    # add region before first overlap (if unique)
+    if i == 0 and begin < merged[i][0]:
+      uniques.append((begin, merged[i][0]-1))
+    if i > 0:
+      unique = (merged[i-1][1]+1, merged[i][0]-1)
+      if unique[0] <= unique[1]:
+        uniques.append(unique)
+    # add region after last overlap (if unique)
+    if i == len(merged) - 1 and end > merged[i][1]:
+      uniques.append((merged[i][1]+1, end))
+  if not merged:
+    uniques.append((begin, end))
+  return uniques
 
 
 def fail(message):
