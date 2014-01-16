@@ -42,7 +42,7 @@ def main():
   lav.convert()
   intervals = lav_to_intervals(lav)
   all_overlaps = get_all_overlaps(intervals)
-  all_overlaps = discard_redundant(all_overlaps)
+  # all_overlaps = discard_redundant(all_overlaps)
   if options.test_output:
     test_output(all_overlaps, intervals)
     sys.exit()
@@ -55,42 +55,23 @@ def test_output(all_overlaps, intervals):
     print "overlapping: ",format_interval(interval, intervals)
     for overlap in sorted(all_overlaps[interval], key=lambda x: x[0]):
       print format_interval(overlap, intervals)
+    merged = get_unique(all_overlaps[interval])
+    print "  merged:"
+    for minterval in sorted(merged, key=lambda x: x[0]):
+      print "    "+format_interval(minterval)
 
 
-def format_interval(interval, intervals):
+def format_interval(interval, intervals=None):
   output = str(interval)
-  output += ' '+str(interval[1]-interval[0]+1)+' bp:\t'
-  name = intervals[interval].parent.query['id']
-  if name.startswith('NODE_'):
-    fields = name.split('_')
-    if len(fields) > 2:
-      name = '_'.join(fields[:2])
-  output += name
+  output += ' '+str(interval[1]-interval[0]+1)+' bp'
+  if intervals:
+    name = intervals[interval].parent.query['id']
+    if name.startswith('NODE_'):
+      fields = name.split('_')
+      if len(fields) > 2:
+        name = '_'.join(fields[:2])
+    output += ":\t"+name
   return output
-
-
-def discard_redundant(all_overlaps):
-  """Remove intervals wholly contained within other intervals.
-  The discarded intervals will be removed from both the set of keys and the
-  lists of overlapping intervals."""
-  redundant = set()
-  # gather redundant intervals
-  for interval in all_overlaps:
-    for overlap in all_overlaps[interval]:
-      if is_redundant(overlap, interval):
-        redundant.add(overlap)
-  # discard redundant intervals
-  for interval in all_overlaps.keys():
-    if interval in redundant:
-      del(all_overlaps[interval])
-    else:
-      all_overlaps[interval] = filter(lambda x: x not in redundant, all_overlaps[interval])
-  return all_overlaps
-
-
-def is_redundant(query, subject):
-  """Return True if query is wholly contained within subject."""
-  return subject[0] <= query[0] and query[1] <= subject[1]
 
 
 def lav_to_intervals(lav):
@@ -132,8 +113,64 @@ def get_all_overlaps(intervals):
   return all_overlaps
 
 
-def length(interval):
-  return interval[1] - interval[0] + 1
+def discard_redundant(all_overlaps):
+  """Remove intervals wholly contained within other intervals.
+  The discarded intervals will be removed from both the set of keys and the
+  lists of overlapping intervals."""
+  redundant = set()
+  # gather redundant intervals
+  for interval in all_overlaps:
+    if is_redundant(interval, all_overlaps[interval]):
+      redundant.add(interval)
+    # redundant = redundant.union(get_redundant(interval, all_overlaps))
+  # discard redundant intervals
+  for interval in all_overlaps.keys():
+    if interval in redundant:
+      del(all_overlaps[interval])
+    else:
+      all_overlaps[interval] = filter(lambda x: x not in redundant, all_overlaps[interval])
+  return all_overlaps
+
+
+def is_redundant(interval, overlaps, threshold=0):
+  """Return True if the interval is redundant.
+  The interval is redundant unless more than threshold % of its length uniquely
+  covers the reference."""
+  for overlap in overlaps:
+    # if interval (the key) is wholly contained within overlap
+    if overlap[0] <= interval[0] and interval[1] <= overlap[1]:
+      return True
+  unique = get_unique(overlaps)
+
+
+def get_unique(overlaps):
+  """Find all regions in overlaps that do not overlap with any other interval.
+  Implementation is totally naive, and O(n^2)."""
+  merged = []
+  for interval in overlaps:
+    merged = add_and_merge(interval, merged)
+  return merged
+
+
+def add_and_merge(interval, merged):
+  """Add an interval to a list of intervals, merging in the case of overlaps.
+  intervals is the growing list of merged intervals. Merging is 1-based
+  (will merge if end == start)."""
+  #TODO: do this with a sort, then reduce?
+  #TODO: then replace with an actually efficient merge, e.g. from bx-python
+  i = 0
+  while i < len(merged):
+    target = merged[i]
+    # if any overlap
+    if interval[0] <= target[1] and interval[1] >= target[0]:
+      # replace the target with a combination of it and the input interval
+      del(merged[i])
+      # merge the two intervals by taking the widest possible region
+      interval = (min(interval[0], target[0]), max(interval[1], target[1]))
+    else:
+      i+=1
+  merged.append(interval)
+  return merged
 
 
 def fail(message):
