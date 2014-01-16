@@ -1,0 +1,218 @@
+#:lav
+d {
+  "lastz.v1.02.00 /home/me/bx/data/chrM-rCRS.fa orig/R19S11.fa --format=lav 
+     A    C    G    T
+    91 -114  -31 -123
+  -114  100 -125  -31
+   -31 -125  100 -114
+  -123  -31 -114   91
+  O = 400, E = 30, K = 3000, L = 3000, M = 0"
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa-" 1 409 1 1
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_4_length_409_cov_0.950355_ID_1845342 (reverse complement)"
+}
+a {
+  s 33115
+  b 6340 1
+  e 6748 409
+  l 6340 1 6748 409 93
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa-" 1 420 1 2
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_3_length_420_cov_0.883959_ID_1769132 (reverse complement)"
+}
+a {
+  s 34742
+  b 8117 2
+  e 8535 420
+  l 8117 2 8535 420 94
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa" 1 424 0 3
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_2_length_424_cov_1.48485_ID_3744482"
+}
+a {
+  s 12954
+  b 336 107
+  e 486 256
+  l 336 107 382 153 96
+  l 384 154 486 256 96
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa" 1 391 0 4
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_6_length_391_cov_0.833333_ID_1683342"
+}
+a {
+  s 19394
+  b 409 133
+  e 667 391
+  l 409 133 667 391 89
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa-" 1 390 1 5
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_7_length_390_cov_0.65019_ID_1798454 (reverse complement)"
+}
+a {
+  s 20556
+  b 11869 1
+  e 12256 388
+  l 11869 1 12256 388 77
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa" 1 386 0 6
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_8_length_386_cov_1.54054_ID_3742102"
+}
+a {
+  s 35950
+  b 13430 1
+  e 13815 386
+  l 13430 1 13815 386 99
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa-" 1 180 1 7
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_13_length_180_cov_136.774_ID_4057248 (reverse complement)"
+}
+a {
+  s 16476
+  b 2360 1
+  e 2539 180
+  l 2360 1 2539 180 98
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa-" 1 381 1 8
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_9_length_379_cov_0.888889_ID_1677238 (reverse complement)"
+}
+a {
+  s 27997
+  b 11600 9
+  e 11964 373
+  l 11600 9 11964 373 91
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa-" 1 330 1 9
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_12_length_330_cov_2402.38_ID_4058042 (reverse complement)"
+}
+a {
+  s 31076
+  b 2285 1
+  e 2614 330
+  l 2285 1 2614 330 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa-" 1 330 1 10
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_11_length_330_cov_5033.98_ID_4058044 (reverse complement)"
+}
+a {
+  s 31281
+  b 2285 1
+  e 2614 330
+  l 2285 1 2614 330 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa-" 1 330 1 11
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_10_length_330_cov_1798.57_ID_4058022 (reverse complement)"
+}
+a {
+  s 30230
+  b 2286 2
+  e 2614 330
+  l 2286 2 2614 330 98
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa-" 1 394 1 12
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_5_length_394_cov_2.11985_ID_3745446 (reverse complement)"
+}
+a {
+  s 21735
+  b 1725 1
+  e 1956 232
+  l 1725 1 1956 232 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R19S11.fa" 1 16494 0 13
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">NODE_1_length_16494_cov_4626.86_ID_4058018"
+}
+a {
+  s 227808
+  b 1 14082
+  e 2411 16494
+  l 1 14082 310 14391 99
+  l 311 14394 2411 16494 100
+}
+a {
+  s 1336585
+  b 2488 1
+  e 16569 14081
+  l 2488 1 3106 619 100
+  l 3108 620 16569 14081 100
+}
+m {
+  n 0
+}
+#:eof
