@@ -42,7 +42,7 @@ def main():
   lav.convert()
   intervals = lav_to_intervals(lav)
   all_overlaps = get_all_overlaps(intervals)
-  # all_overlaps = discard_redundant(all_overlaps)
+  all_overlaps = discard_redundant(all_overlaps)
   if options.test_output:
     test_output(all_overlaps, intervals)
     sys.exit()
@@ -55,11 +55,11 @@ def test_output(all_overlaps, intervals):
     print "overlapping",format_interval(interval, intervals)
     for overlap in sorted(all_overlaps[interval], key=lambda x: x[0]):
       print format_interval(overlap, intervals)
-    print "  unique:"
-    merged = merge(all_overlaps[interval])
-    merged.sort(key=lambda x: x[0])
-    for unique in get_uniques(merged, interval):
-      print "    "+format_interval(unique)
+    # print "  unique:"
+    # merged = merge(all_overlaps[interval])
+    # merged.sort(key=lambda x: x[0])
+    # for unique in get_uniques(merged, interval):
+    #   print "    "+format_interval(unique)
 
 
 def format_interval(interval, intervals=None):
@@ -109,27 +109,28 @@ def get_all_overlaps(intervals):
     add_overlap = lambda node: overlaps.append((node.start, node.end))
     tree.intersect(interval[0], interval[1], add_overlap)
     # remove the query interval from the results
-    overlaps[:] = [overlap for overlap in overlaps if overlap != interval]
+    overlaps = [overlap for overlap in overlaps if overlap != interval]
     all_overlaps[interval] = overlaps
   return all_overlaps
 
 
-def discard_redundant(all_overlaps):
-  """Remove intervals wholly contained within other intervals.
-  The discarded intervals will be removed from both the set of keys and the
-  lists of overlapping intervals."""
+def discard_redundant(all_overlaps, threshold=0):
+  """Remove redundant intervals from all_overlaps.
+  Intervals are redundant unless more than threshold % of their length uniquely
+  covers the reference. The discarded intervals will be removed from both the
+  set of keys and the lists of overlapping intervals."""
   redundant = set()
   # gather redundant intervals
   for interval in all_overlaps:
-    if is_redundant(interval, all_overlaps[interval]):
+    if is_redundant(interval, all_overlaps[interval], threshold=0):
       redundant.add(interval)
-    # redundant = redundant.union(get_redundant(interval, all_overlaps))
-  # discard redundant intervals
+  # go through all_overlaps again, discarding redundant intervals
   for interval in all_overlaps.keys():
     if interval in redundant:
       del(all_overlaps[interval])
     else:
-      all_overlaps[interval] = filter(lambda x: x not in redundant, all_overlaps[interval])
+      all_overlaps[interval] = [overlap for overlap in all_overlaps[interval]
+        if overlap not in redundant]
   return all_overlaps
 
 
@@ -137,11 +138,17 @@ def is_redundant(interval, overlaps, threshold=0):
   """Return True if the interval is redundant.
   The interval is redundant unless more than threshold % of its length uniquely
   covers the reference."""
+  # print "is_redundant on "+format_interval(interval)
   for overlap in overlaps:
     # if interval (the key) is wholly contained within overlap
     if overlap[0] <= interval[0] and interval[1] <= overlap[1]:
+      # print "  wholly contained within "+format_interval(overlap)
       return True
-  unique = get_unique(overlaps)
+  merged = merge(overlaps)
+  merged.sort(key=lambda x: x[0])
+  unique = get_uniques(merged, interval)
+  # print "  uniques: "+str(unique)
+  return not unique
 
 
 def merge(intervals):
