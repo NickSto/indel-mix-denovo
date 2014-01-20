@@ -6,46 +6,100 @@ import quicksect
 import bioreaders
 from optparse import OptionParser
 
-OPT_DEFAULTS = {'str':'', 'int':0, 'float':0.0, 'test_output':False}
-USAGE = "USAGE: %prog [options] lastz-output.lav assembly.fa"
-DESCRIPTION = """"""
+OPT_DEFAULTS = {'lav':'', 'asm':'', 'ref':'', 'slop':20, 'test_output':False}
+USAGE = ("USAGE: %prog [opts] "
+  +"(-a asm.fa -r ref.fa|-l align.lav) [-o asm-new.fa]")
+DESCRIPTION = """Analyze an assembly via its LASTZ alignment to the reference,
+and curate the assembly sequence. Provide either a LASTZ alignment (in LAV
+format) or the assembly and reference sequence so that an alignment can be
+performed. It will print to stdout an analysis of the alignment and any assembly
+issues it indicates. If a new assembly filename is provided with -o, it will
+create a curated assembly, with some redundant contigs removed.
+Uses curation algorithm version 2: Just remove contigs which are entirely
+contained within another contig."""
 EPILOG = """"""
 
-#TODO: handle contigs with exactly the same start/end points
-#      maybe use IntervalNode.linenum as unique identifier
+#TODO: Distinguish contigs with exactly the same start/end points.
+#      Maybe use IntervalNode.linenum as unique identifier.
+#TODO: When a contig is made of multiple alignments, check whether they look
+#      incorrect (basically anything except a break at the reference edge).
 def main():
 
   parser = OptionParser(usage=USAGE, description=DESCRIPTION, epilog=EPILOG)
 
-  parser.add_option('-s', '--str', dest='str',
-    default=OPT_DEFAULTS.get('str'), help='default: %default')
-  parser.add_option('-i', '--int', dest='int', type='int',
-    default=OPT_DEFAULTS.get('int'), help='')
-  parser.add_option('-f', '--float', dest='float', type='float',
-    default=OPT_DEFAULTS.get('float'), help='')
+  parser.add_option('-l', '--lav', dest='lav',
+    default=OPT_DEFAULTS.get('lav'),
+    help='The LASTZ alignment of the assembly to the reference, in LAV format.')
+  parser.add_option('-a', '--asm', dest='asm',
+    default=OPT_DEFAULTS.get('asm'),
+    help='The assembly itself, in a FASTA file.')
+  parser.add_option('-r', '--ref', dest='ref',
+    default=OPT_DEFAULTS.get('ref'),
+    help='The reference genome, in a FASTA file.')
+  parser.add_option('-o', '--out', dest='out',
+    default=OPT_DEFAULTS.get('out'),
+    help='Write a curated version of the assembly to this filename.')
+  parser.add_option('-s', '--slop', dest='slop', type='int',
+    default=OPT_DEFAULTS.get('slop'),
+    help="Default: %default")
   parser.add_option('-T', '--test-output', dest='test_output',
     action='store_true', default=OPT_DEFAULTS.get('test_output'),
     help='Print legacy test output.')
 
   (options, arguments) = parser.parse_args()
 
-  if len(arguments) != 2:
-    parser.print_help()
-    fail("\nError: Please provide exactly two positional arguments.")
+  files = []
+  if options.lav:
+    files.append(options.lav)
+    if options.asm:
+      files.append(options.asm)
   else:
-    for path in arguments:
-      if not os.path.isfile(path):
-        fail("\nError: cannot find file "+path)
-    (lavpath, fastapath) = arguments
+    if options.asm and options.ref:
+      files.append(options.asm)
+      files.append(options.ref)
+    else:
+      parser.print_help()
+      fail("\nError: Please provide either an LAV file or an assembly & "
+        +"reference FASTA file.")
+  if options.out:
+    if not options.asm:
+      parser.print_help()
+      fail("\nError: Please provide the assembly FASTA file in order to create "
+        +"a curated assembly.")
+
+  for path in files:
+    if not os.path.isfile(path):
+      fail("\nError: cannot find input file "+path)
+
+  if options.lav:
+    lavpath = options.lav
+  else:
+    lavpath = align(options.asm, options.ref)
 
   lav = bioreaders.LavReader(lavpath)
   lav.convert()
   intervals = lav_to_intervals(lav)
   all_overlaps = get_all_overlaps(intervals)
-  all_overlaps = discard_redundant(all_overlaps)
+  all_overlaps = discard_redundant(all_overlaps, slop=options.slop)
   if options.test_output:
     test_output(all_overlaps, intervals)
-    sys.exit()
+    sys.exit(0)
+  # remove discarded intervals from main dict
+  for interval in intervals.keys():
+    if interval not in all_overlaps:
+      del(intervals[interval])
+
+  #TODO: print alignment analysis
+
+  if not (options.asm and options.out):
+    sys.exit(0)
+
+  curate(intervals, options.asm, options.out)
+
+
+
+def length(interval):
+  return interval[1] - interval[0] + 1
 
 
 def test_output(all_overlaps, intervals):
@@ -53,13 +107,17 @@ def test_output(all_overlaps, intervals):
     if interval not in all_overlaps:
       continue
     print "overlapping",format_interval(interval, intervals)
-    for overlap in sorted(all_overlaps[interval], key=lambda x: x[0]):
-      print format_interval(overlap, intervals)
+    # for overlap in sorted(all_overlaps[interval], key=lambda x: x[0]):
+    #   print format_interval(overlap, intervals)
     # print "  unique:"
     # merged = merge(all_overlaps[interval])
     # merged.sort(key=lambda x: x[0])
     # for unique in get_uniques(merged, interval):
     #   print "    "+format_interval(unique)
+
+
+def align(asmpath, refpath):
+  fail("LASTZ ALIGNMENT NOT YET IMPLEMENTED")
 
 
 def format_interval(interval, intervals=None):
@@ -114,15 +172,14 @@ def get_all_overlaps(intervals):
   return all_overlaps
 
 
-def discard_redundant(all_overlaps, threshold=0):
+def discard_redundant(all_overlaps, slop=0):
   """Remove redundant intervals from all_overlaps.
-  Intervals are redundant unless more than threshold % of their length uniquely
-  covers the reference. The discarded intervals will be removed from both the
+  The discarded intervals will be removed from both the
   set of keys and the lists of overlapping intervals."""
   redundant = set()
   # gather redundant intervals
   for interval in all_overlaps:
-    if is_redundant(interval, all_overlaps[interval], threshold=0):
+    if is_redundant(interval, all_overlaps[interval], slop=slop):
       redundant.add(interval)
   # go through all_overlaps again, discarding redundant intervals
   for interval in all_overlaps.keys():
@@ -134,21 +191,16 @@ def discard_redundant(all_overlaps, threshold=0):
   return all_overlaps
 
 
-def is_redundant(interval, overlaps, threshold=0):
-  """Return True if the interval is redundant.
-  The interval is redundant unless more than threshold % of its length uniquely
-  covers the reference."""
+def is_redundant(interval, overlaps, slop=0):
+  """Return True if the interval is redundant."""
   # print "is_redundant on "+format_interval(interval)
   for overlap in overlaps:
-    # if interval (the key) is wholly contained within overlap
-    if overlap[0] <= interval[0] and interval[1] <= overlap[1]:
+    # if interval is wholly contained within overlap (+ slop)
+    if (overlap[0] - slop <= interval[0] and interval[1] <= overlap[1] + slop
+        and length(interval) < length(overlap)):
       # print "  wholly contained within "+format_interval(overlap)
       return True
-  merged = merge(overlaps)
-  merged.sort(key=lambda x: x[0])
-  unique = get_uniques(merged, interval)
-  # print "  uniques: "+str(unique)
-  return not unique
+  return False
 
 
 def merge(intervals):
@@ -198,6 +250,35 @@ def get_uniques(merged, int_of_interest):
   if not merged:
     uniques.append((begin, end))
   return uniques
+
+
+def curate(intervals, asmpath, outpath):
+  """Remove all contigs not present in intervals and write FASTA to outpath."""
+  contigs = get_contig_names(intervals)
+  fasta = bioreaders.FastaLineGenerator(asmpath)
+  last_name = None
+  skipping = False
+  with open(outpath, 'w') as outfile:
+    for line in fasta:
+      if fasta.name != last_name:
+        if fasta.name in contigs:
+          skipping = False
+          outfile.write('>'+fasta.name+'\n')
+        else:
+          skipping = True
+        last_name = fasta.name
+      if not skipping:
+        outfile.write(line+'\n')
+
+
+def get_contig_names(intervals):
+  """Get the FASTA sequence names for each contig represented in the intervals
+  dict. Returns the names in a set."""
+  names = set()
+  for alignment in intervals.values():
+    hit = alignment.parent
+    names.add(hit.query['name'])
+  return names
 
 
 def fail(message):
