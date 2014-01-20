@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # requires Python 2.7
-__version__ = '8cfa41d'
+__version__ = '40f8364'
 from collections import OrderedDict
+import string
 import copy
 
 
@@ -10,6 +11,101 @@ class FormatError(Exception):
     if message:
       Exception.__init__(self, message)
 
+
+
+###############################################################################
+#                                   FASTA                                     #
+###############################################################################
+
+
+class FastaLineGenerator(object):
+  """A simple FASTA parser that only reads a line at a time into memory.
+  Usage:
+  fasta = FastaLineGenerator('/home/user/sequence.fasta')
+  for line in fasta:
+    print "There is a sequence with this FASTA identifier: "+fasta.id
+    print "It has a line with this sequence: "+line
+  """
+
+  def __init__(self, filepath):
+    self.filehandle = open(filepath, 'rU')
+    self.name = None
+    self.id = None
+
+  def __iter__(self):
+    return self.new()
+
+  def new(self):
+    while True:
+      line_raw = self.filehandle.readline()
+      if not line_raw:
+        raise StopIteration
+      line = line_raw.strip()
+      if not line:
+        continue # allow empty lines
+      if line[0] == '>':
+        self.name = line[1:]  # remove ">"
+        if self.name:
+          self.id = self.name.split()[0]
+        else:
+          self.id = ''
+        continue
+      else:
+        yield line
+
+
+#TODO: see 0notes.txt
+class FastaBaseGenerator(object):
+  """For when you absolutely have to read one base at a time. VERY SLOW.
+  Usage:
+  fasta = FastaBaseGenerator('/home/user/sequence.fasta')
+  for base in fasta:
+    print "There is a sequence with this FASTA identifier: "+fasta.id
+    print "This is the next base from it: "+base
+  """
+
+  def __init__(self, filepath):
+    self.filehandle = open(filepath, 'rU')
+    self.header = False
+    self.name = None
+    self.id = None
+    self._in_id = None
+
+  def __iter__(self):
+    return self.new()
+
+  def new(self):
+
+    newline = True
+    while True:
+      base = self.filehandle.read(1)
+      if not base:
+        raise StopIteration
+      elif base == '\n':
+        newline = True
+        self.header = False
+      elif newline and base == '>':
+        newline = False
+        self.header = True
+        self._in_id = True
+        self.name = ''
+        self.id = ''
+      elif self.header:
+        if self._in_id:
+          if base in string.whitespace:
+            self._in_id = False
+          else:
+            self.id += base
+        self.name += base
+      else:
+        newline = False
+        yield base
+
+
+
+###############################################################################
+#                                    LAV                                      #
+###############################################################################
 
 
 class LavReader(object):
@@ -47,18 +143,18 @@ class LavReader(object):
   iter(LavHit)          = iter(LavHit.alignments)
   iter(LavAlignment)    = iter(LavAlignment.blocks)
 
+  Format assumptions:
+  **This was written only to parse the output of LASTZ version 1.02.00.**
+  Stanza starts and ends are on their own lines.
+  - E.g. there will be nothing (except whitespace) before or after "a {" on
+    the line in which it appears. The same goes for "}".
+  Stanza labels are single alphabetic characters ("Census" stanzas are ignored).
+  Sequence file names do not contain whitespace.
+  h stanzas are present.
+  s stanzas:
+  - rev_comp_flag's and sequence_number's are given.
+  - only query sequences can be reverse complemented.
   """
-  # Format assumptions:
-  # This was written only to parse the output of LASTZ version 1.02.00.
-  # Stanza starts and ends are on their own lines
-  # - E.g. there will be nothing (except whitespace) before or after "a {" on
-  #   the line in which it appears. The same goes for "}".
-  # Stanza labels are single alphabetic characters
-  # Sequence file names do not contain whitespace
-  # h stanzas are present
-  # s stanzas:
-  # - rev_comp_flag's and sequence_number's are given
-  # - only query sequences can be reverse complemented
   def __iter__(self):
     return iter(self.hits)
 
@@ -299,6 +395,11 @@ class LavBlock(object):
 
 
 
+###############################################################################
+#                                    VCF                                      #
+###############################################################################
+
+#TODO: Replace necessary getters, setters with property decorators, remove rest
 class VCFReader(object):
   """A simple VCF parser which can read Naive Variant Caller output."""
 
@@ -377,9 +478,7 @@ class VCFReader(object):
       return False
 
 
-#TODO: Separate systems for saying an attribute is not initialized and that its
-#      value in the file is null
-#TODO: Replace getters, setters with property decorators
+#TODO: Total rewrite. I wrote this before I learned the virtue of simplicity.
 class VCFSite(object):
 
   def __init__(self):
@@ -826,67 +925,11 @@ class VCFSite(object):
     return coverages
 
 
-#TODO: see 0notes.txt
-class FastaBaseGenerator(object):
-
-  def __init__(self, filepath):
-    self.filehandle = open(filepath, 'rU')
-    self.reading = False
-
-  def new(self, which_seq=None):
-
-    seqnum = None
-    seqid = None
-    if isinstance(which_seq, int):
-      seqnum = which_seq
-    if isinstance(which_seq, basestring):
-      seqid = which_seq
-
-    # read until correct FASTA header
-    record = 0
-    while not self.reading:
-      line_orig = self.filehandle.readline()
-      if not line_orig:
-        break
-      line = line_orig.rstrip('\r\n')
-      if not line:
-        continue # allow blank lines
-      if line[0] == '>':
-        if seqnum:
-          record+=1
-          if record >= seqnum:
-            self.reading = True
-        elif seqid:
-          record_id = line.split()[0]
-          if record_id == '>'+seqid:
-            self.reading = True
-        else:
-          self.reading = True
-
-    newline = True
-    while self.reading:
-      base = self.filehandle.read(1)
-      if not base:
-        self.reading = False
-      elif base == '\n':
-        newline = True
-      elif base == '>':
-        if newline:
-          self.reading = False
-        else:
-          newline = False
-          yield base
-      else:
-        newline = False
-        yield base
-
-
 def main():
   import sys
   fbg = FastaBaseGenerator(sys.argv[1])
-  base_generator = fbg.new()
   count = 0
-  for base in base_generator:
+  for base in fbg:
     count+=1
     if count > 20:
       break
