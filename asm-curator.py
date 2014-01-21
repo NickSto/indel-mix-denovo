@@ -6,7 +6,8 @@ import quicksect
 import bioreaders
 from optparse import OptionParser
 
-OPT_DEFAULTS = {'lav':'', 'asm':'', 'ref':'', 'slop':20, 'test_output':False}
+OPT_DEFAULTS = {'lav':'', 'asm':'', 'ref':'', 'contig_limit':1000, 'slop':20,
+  'test_output':False}
 USAGE = ("USAGE: %prog [opts] "
   +"(-a asm.fa -r ref.fa|-l align.lav) [-o asm-new.fa]")
 DESCRIPTION = """Analyze an assembly via its LASTZ alignment to the reference,
@@ -16,7 +17,8 @@ performed. It will print to stdout an analysis of the alignment and any assembly
 issues it indicates. If a new assembly filename is provided with -o, it will
 create a curated assembly, with some redundant contigs removed.
 Uses curation algorithm version 2: Just remove contigs which are entirely
-contained within another contig."""
+contained within another contig (in terms of their footprints on the reference).
+"""
 EPILOG = """"""
 
 #TODO: Distinguish contigs with exactly the same start/end points.
@@ -39,9 +41,18 @@ def main():
   parser.add_option('-o', '--out', dest='out',
     default=OPT_DEFAULTS.get('out'),
     help='Write a curated version of the assembly to this filename.')
+  parser.add_option('-C', '--contig-limit', dest='contig_limit', type='int',
+    default=OPT_DEFAULTS.get('contig_limit'),
+    help="""Maximum allowed contigs in the assembly. If there are more than this
+many contigs in the assembly, abort to avoid exceeding resources. Currently the
+number of contigs is approximated by the number of LASTZ hits. Set to 0 for no
+limit (at your own risk). Default: %default""")
   parser.add_option('-s', '--slop', dest='slop', type='int',
     default=OPT_DEFAULTS.get('slop'),
-    help="Default: %default")
+    help="""Leeway in the contig overlap comparison. Essentially, when deciding
+whether contig A wholly contains contig B, contig A's flanks will be extended
+by this much. A larger slop means more contigs are removed. Note: in a mutual
+overlap situation, only the smaller contig is removed. Default: %default""")
   parser.add_option('-T', '--test-output', dest='test_output',
     action='store_true', default=OPT_DEFAULTS.get('test_output'),
     help='Print legacy test output.')
@@ -77,7 +88,14 @@ def main():
     lavpath = align(options.asm, options.ref)
 
   lav = bioreaders.LavReader(lavpath)
+  # Abort if assembly is too fragmented
+  #TODO: count actual contigs, not hits, when assembly FASTA is provided
+  if options.contig_limit and len(lav) > options.contig_limit:
+    sys.stderr.write('Warning: Too many contigs in assembly ('+str(len(lav))
+      +' LASTZ hits). Aborting.\n')
+    sys.exit(0)
   lav.convert()
+
   intervals = lav_to_intervals(lav)
   all_overlaps = get_all_overlaps(intervals)
   all_overlaps = discard_redundant(all_overlaps, slop=options.slop)
