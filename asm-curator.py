@@ -243,18 +243,21 @@ def get_report(lav, intervals, options):
   Assumption: The entire query and subject sequences have been used in alignment
   (the end coordinate in the LAV h stanza == the sequence length)."""
   report = collections.OrderedDict()
-  # number of "contigs"
-  report['hits'] = len(lav)
+  # number of contigs (with hits to reference)
+  contigs = set()
+  for hit in lav:
+    contigs.add(hit.query['name'])
+  report['hits'] = len(contigs)
   # number of kept contigs
   report['curated'] = len(get_contig_names(intervals))
   # failed assembly? (zero good contigs)
-  if len(lav) == 0:
+  if report['hits'] == 0:
     report['failure'] = True
     return report
   else:
     report['failure'] = False
   # failed assembly? (many contigs)
-  if options.fragmented and len(lav) > options.fragmented:
+  if options.fragmented and report['hits'] > options.fragmented:
     report['fragmented'] = True
   else:
     report['fragmented'] = False
