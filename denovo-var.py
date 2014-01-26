@@ -13,8 +13,11 @@ EPILOG = """"""
 
 # pull out the filename base in group 1, extension in group 2
 EXT_REGEX = {
-  'fastq':r'([^/]+)(_[12]\.f(?:ast)?q)$',
-  'fasta':r'([^/]+)(\.f(?:ast)?a)$',
+  'bam':r'([^/]+)(\.bam)$',
+  'fastq1':r'([^/]+)(_1\.f(?:ast)?q)$',
+  'fastq2':r'([^/]+)(_2\.f(?:ast)?q)$',
+  'asm':r'([^/]+)(\.f(?:ast)?a)$',
+  'lav':r'([^/]+)(\.lav)$',
 }
 
 def main():
@@ -39,6 +42,9 @@ files will be assumed to be part of one family.""")
     help="""Path to input sequence data. When the path is a directory, only
 files ending in .fq or .fastq will be used. Paired-end filenames must end in
 _1.fq and _2.fq (or .fastq) to designate pairs.""")
+  parser.add_option('-Q', '--fastq2-path',
+    help="""The second mate reads for paired sequence data. Use when in single-
+file mode.""")
   parser.add_option('-a', '--asm-path',
     help="""Path to assembly. An assembly is a single FASTA file containing all
 the contigs. When the path is a directory, only files ending in .fa or .fasta
@@ -61,30 +67,69 @@ directory, only files ending in .lav will be used.""")
 
   # if multiple input files, create lists of them
   if options.multi or options.family_wise:
-    if options.fastq_path:
-      basenames = get_basenames(options.fastq_path, 'fastq')
-    elif options.asm_path:
-      basenames = get_basenames(options.asm_path, 'fasta')
-    else:
-      parser.print_help()
-      fail("\nError: You must provide correct input datasets.")
+    input_files = get_input_files(options)
   else:
-    fail("Error: Single-file mode not yet implemented.")
+    input_files = get_single_input_files(options)
+
+  for (basename, inputs) in input_files.items():
+    print basename+':'
+    for filetype in ['asm', 'fastq1', 'fastq2', 'lav']:
+      print filetype+":\t"+inputs.get(filetype)
 
   #TODO: check that all the filenames correspond
 
 
 
-def get_basenames(dirpath, filetype):
-  """Return basenames of files in dirpath in a set."""
-  basenames = set()
+def get_single_input_files(options):
+  """When not in multi or family mode, pack a dict of single input files.
+  See get_input_files() for structure of dict."""
+  #TODO: print errors when directories are given instead of files
+  inputs = {}
+  if options.asm_path and os.path.isfile(options.asm_path):
+    inputs['asm'] = options.asm_path
+  if options.fastq_path and os.path.isfile(options.fastq_path):
+    inputs['fastq1'] = options.fastq_path
+  if options.fastq2_path and os.path.isfile(options.fastq2_path):
+    inputs['fastq2'] = options.fastq2_path
+  if options.lav_path and os.path.isfile(options.lav_path):
+    inputs['lav'] = options.lav_path
+  return {'__base__':inputs}
+
+
+def get_input_files(options):
+  """Get list of file basenames and their associated input files.
+  Returns a dict mapping each basename to a dict of file paths (keyed by the
+  type of input)."""
+  input_files = {}
+  if options.asm_path:
+    input_files = get_type_of_files(input_files, options.asm_path, 'asm')
+  if options.fastq_path:
+    print "gathering fastq's from "+options.fastq_path
+    input_files = get_type_of_files(input_files, options.fastq_path, 'fastq1')
+    input_files = get_type_of_files(input_files, options.fastq_path, 'fastq2')
+  if options.asm_path:
+    input_files = get_type_of_files(input_files, options.lav_path, 'lav')
+  return input_files
+
+
+def get_type_of_files(input_files, dirpath, filetype):
+  """Get the list of files for a given type of input, and add to input_files
+  dict."""
   for filename in os.listdir(dirpath):
-    if not os.path.isfile(os.path.join(dirpath, filename)):
+    if filetype.startswith('fastq'):
+      print "file in "+dirpath+": "+filename
+    path = os.path.join(dirpath, filename)
+    if not os.path.isfile(path):
       continue
     match = re.search(EXT_REGEX[filetype], filename)
     if match:
-      basenames.add(match.group(1))
-  return basenames
+      basename = match.group(1)
+      inputs = input_files.get(basename, {})
+      inputs[filetype] = path
+      input_files[basename] = inputs
+      if filetype.startswith('fastq'):
+        print "added "+filename+" to "+basename
+  return input_files
 
 
 def fail(message):
