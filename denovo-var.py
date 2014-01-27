@@ -29,13 +29,17 @@ def main():
 to the input files (except the family table) must be directories containing the
 files. Files from the same sample must have identical base filenames (everything
 except the extension) in each directory.""")
-  parser.add_option('-F', '--family-wise',
+  parser.add_option('-F', '--family-wise', action='store_true',
     help="""Run pipeline on families of samples. Only the best assembly from
 each family will be used to map all the samples in that family. The paths to the
 input files will be interpreted as directories. If multi mode is not on, all the
 files will be assumed to be part of one family.""")
   parser.add_option('-f', '--family-table',
     help="""The path to the family table file. Required when in multi mode.""")
+  parser.add_option('-N', '--no-names', dest='has_names', action='store_false',
+    default=True,
+    help="""Set if the family table does not contain family names as the first
+column.""")
   parser.add_option('-o', '--output-path',
     help="""Path to output file or directory.""")
   parser.add_option('-q', '--fastq-path',
@@ -71,12 +75,26 @@ directory, only files ending in .lav will be used.""")
   else:
     input_files = get_single_input_files(options)
 
+  if options.family_table:
+    if not os.path.isfile(options.family_table):
+      fail("Error: cannot open family table "+options.family_table)
+    families = read_family_table(options.family_table, options.has_names)
+  elif options.family_wise and options.multi:
+    parser.print_help()
+    fail("\nError: If running on multiple families, you must provide a family "
+      +"table.")
+  else:
+    families = {}
+
+  for (family, samples) in families.items():
+    print family+":\t"+str(samples)
+  sys.exit(0)
+
   for (basename, inputs) in input_files.items():
     print basename+':'
     for filetype in ['asm', 'fastq1', 'fastq2', 'lav']:
       print filetype+":\t"+inputs.get(filetype)
-
-  #TODO: check that all the filenames correspond
+    # map fastq reads to asm fasta
 
 
 
@@ -130,6 +148,28 @@ def get_type_of_files(input_files, dirpath, filetype):
       if filetype.startswith('fastq'):
         print "added "+filename+" to "+basename
   return input_files
+
+
+def read_family_table(tablepath, names=True):
+  families = {}
+  count = 0
+  with open(tablepath, 'rU') as tablehandle:
+    for line in tablehandle:
+      samples = []
+      line = line.strip()
+      if not line:
+        continue
+      columns = line.split('\t')
+      if names:
+        name = columns[0]
+        columns = columns[1:]
+      else:
+        name = str(count)
+        count+=1
+      for sample in columns:
+        samples.append(sample)
+      families[name] = samples
+  return families
 
 
 def fail(message):
