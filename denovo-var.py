@@ -11,6 +11,10 @@ USAGE = """USAGE: %prog [options]
 DESCRIPTION = """"""
 EPILOG = """"""
 
+EXT = {
+  'bam':'.bam'
+}
+
 # pull out the filename base in group 1, extension in group 2
 EXT_REGEX = {
   'bam':r'([^/]+)(\.bam)$',
@@ -71,9 +75,9 @@ directory, only files ending in .lav will be used.""")
 
   # if multiple input files, create lists of them
   if options.multi or options.family_wise:
-    input_files = get_input_files(options)
+    sample_files = get_files(options)
   else:
-    input_files = get_single_input_files(options)
+    sample_files = get_single_files(options)
 
   if options.family_table:
     if not os.path.isfile(options.family_table):
@@ -84,23 +88,63 @@ directory, only files ending in .lav will be used.""")
     fail("\nError: If running on multiple families, you must provide a family "
       +"table.")
   else:
-    families = {}
+    families = {'__family__':['__sample__']}
 
-  for (family, samples) in families.items():
-    print family+":\t"+str(samples)
-  sys.exit(0)
+  # If family-wise, loop over families. Else, loop over samples.
+  if options.family_wise:
+    items = families.keys()
+  else:
+    items = sample_files.keys()
 
-  for (basename, inputs) in input_files.items():
-    print basename+':'
+  for item in items:
+    if options.family_wise:
+      family = item
+      samples = families[family]
+    else:
+      samples = [item]
+
+    for sample in samples:
+      fastq1path = sample_files[sample]['fastq1']
+      fastq2path = sample_files[sample]['fastq2']
+      asmpath = sample_files[sample]['asm']
+      # extract reads from BAM
+      # assemble
+      # lastz align to reference
+      # curate alignment
+
+    if options.family_wise:
+      best_sample = choose_asm(samples, sample_files)
+    else:
+      best_sample = samples[0]
+
+    asmpath = sample_files[best_sample]['asm']
+    for sample in samples:
+      fastq1path = sample_files[sample]['fastq1']
+      fastq2path = sample_files[sample]['fastq2']
+      map_to_asm(asmpath, fastq1path, fastq2path, bam)
+
+    if options.family_wise:
+      """merge bam files"""
+    else:
+      pass
+
+    # filter alignment
+    # naive variant caller
+    # nvc-filter.py
+    # inspect-reads.py
+    # quick-liftover.py
+
+
+    print sample+':'
     for filetype in ['asm', 'fastq1', 'fastq2', 'lav']:
       print filetype+":\t"+inputs.get(filetype)
     # map fastq reads to asm fasta
 
 
 
-def get_single_input_files(options):
+def get_single_files(options):
   """When not in multi or family mode, pack a dict of single input files.
-  See get_input_files() for structure of dict."""
+  See get_files() for structure of dict."""
   #TODO: print errors when directories are given instead of files
   inputs = {}
   if options.asm_path and os.path.isfile(options.asm_path):
@@ -111,28 +155,29 @@ def get_single_input_files(options):
     inputs['fastq2'] = options.fastq2_path
   if options.lav_path and os.path.isfile(options.lav_path):
     inputs['lav'] = options.lav_path
-  return {'__base__':inputs}
+  return {'__sample__':inputs}
 
 
-def get_input_files(options):
-  """Get list of file basenames and their associated input files.
-  Returns a dict mapping each basename to a dict of file paths (keyed by the
+def get_files(options):
+  """Get list of sample names and their associated input files.
+  Returns a dict mapping each sample name to a dict of file paths (keyed by the
   type of input)."""
-  input_files = {}
+  sample_files = {}
   if options.asm_path:
-    input_files = get_type_of_files(input_files, options.asm_path, 'asm')
+    sample_files = get_filetype(sample_files, options.asm_path, 'asm')
   if options.fastq_path:
-    print "gathering fastq's from "+options.fastq_path
-    input_files = get_type_of_files(input_files, options.fastq_path, 'fastq1')
-    input_files = get_type_of_files(input_files, options.fastq_path, 'fastq2')
+    sample_files = get_filetype(sample_files, options.fastq_path, 'fastq1')
+    sample_files = get_filetype(sample_files, options.fastq_path, 'fastq2')
   if options.asm_path:
-    input_files = get_type_of_files(input_files, options.lav_path, 'lav')
-  return input_files
+    sample_files = get_filetype(sample_files, options.lav_path, 'lav')
+  if options.bam_path_out:
+    sample_files = make_outpaths(sample_files, options.bam_path_out, 'bam')
+  return sample_files
 
 
-def get_type_of_files(input_files, dirpath, filetype):
-  """Get the list of files for a given type of input, and add to input_files
-  dict."""
+def get_filetype(sample_files, dirpath, filetype):
+  """Get the list of files for a given file type, and add to sample_files dict.
+  """
   for filename in os.listdir(dirpath):
     if filetype.startswith('fastq'):
       print "file in "+dirpath+": "+filename
@@ -141,13 +186,21 @@ def get_type_of_files(input_files, dirpath, filetype):
       continue
     match = re.search(EXT_REGEX[filetype], filename)
     if match:
-      basename = match.group(1)
-      inputs = input_files.get(basename, {})
-      inputs[filetype] = path
-      input_files[basename] = inputs
-      if filetype.startswith('fastq'):
-        print "added "+filename+" to "+basename
-  return input_files
+      sample = match.group(1)
+      files = sample_files.get(sample, {})
+      files[filetype] = path
+      sample_files[sample] = files
+  return sample_files
+
+
+def make_outpaths(sample_files, dirpath, filetype):
+  """"""
+  for sample in sample_files:
+    path = os.path.join(dirpath, sample+EXT[filetype])
+    files = sample_files[sample]
+    files[filetype] = path
+    sample_files[sample] = files
+  return sample_files
 
 
 def read_family_table(tablepath, names=True):
@@ -170,6 +223,14 @@ def read_family_table(tablepath, names=True):
         samples.append(sample)
       families[name] = samples
   return families
+
+
+def map_to_asm(asm, fastq1, fastq2, bam):
+  """"""
+
+def choose_asm(samples, sample_files):
+  """"""
+  return samples[0]
 
 
 def fail(message):
