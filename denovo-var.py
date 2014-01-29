@@ -42,6 +42,7 @@ REPORT_KEYS = {
   'n':'non-ref',
   'd':'duplication',
   'f':'fragmented',
+  'F':'failure',
 }
 REPORT_TYPES = {
   'h':int,
@@ -49,6 +50,7 @@ REPORT_TYPES = {
   'n':int,
   'd':int,
   'f':bool,
+  'F':bool,
 }
 
 def main():
@@ -103,6 +105,8 @@ directory, only files ending in .lav will be used.""")
   parser.add_option('-C', '--no-curate', action='store_true',
     help="""Do not curate the assemblies before mapping. If family-wise, you
 must still provide LAV files to allow determination of which assembly to use.""")
+  parser.add_option('-D', '--include-duplications', action='store_true',
+    help="""Use assemblies with whole-genome duplications, if necessary.""")
   parser.add_option('-I', '--int', type='int', dest='int',
     default=OPT_DEFAULTS.get('int'),
     help="""default: %default""")
@@ -138,6 +142,7 @@ must still provide LAV files to allow determination of which assembly to use."""
 
   # MAIN LOOP
   # Whole pipeline: run once per sample or family
+  #TODO: allow samples to fail (expect missing files later)
   for item in items:
     if options.family_wise:
       family = item
@@ -304,22 +309,71 @@ def get_done_steps(options):
   return done
 
 
-def map_to_asm(asm, fastq1, fastq2, bam):
-  """"""
-
-
-def choose_asm(samples, sample_files):
-  """"""
+def choose_asm(samples, sample_files, options):
+  """Choose an assembly by prioritizing assembly issues. Some issues are
+  dealbreakers, so if all the assemblies have one of these issues, None is
+  returned.
+  Priority list:
+    assembly failure (dealbreaker)
+    fragmented assembly (dealbreaker)
+    whole-genome duplication (dealbreaker by default)
+    non-reference flanks
+    number of curated contigs (fewest wins)
+    number of original contigs (fewest wins)
+  """
   # read in the reports
   reports = {}
   for sample in samples:
     reports[sample] = read_report(sample_files[sample]['report'])
-  return samples[0]
+  # narrow the field by prioritized list of assembly issues
+  candidates = reports
+  candidates = asms_without('failure', candidates)
+  candidates = asms_without('fragmented', candidates)
+  if options.include_duplications:
+    # if they all have duplication, keep them instead of discarding them
+    candidates = narrow_by('duplication', candidates)
+  else:
+    # eliminate all with duplication, even if it's all of them
+    candidates = asms_without('duplication', candidates)
+  candidates = narrow_by('non-ref', candidates)
+  # of the final candidates, choose the one with the fewest curated contigs
+  # (if there's a tie, choose the one with the fewest original contigs)
+  prioritized_candidates = candidates.keys()
+  prioritized_candidates.sort(key=(lambda sample:
+    (reports[sample]['contigs-after'], reports[sample]['contigs-before'])
+  ))
+  if prioritized_candidates:
+    return prioritized_candidates[0]
+  else:
+    return None
+
+
+def asms_without(issue, reports):
+  """Return the reports for all samples without the given issue"""
+  without = []
+  for sample in reports:
+    sys.stdout.write(sample+': ')
+    print reports[sample]
+    if not reports[sample][issue]:
+      without.append(sample)
+  return without
+
+
+def narrow_by(issue, candidates):
+  """Use the given issue to narrow the field, by eliminating assemblies with the
+  issue. ..UNLESS they all have the issue. Then return the original set of
+  assemblies (it's not useful for narrowing the field)."""
+  narrowed = asms_without(issue, candidates)
+  if not narrowed:
+    narrowed = candidates
+  return narrowed
 
 
 def read_report(reportpath):
-  """"""
-  report = {}
+  """Read report into a dict, with keys in REPORT_KEYS for each issue, and the
+  values given in the report as the values. The dict is a defaultdict, so if an
+  issue is not present in the report, it defaults to False."""
+  report = collections.defaultdict(bool)
   line_num = 0
   with open(reportpath, 'rU') as reporthandle:
     for line in reporthandle:
@@ -336,6 +390,10 @@ def read_report(reportpath):
         fail("Error: invalid report file format on line "+str(line_num)+" of "
           +reportpath)
   return report
+
+
+def map_to_asm(asm, fastq1, fastq2, bam):
+  """"""
 
 
 def fail(message):
