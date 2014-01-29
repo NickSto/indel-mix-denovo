@@ -326,46 +326,45 @@ def choose_asm(samples, sample_files, options):
   for sample in samples:
     reports[sample] = read_report(sample_files[sample]['report'])
   # narrow the field by prioritized list of assembly issues
-  candidates = reports
-  candidates = asms_without('failure', candidates)
-  candidates = asms_without('fragmented', candidates)
+  candidates = reports.keys()
+  candidates = asms_without('failure', candidates, reports)
+  candidates = asms_without('fragmented', candidates, reports)
   if options.include_duplications:
     # if they all have duplication, keep them instead of discarding them
-    candidates = narrow_by('duplication', candidates)
+    candidates = narrow_by('duplication', candidates, reports)
   else:
-    # eliminate all with duplication, even if it's all of them
-    candidates = asms_without('duplication', candidates)
-  candidates = narrow_by('non-ref', candidates)
+    # eliminate any with duplication, even if it's all of them
+    candidates = asms_without('duplication', candidates, reports)
+  candidates = narrow_by('non-ref', candidates, reports)
   # of the final candidates, choose the one with the fewest curated contigs
   # (if there's a tie, choose the one with the fewest original contigs)
-  prioritized_candidates = candidates.keys()
-  prioritized_candidates.sort(key=(lambda sample:
-    (reports[sample]['contigs-after'], reports[sample]['contigs-before'])
-  ))
-  if prioritized_candidates:
-    return prioritized_candidates[0]
+  candidates.sort(key=lambda sample:
+    (reports[sample]['contigs-after'], reports[sample]['contigs-raw'])
+  )
+  if candidates:
+    return candidates[0]
   else:
     return None
 
 
-def asms_without(issue, reports):
-  """Return the reports for all samples without the given issue"""
+def asms_without(issue, samples, reports):
+  """Return all samples without the given issue."""
   without = []
-  for sample in reports:
-    sys.stdout.write(sample+': ')
-    print reports[sample]
+  for sample in samples:
+    if sample not in reports:
+      continue
     if not reports[sample][issue]:
       without.append(sample)
   return without
 
 
-def narrow_by(issue, candidates):
+def narrow_by(issue, samples, reports):
   """Use the given issue to narrow the field, by eliminating assemblies with the
-  issue. ..UNLESS they all have the issue. Then return the original set of
+  issue ..UNLESS they all have the issue. Then return the original set of
   assemblies (it's not useful for narrowing the field)."""
-  narrowed = asms_without(issue, candidates)
+  narrowed = asms_without(issue, samples, reports)
   if not narrowed:
-    narrowed = candidates
+    narrowed = samples
   return narrowed
 
 
