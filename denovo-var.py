@@ -16,14 +16,14 @@ EPILOG = """"""
 EXT = {
   'bam':'.bam'
 }
-# pull out the filename base in group 1, extension in group 2
+# pull out the (full) path base in group 1, extension in group 2
 EXT_REGEX = {
-  'bam':r'([^/]+)(\.bam)$',
-  'fastq1':r'([^/]+)(_1\.f(?:ast)?q)$',
-  'fastq2':r'([^/]+)(_2\.f(?:ast)?q)$',
-  'fasta':r'([^/]+)(\.f(?:ast)?a)$',
-  'lav':r'([^/]+)(\.lav)$',
-  'tsv':r'([^/]+)(\.t(sv|ab|xt))$',
+  'bam':r'(.+)(\.bam)$',
+  'fastq1':r'(.+)(_1\.f(?:ast)?q)$',
+  'fastq2':r'(.+)(_2\.f(?:ast)?q)$',
+  'fasta':r'(.+)(\.f(?:ast)?a)$',
+  'lav':r'(.+)(\.lav)$',
+  'tsv':r'(.+)(\.t(sv|ab|xt))$',
 }
 FILETYPE_EXTS = {
   'fastq1':'fastq1',
@@ -182,7 +182,7 @@ must still provide LAV files to allow determination of which assembly to use."""
       output: 'bam_out' """
       # choose best assembly, if multiple
       if options.family_wise:
-        best_sample = choose_asm(samples, sample_files)
+        best_sample = choose_asm(samples, sample_files, options)
       else:
         best_sample = samples[0]    # ("best_sample" is the *only* sample)
       asmpath = sample_files[best_sample]['asm_curated']
@@ -197,8 +197,14 @@ must still provide LAV files to allow determination of which assembly to use."""
       # merge, if multiple
       if options.family_wise:
         """merge bam files"""
-      else:
-        pass
+        bams = [sample_files[sample]['bam_out'] for sample in samples]
+        #TODO: incorporate family names into sample_files system
+        dirpath = os.path.split(bampath)[0]
+        bampath = os.path.join(dirpath, family+'.bam')
+        command = ['samtools', 'merge', '-r', bampath]
+        command.extend(bams)
+        subprocess.call(command)
+        print "$ "+' '.join(command)
 
     # filter alignment
     # naive variant caller
@@ -206,11 +212,6 @@ must still provide LAV files to allow determination of which assembly to use."""
     # inspect-reads.py
     # quick-liftover.py
 
-
-    print sample+':'
-    for filetype in ['asm', 'fastq1', 'fastq2', 'lastz']:
-      print filetype+":\t"+inputs.get(filetype)
-    # map fastq reads to asm fasta
 
 
 
@@ -247,9 +248,11 @@ def get_multi_files(options):
   if options.fastq_path:
     sample_files = get_filetype(sample_files, options.fastq_path, 'fastq1')
     sample_files = get_filetype(sample_files, options.fastq_path, 'fastq2')
-  if options.mapping_fastq_path:
     sample_files = get_filetype(sample_files, options.fastq_path, 'map_fastq1')
     sample_files = get_filetype(sample_files, options.fastq_path, 'map_fastq2')
+  if options.mapping_fastq_path:
+    sample_files = get_filetype(sample_files, options.mapping_fastq_path, 'map_fastq1')
+    sample_files = get_filetype(sample_files, options.mapping_fastq_path, 'map_fastq2')
   if options.asm_path:
     sample_files = get_filetype(sample_files, options.asm_path, 'asm')
   if options.lav_path:
@@ -438,7 +441,8 @@ def bwa_index(ref):
       command.append('is')
     command.append(ref)
     return subprocess.call(command)
-
+    print "$ "+' '.join(command)
+    
 
 def align(ref, fastq1, fastq2, bam):
   """Map using BWA-MEM, and convert output to indexex and sorted BAM.
@@ -447,7 +451,7 @@ def align(ref, fastq1, fastq2, bam):
   (pathbase, ext) = ext_split(bam, 'bam')
   bamtmp = pathbase+'.tmp'+ext
   # map, and pipe directly to samtools to convert to BAM before storing on disk
-  map_command = ['bwa', 'mem', asm, fastq1]
+  map_command = ['bwa', 'mem', ref, fastq1]
   if fastq2:
     map_command.append(fastq2)
   conv_command = ['samtools', 'view', '-Sb', '-']
@@ -456,15 +460,18 @@ def align(ref, fastq1, fastq2, bam):
     conv_proc = subprocess.Popen(conv_command, stdin=map_proc.stdout,
       stdout=bamtmp)
     map_proc.stdout.close()
+    print "$ "+' '.join(map_command)+' | '+' '.join(conv_command)+' > '+bamtmp
     #TODO: check exit status
   # sort temporary bam
   sort_command = ['samtools', 'sort', bamtmp, pathbase]
   status = subprocess.call(sort_command)
   if status:
     return status
+  print "$ "+' '.join(sort_command)
   # index final bam
   index_command = ['samtools', 'index', bam]
   status = subprocess.call(index_command)
+  print "$ "+' '.join(index_command)
   # delete temporary bam
   os.remove(bamtmp)
   return status
