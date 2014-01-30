@@ -3,6 +3,7 @@ from __future__ import division
 import re
 import os
 import sys
+import subprocess
 import collections
 from optparse import OptionParser
 
@@ -53,6 +54,8 @@ REPORT_TYPES = {
   'F':bool,
 }
 
+MIN_BWTSW_SIZE = 2000000000 # bytes
+
 def main():
 
   parser = OptionParser(usage=USAGE, description=DESCRIPTION, epilog=EPILOG)
@@ -91,6 +94,9 @@ assembled reference, specify them with this option.""")
     help="""Path to assembly. An assembly is a single FASTA file containing all
 the contigs. When the path is a directory, only files ending in .fa or .fasta
 will be used.""")
+  parser.add_option('-r', '--ref-path',
+    help="""Path to reference genome (also a FASTA file). Used to assess and
+process the assemblies.""")
   parser.add_option('--curated-asm-path',
     help="""Path to curated assemblies.""")
   parser.add_option('--reports-path',
@@ -151,35 +157,48 @@ must still provide LAV files to allow determination of which assembly to use."""
       samples = [item]
 
     for sample in samples:
-      fastq1path = sample_files[sample]['fastq1']
-      fastq2path = sample_files[sample]['fastq2']
-      asmpath = sample_files[sample]['asm']
       if not done['tofastq']:
-        """extract reads from BAM"""
+        """extract reads from BAM (and dedup)
+        input: 'bam_in'
+        output: 'fastq1', 'fastq2', 'map_fastq1', 'map_fastq2' """
       if not done['asm']:
-        """assemble"""
-      if not done['align']:
-        """lastz align to reference"""
+        """assemble
+        input: 'fastq1', 'fastq2'
+        output: 'asm' """
+      if not done['lastz']:
+        """lastz align to reference
+        input: 'asm', ('report'), options.ref_path
+        output: 'lastz', ('report') """
         # check options.reports_path or sample_files[sample]['report'] and use
         # that instead of generating another one
       if not done['curated']:
-        """curate alignment"""
+        """curate alignment
+        input: 'asm', 'lastz'
+        output: 'asm_curated' """
 
-    if options.family_wise:
-      best_sample = choose_asm(samples, sample_files)
-    else:
-      best_sample = samples[0]
-
-    asmpath = sample_files[best_sample]['asm']
-    for sample in samples:
-      fastq1path = sample_files[sample]['fastq1']
-      fastq2path = sample_files[sample]['fastq2']
-      map_to_asm(asmpath, fastq1path, fastq2path, bam)
-
-    if options.family_wise:
-      """merge bam files"""
-    else:
-      pass
+    if not done['align']:
+      """choose the best assembly, map to it, merge resulting BAMs
+      input: 'asm_curated', 'report', 'map_fastq1', 'map_fastq2'
+      output: 'bam_out' """
+      # choose best assembly, if multiple
+      if options.family_wise:
+        best_sample = choose_asm(samples, sample_files)
+      else:
+        best_sample = samples[0]    # ("best_sample" is the *only* sample)
+      asmpath = sample_files[best_sample]['asm_curated']
+      # align
+      for sample in samples:
+        fastq1path = sample_files[sample]['map_fastq1']
+        fastq2path = sample_files[sample]['map_fastq2']
+        bampath = sample_files[sample]['bam_out']
+        #TODO: check exit status
+        bwa_index(asmpath)
+        align(asmpath, fastq1path, fastq2path, bampath)
+      # merge, if multiple
+      if options.family_wise:
+        """merge bam files"""
+      else:
+        pass
 
     # filter alignment
     # naive variant caller
@@ -189,7 +208,7 @@ must still provide LAV files to allow determination of which assembly to use."""
 
 
     print sample+':'
-    for filetype in ['asm', 'fastq1', 'fastq2', 'lav']:
+    for filetype in ['asm', 'fastq1', 'fastq2', 'lastz']:
       print filetype+":\t"+inputs.get(filetype)
     # map fastq reads to asm fasta
 
@@ -199,7 +218,7 @@ def get_single_files(options):
   """When not in multi or family mode, pack a dict of single input files.
   See get_multi_files() for structure of dict."""
   #TODO: print errors when directories are given instead of files
-  inputs = {}
+  inputs = defaultdict()
   if options.fastq_path and os.path.isfile(options.fastq_path):
     inputs['fastq1'] = options.fastq_path
   if options.fastq2_path and os.path.isfile(options.fastq2_path):
@@ -211,7 +230,7 @@ def get_single_files(options):
   if options.asm_path and os.path.isfile(options.asm_path):
     inputs['asm'] = options.asm_path
   if options.lav_path and os.path.isfile(options.lav_path):
-    inputs['lav'] = options.lav_path
+    inputs['lastz'] = options.lav_path
   if options.curated_asm_path and os.path.isfile(options.curated_asm_path):
     inputs['asm_curated'] = options.curated_asm_path
   if options.bam_path_out and os.path.isfile(options.bam_path_out):
@@ -234,7 +253,7 @@ def get_multi_files(options):
   if options.asm_path:
     sample_files = get_filetype(sample_files, options.asm_path, 'asm')
   if options.lav_path:
-    sample_files = get_filetype(sample_files, options.lav_path, 'lav')
+    sample_files = get_filetype(sample_files, options.lav_path, 'lastz')
   if options.curated_asm_path:
     sample_files = get_filetype(sample_files, options.curated_asm_path, 'asm_curated')
   if options.reports_path:
@@ -272,6 +291,15 @@ def make_outpaths(sample_files, dirpath, filetype):
   return sample_files
 
 
+def ext_split(path, extype):
+  ext_regex = EXT_REGEX[extype]
+  match = re.search(ext_regex, path)
+  if match:
+    return (match.group(1), match.group(2))
+  else:
+    return (path, '')
+
+
 def read_family_table(tablepath, names=True):
   families = {}
   count = 0
@@ -303,7 +331,7 @@ def get_done_steps(options):
   if (options.asm_path or options.lav_path or options.curated_asm_path):
     done['asm'] = True
   if (options.lav_path or options.curated_asm_path):
-    done['align'] = True
+    done['lastz'] = True
   if (options.curated_asm_path):
     done['curated'] = True
   return done
@@ -391,8 +419,55 @@ def read_report(reportpath):
   return report
 
 
-def map_to_asm(asm, fastq1, fastq2, bam):
-  """"""
+def bwa_index(ref):
+  """Index the reference if it hasn't been already. If indexing was necessary,
+  return exit status. Else, return None."""
+  indexed = True
+  for ext in ['amb', 'ann', 'bwt', 'pac', 'sa']:
+    if not os.path.isfile(ref+'.'+ext):
+      indexed = False
+      break
+  if indexed:
+    return None
+  else:
+    print "Indexing assembly "+ref
+    command = ['bwa', 'index', '-a']
+    if os.path.getsize(ref) > MIN_BWTSW_SIZE:
+      command.append('bwtsw')
+    else:
+      command.append('is')
+    command.append(ref)
+    return subprocess.call(command)
+
+
+def align(ref, fastq1, fastq2, bam):
+  """Map using BWA-MEM, and convert output to indexex and sorted BAM.
+  bam parameter is the desired output path.
+  If not paired-end data, give None for fastq2."""
+  (pathbase, ext) = ext_split(bam, 'bam')
+  bamtmp = pathbase+'.tmp'+ext
+  # map, and pipe directly to samtools to convert to BAM before storing on disk
+  map_command = ['bwa', 'mem', asm, fastq1]
+  if fastq2:
+    map_command.append(fastq2)
+  conv_command = ['samtools', 'view', '-Sb', '-']
+  with open(bamtmp, 'wb') as bamhandle:
+    map_proc = subprocess.Popen(map_command, stdout=subprocess.PIPE)
+    conv_proc = subprocess.Popen(conv_command, stdin=map_proc.stdout,
+      stdout=bamtmp)
+    map_proc.stdout.close()
+    #TODO: check exit status
+  # sort temporary bam
+  sort_command = ['samtools', 'sort', bamtmp, pathbase]
+  status = subprocess.call(sort_command)
+  if status:
+    return status
+  # index final bam
+  index_command = ['samtools', 'index', bam]
+  status = subprocess.call(index_command)
+  # delete temporary bam
+  os.remove(bamtmp)
+  return status
 
 
 def fail(message):
