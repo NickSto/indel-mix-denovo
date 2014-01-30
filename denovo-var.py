@@ -204,7 +204,7 @@ must still provide LAV files to allow determination of which assembly to use."""
         command = ['samtools', 'merge', '-r', bampath]
         command.extend(bams)
         subprocess.call(command)
-        print "$ "+' '.join(command)
+        print ">>> $ "+' '.join(command)
 
     # filter alignment
     # naive variant caller
@@ -441,7 +441,7 @@ def bwa_index(ref):
       command.append('is')
     command.append(ref)
     return subprocess.call(command)
-    print "$ "+' '.join(command)
+    print ">>> $ "+' '.join(command)
     
 
 def align(ref, fastq1, fastq2, bam):
@@ -457,7 +457,7 @@ def align(ref, fastq1, fastq2, bam):
     map_command.append(fastq2)
   with open(samtmp, 'wb') as samhandle:
     status = subprocess.call(map_command, stdout=samhandle)
-  print "$ "+' '.join(map_command)+' > '+samtmp
+  print ">>> $ "+' '.join(map_command)+' > '+samtmp
   if status:
     return status
   # convert sam to bam
@@ -465,7 +465,7 @@ def align(ref, fastq1, fastq2, bam):
   conv_command = ['samtools', 'view', '-Sb', samtmp]
   with open(bamtmp, 'wb') as bamhandle:
     status = subprocess.call(conv_command, stdout=bamhandle)
-  print "$ "+' '.join(conv_command)+' > '+bamtmp
+  print ">>> $ "+' '.join(conv_command)+' > '+bamtmp
   if status:
     return status
   # sort temporary bam
@@ -473,12 +473,13 @@ def align(ref, fastq1, fastq2, bam):
   status = subprocess.call(sort_command)
   if status:
     return status
-  print "$ "+' '.join(sort_command)
+  print ">>> $ "+' '.join(sort_command)
   # index final bam
   index_command = ['samtools', 'index', bam]
   status = subprocess.call(index_command)
-  print "$ "+' '.join(index_command)
+  print ">>> $ "+' '.join(index_command)
   # delete temporary bam
+  os.remove(samtmp)
   os.remove(bamtmp)
   return status
 
