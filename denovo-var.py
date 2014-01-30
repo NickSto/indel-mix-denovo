@@ -445,23 +445,29 @@ def bwa_index(ref):
     
 
 def align(ref, fastq1, fastq2, bam):
-  """Map using BWA-MEM, and convert output to indexex and sorted BAM.
+  """Align using BWA-MEM, and convert output to indexex and sorted BAM.
   bam parameter is the desired output path.
   If not paired-end data, give None for fastq2."""
-  (pathbase, ext) = ext_split(bam, 'bam')
-  bamtmp = pathbase+'.tmp'+ext
-  # map, and pipe directly to samtools to convert to BAM before storing on disk
+  #TODO: check exit statuses
+  pathbase = ext_split(bam, 'bam')[0]
+  # align
+  samtmp = pathbase+'.tmp.sam'
   map_command = ['bwa', 'mem', ref, fastq1]
   if fastq2:
     map_command.append(fastq2)
-  conv_command = ['samtools', 'view', '-Sb', '-']
+  with open(samtmp, 'wb') as samhandle:
+    status = subprocess.call(map_command, stdout=samhandle)
+  print "$ "+' '.join(map_command)+' > '+samtmp
+  if status:
+    return status
+  # convert sam to bam
+  bamtmp = pathbase+'.tmp.bam'
+  conv_command = ['samtools', 'view', '-Sb', samtmp]
   with open(bamtmp, 'wb') as bamhandle:
-    map_proc = subprocess.Popen(map_command, stdout=subprocess.PIPE)
-    conv_proc = subprocess.Popen(conv_command, stdin=map_proc.stdout,
-      stdout=bamtmp)
-    map_proc.stdout.close()
-    print "$ "+' '.join(map_command)+' | '+' '.join(conv_command)+' > '+bamtmp
-    #TODO: check exit status
+    status = subprocess.call(conv_command, stdout=bamhandle)
+  print "$ "+' '.join(conv_command)+' > '+bamtmp
+  if status:
+    return status
   # sort temporary bam
   sort_command = ['samtools', 'sort', bamtmp, pathbase]
   status = subprocess.call(sort_command)
