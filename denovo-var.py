@@ -19,7 +19,7 @@ EXT = {
 # pull out the (full) path base in group 1, extension in group 2
 EXT_REGEX = {
   'bam':r'(.+)(\.bam)$',
-  'fastq1':r'(.+)(_1\.f(?:ast)?q)$',
+  'fastq1':r'(.+?)((?:_1)?\.f(?:ast)?q)$',  # ("_1" optional)
   'fastq2':r'(.+)(_2\.f(?:ast)?q)$',
   'fasta':r'(.+)(\.f(?:ast)?a)$',
   'lav':r'(.+)(\.lav)$',
@@ -195,13 +195,20 @@ must still provide LAV files to allow determination of which assembly to use."""
         index_ref(asmpath)
         align_reads(asmpath, fastq1path, fastq2path, bampath)
       # merge, if multiple
+      bampaths = [sample_files[sample]['bam_out'] for sample in samples]
       if options.family_wise:
         """merge bam files"""
         #TODO: incorporate family names into sample_files system
-        bams = [sample_files[sample]['bam_out'] for sample in samples]
-        dirpath = os.path.split(bampath)[0]
-        bampath = os.path.join(dirpath, family+'.bam')
-        merge_bams(bams, bampath)
+        dirpath = os.path.split(bampaths[0])[0]
+        mergedbam = os.path.join(dirpath, family+'.bam')
+        merge_bams(bampaths, mergedbam)
+        for bampath in bampaths:
+          os.remove(bampath)
+        bampaths = [mergedbam]
+      # sort, index final bams
+      for bampath in bampaths:
+        sort_index_bam(bampath)
+
 
     # filter alignment
     # naive variant caller
@@ -216,7 +223,7 @@ def get_single_files(options):
   """When not in multi or family mode, pack a dict of single input files.
   See get_multi_files() for structure of dict."""
   #TODO: print errors when directories are given instead of files
-  inputs = defaultdict()
+  inputs = collections.defaultdict()
   if options.fastq_path and os.path.isfile(options.fastq_path):
     inputs['fastq1'] = options.fastq_path
   if options.fastq2_path and os.path.isfile(options.fastq2_path):
@@ -270,7 +277,8 @@ def get_filetype(sample_files, dirpath, filetype):
     path = os.path.join(dirpath, filename)
     if not os.path.isfile(path):
       continue
-    sample = ext_split(filename, FILETYPE_EXTS[filetype])[0]
+    extype = FILETYPE_EXTS[filetype]
+    sample = ext_split(filename, extype)[0]
     if sample:
       files = sample_files.get(sample, {})
       files[filetype] = path
@@ -440,45 +448,55 @@ def index_ref(ref):
     
 
 def align_reads(ref, fastq1, fastq2, bam):
-  """Align using BWA-MEM, and convert output to indexex and sorted BAM.
-  bam parameter is the desired output path.
-  If not paired-end data, give None as fastq2."""
+  """Use BWA-MEM to align reads into an unsorted BAM.
+  If not paired-end data, give None as fastq2.
+  bam parameter will be used as path of output BAM.
+  Will return the output BAM path on success, None otherwise."""
   #TODO: check exit statuses
-  pathbase = ext_split(bam, 'bam')[0]
-  if not pathbase:
-    pathbase = bam
+  sam = bam+'.tmp.sam'
   # align
-  samtmp = pathbase+'.tmp.sam'
-  map_command = ['bwa', 'mem', ref, fastq1]
+  align_command = ['bwa', 'mem', ref, fastq1]
   if fastq2:
-    map_command.append(fastq2)
-  print ">>> $ "+' '.join(map_command)+' > '+samtmp
-  with open(samtmp, 'wb') as samhandle:
-    status = subprocess.call(map_command, stdout=samhandle)
+    align_command.append(fastq2)
+  print ">>> $ "+' '.join(align_command)+' > '+sam
+  with open(sam, 'wb') as samhandle:
+    status = subprocess.call(align_command, stdout=samhandle)
   if status:
-    return status
+    return
   # convert sam to bam
-  bamtmp = pathbase+'.tmp.bam'
-  conv_command = ['samtools', 'view', '-Sb', samtmp]
-  print ">>> $ "+' '.join(conv_command)+' > '+bamtmp
-  with open(bamtmp, 'wb') as bamhandle:
+  conv_command = ['samtools', 'view', '-Sb', sam]
+  print ">>> $ "+' '.join(conv_command)+' > '+bam
+  with open(bam, 'wb') as bamhandle:
     status = subprocess.call(conv_command, stdout=bamhandle)
   if status:
-    return status
+    return
+  else:
+    os.remove(sam)
+    return bam
+
+
+def sort_index_bam(bam):
+  """Sort and index the given BAM.
+  Output BAM will have the same name and replace the input one."""
   # sort temporary bam
-  sort_command = ['samtools', 'sort', bamtmp, pathbase]
+  tmpbase = bam+'.tmp'
+  tmpbam = tmpbase+'.bam'
+  sort_command = ['samtools', 'sort', bam, tmpbase]
   print ">>> $ "+' '.join(sort_command)
   status = subprocess.call(sort_command)
   if status:
-    return status
+    return
+  # delete original bam, rename sorted one
+  os.remove(bam)
+  os.rename(tmpbam, bam)
   # index final bam
   index_command = ['samtools', 'index', bam]
   print ">>> $ "+' '.join(index_command)
   status = subprocess.call(index_command)
-  # delete temporary bam
-  os.remove(samtmp)
-  os.remove(bamtmp)
-  return status
+  if status:
+    return
+  else:
+    return bam
 
 
 def merge_bams(bams, merged):
