@@ -192,7 +192,7 @@ must still provide LAV files to allow determination of which assembly to use."""
         fastq2path = sample_files[sample]['map_fastq2']
         bampath = sample_files[sample]['bam_out']
         #TODO: check exit status
-        bwa_index(asmpath)
+        index_ref(asmpath)
         align_reads(asmpath, fastq1path, fastq2path, bampath)
       # merge, if multiple
       if options.family_wise:
@@ -435,8 +435,8 @@ def index_ref(ref):
     else:
       command.append('is')
     command.append(ref)
-    return subprocess.call(command)
     print ">>> $ "+' '.join(command)
+    return subprocess.call(command)
     
 
 def align_reads(ref, fastq1, fastq2, bam):
@@ -452,29 +452,29 @@ def align_reads(ref, fastq1, fastq2, bam):
   map_command = ['bwa', 'mem', ref, fastq1]
   if fastq2:
     map_command.append(fastq2)
+  print ">>> $ "+' '.join(map_command)+' > '+samtmp
   with open(samtmp, 'wb') as samhandle:
     status = subprocess.call(map_command, stdout=samhandle)
-  print ">>> $ "+' '.join(map_command)+' > '+samtmp
   if status:
     return status
   # convert sam to bam
   bamtmp = pathbase+'.tmp.bam'
   conv_command = ['samtools', 'view', '-Sb', samtmp]
+  print ">>> $ "+' '.join(conv_command)+' > '+bamtmp
   with open(bamtmp, 'wb') as bamhandle:
     status = subprocess.call(conv_command, stdout=bamhandle)
-  print ">>> $ "+' '.join(conv_command)+' > '+bamtmp
   if status:
     return status
   # sort temporary bam
   sort_command = ['samtools', 'sort', bamtmp, pathbase]
+  print ">>> $ "+' '.join(sort_command)
   status = subprocess.call(sort_command)
   if status:
     return status
-  print ">>> $ "+' '.join(sort_command)
   # index final bam
   index_command = ['samtools', 'index', bam]
-  status = subprocess.call(index_command)
   print ">>> $ "+' '.join(index_command)
+  status = subprocess.call(index_command)
   # delete temporary bam
   os.remove(samtmp)
   os.remove(bamtmp)
@@ -490,7 +490,9 @@ def merge_bams(bams, merged):
   command = ['samtools', 'merge', '-r', '-h', header, merged]
   command.extend(bams)
   print '>>> $ '+' '.join(command)
-  return subprocess.call(command)
+  status = subprocess.call(command)
+  os.remove(header)
+  return status
 
 
 def make_header(bams):
