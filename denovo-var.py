@@ -68,14 +68,20 @@ except the extension) in each directory.""")
   parser.add_option('-F', '--family-wise', action='store_true',
     help="""Run pipeline on families of samples. Only the best assembly from
 each family will be used to map all the samples in that family. The paths to the
-input files will be interpreted as directories. If multi mode is not on, all the
-files will be assumed to be part of one family.""")
+input files will be interpreted as directories. If a family table is not given,
+all the files will be assumed to be part of one family.""")
+  parser.add_option('-n', '--family-name',
+    help="""The name of the family, if not doing multiple. If not given, the
+name used will be the name of the first sample plus "-family".""")
   parser.add_option('-f', '--family-table',
-    help="""The path to the family table file. Required when in multi mode.""")
+    help="""The path to the family table file. If given, the input files will be
+grouped into multiple families according to the table. This is a tab-delimited
+file with one family per line. The first column is the family name, and the
+remaining columns are the names of the samples in that family.""")
   parser.add_option('-N', '--no-names', dest='has_names', action='store_false',
     default=True,
     help="""Set if the family table does not contain family names as the first
-column.""")
+column. Names will be created like "family1", "family2", etc.""")
   parser.add_option('-o', '--output-path',
     help="""Path to output file or directory.""")
   parser.add_option('-q', '--fastq-path',
@@ -126,16 +132,19 @@ must still provide LAV files to allow determination of which assembly to use."""
   else:
     sample_files = get_single_files(options)
 
+  families = {}
   if options.family_table:
     if not os.path.isfile(options.family_table):
       fail("Error: cannot open family table "+options.family_table)
     families = read_family_table(options.family_table, options.has_names)
-  elif options.family_wise and options.multi:
-    parser.print_help()
-    fail("\nError: If running on multiple families, you must provide a family "
-      +"table.")
-  else:
-    families = {'__family__':['__sample__']}
+  elif options.family_wise:
+    if options.multi:
+      parser.print_help()
+      fail("\nError: If running on multiple families, you must provide a "
+        +"family table.")
+    samples = sample_files.keys()
+    family = samples[0]+"-family"
+    families[family] = samples
 
   # Set which pipeline steps are completed, based on input files
   done = get_done_steps(options)
@@ -320,7 +329,7 @@ def read_family_table(tablepath, names=True):
         name = columns[0]
         columns = columns[1:]
       else:
-        name = str(count)
+        name = 'family'+str(count)
         count+=1
       for sample in columns:
         samples.append(sample)
@@ -525,6 +534,7 @@ def make_header(bams):
     (dirpath, filename) = os.path.split(bam)
     samples.append(ext_split(filename, 'bam')[0])
   header_command = ['samtools', 'view', '-H', bams[0]]
+  print '>>> $ '+' '.join(header_command)
   header = subprocess.check_output(header_command)
   # get list of existing read groups (make sure we don't add a duplicate)
   existing = []
