@@ -193,18 +193,15 @@ must still provide LAV files to allow determination of which assembly to use."""
         bampath = sample_files[sample]['bam_out']
         #TODO: check exit status
         bwa_index(asmpath)
-        align(asmpath, fastq1path, fastq2path, bampath)
+        align_reads(asmpath, fastq1path, fastq2path, bampath)
       # merge, if multiple
       if options.family_wise:
         """merge bam files"""
-        bams = [sample_files[sample]['bam_out'] for sample in samples]
         #TODO: incorporate family names into sample_files system
+        bams = [sample_files[sample]['bam_out'] for sample in samples]
         dirpath = os.path.split(bampath)[0]
         bampath = os.path.join(dirpath, family+'.bam')
-        command = ['samtools', 'merge', '-r', bampath]
-        command.extend(bams)
-        subprocess.call(command)
-        print ">>> $ "+' '.join(command)
+        merge_bams(bams, bampath)
 
     # filter alignment
     # naive variant caller
@@ -273,10 +270,8 @@ def get_filetype(sample_files, dirpath, filetype):
     path = os.path.join(dirpath, filename)
     if not os.path.isfile(path):
       continue
-    extension = EXT_REGEX[FILETYPE_EXTS[filetype]]
-    match = re.search(extension, filename)
-    if match:
-      sample = match.group(1)
+    sample = ext_split(filename, FILETYPE_EXTS[filetype])[0]
+    if sample:
       files = sample_files.get(sample, {})
       files[filetype] = path
       sample_files[sample] = files
@@ -300,7 +295,7 @@ def ext_split(path, extype):
   if match:
     return (match.group(1), match.group(2))
   else:
-    return (path, '')
+    return (None, None)
 
 
 def read_family_table(tablepath, names=True):
@@ -422,7 +417,7 @@ def read_report(reportpath):
   return report
 
 
-def bwa_index(ref):
+def index_ref(ref):
   """Index the reference if it hasn't been already. If indexing was necessary,
   return exit status. Else, return None."""
   indexed = True
@@ -444,12 +439,14 @@ def bwa_index(ref):
     print ">>> $ "+' '.join(command)
     
 
-def align(ref, fastq1, fastq2, bam):
+def align_reads(ref, fastq1, fastq2, bam):
   """Align using BWA-MEM, and convert output to indexex and sorted BAM.
   bam parameter is the desired output path.
-  If not paired-end data, give None for fastq2."""
+  If not paired-end data, give None as fastq2."""
   #TODO: check exit statuses
   pathbase = ext_split(bam, 'bam')[0]
+  if not pathbase:
+    pathbase = bam
   # align
   samtmp = pathbase+'.tmp.sam'
   map_command = ['bwa', 'mem', ref, fastq1]
@@ -482,6 +479,51 @@ def align(ref, fastq1, fastq2, bam):
   os.remove(samtmp)
   os.remove(bamtmp)
   return status
+
+
+def merge_bams(bams, merged):
+  """Use samtools to merge BAM files.
+  merged is the desired output path.
+  Reads from different files are labeled with read groups, which are included in
+  a valid header."""
+  header = make_header(bams)
+  command = ['samtools', 'merge', '-r', '-h', header, merged]
+  command.extend(bams)
+  print '>>> $ '+' '.join(command)
+  return subprocess.call(command)
+
+
+def make_header(bams):
+  """Generate a SAM file consisting only of a proper header for a merge of the
+  given BAMs.
+  The first bam is used as the basis of the header. Read groups in the header
+  are taken from filenames in the same way samtools merge does.
+  Returns the path to the SAM."""
+  # get read group names from BAM filenames, like samtools merge does
+  samples = []
+  for bam in bams:
+    (dirpath, filename) = os.path.split(bam)
+    samples.append(ext_split(filename, 'bam')[0])
+  header_command = ['samtools', 'view', '-H', bams[0]]
+  header = subprocess.check_output(header_command)
+  # get list of existing read groups (make sure we don't add a duplicate)
+  existing = []
+  for line in header.split('\n'):
+    if not line.startswith('@RG\t'):
+      continue
+    fields = line.split('\t')
+    for field in fields:
+      if field.startswith('ID:'):
+        existing.append(field[3:])
+  # append new read groups to header
+  for sample in samples:
+    if sample not in existing:
+      header += '@RG\tID:'+sample+'\tSM:'+sample+'\n'
+  # print to a temporary file in the same directory as the BAMs
+  sampath = os.path.join(dirpath, samples[0]+'.header.sam')
+  with open(sampath, 'w') as samhandle:
+    samhandle.write(header)
+  return sampath
 
 
 def fail(message):
