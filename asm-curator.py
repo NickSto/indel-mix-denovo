@@ -5,8 +5,10 @@ import os
 import sys
 import random
 import quicksect
-import bioreaders
+import lavreader
 import collections
+import fastareader
+import lavintervals
 from optparse import OptionParser
 
 OPT_DEFAULTS = {'lav':'', 'asm':'', 'ref':'', 'report':'', 'fragmented':500,
@@ -129,7 +131,7 @@ overlap situation, only the smaller contig is removed. Default: %default""")
   else:
     lavpath = align(options.asm, options.ref)
 
-  lav = bioreaders.LavReader(lavpath)
+  lav = lavreader.LavReader(lavpath)
   # Abort if assembly is too fragmented
   #TODO: count actual contigs, not hits, when assembly FASTA is provided
   if options.contig_limit and len(lav) > options.contig_limit:
@@ -138,9 +140,9 @@ overlap situation, only the smaller contig is removed. Default: %default""")
     sys.exit(0)
   lav.convert()
 
-  intervals = lav_to_intervals(lav)
-  all_overlaps = get_all_overlaps(intervals)
-  all_overlaps = discard_redundant(all_overlaps, slop=options.slop)
+  intervals = lavintervals.lav_to_intervals(lav)
+  all_overlaps = lavintervals.get_all_overlaps(intervals)
+  all_overlaps = lavintervals.discard_redundant(all_overlaps, slop=options.slop)
   if options.test_output:
     test_output(all_overlaps, intervals)
     sys.exit(0)
@@ -161,80 +163,8 @@ overlap situation, only the smaller contig is removed. Default: %default""")
 
 
 
-def length(interval):
-  return interval[1] - interval[0] + 1
-
-
 def align(asmpath, refpath):
   fail("LASTZ ALIGNMENT NOT YET IMPLEMENTED")
-
-
-def lav_to_intervals(lav):
-  """Convert a LASTZ alignment to a series of intervals along the reference
-  sequence.
-  Give an LavReader and it will return a dict with the intervals as keys and
-  the corresponding LavAlignments as values. Each interval is a tuple of the
-  "begin" and "end" values of an LavAlignment."""
-  intervals = {}
-  for hit in lav:
-    for alignment in hit:
-      interval = (alignment.subject['begin'], alignment.subject['end'])
-      intervals[interval] = alignment
-  return intervals
-
-
-def get_all_overlaps(intervals):
-  """Compare each interval to the rest, finding ones with any overlap.
-  Returns a dict mapping each interval to a list of intervals which overlap.
-  The original interval is always excluded from the list."""
-  # build tree
-  tree = None
-  random.seed(1)
-  for interval in intervals:
-    if tree is None:
-      tree = quicksect.IntervalNode(interval[0], interval[1])
-    else:
-      tree = tree.insert(interval[0], interval[1])
-  # find ones that intersect each interval
-  all_overlaps = {}
-  for interval in intervals:
-    overlaps = []
-    # reporter function: is given the matching interval when one is found
-    add_overlap = lambda node: overlaps.append((node.start, node.end))
-    tree.intersect(interval[0], interval[1], add_overlap)
-    # remove the query interval from the results
-    overlaps = [overlap for overlap in overlaps if overlap != interval]
-    all_overlaps[interval] = overlaps
-  return all_overlaps
-
-
-def discard_redundant(all_overlaps, slop=0):
-  """Remove redundant intervals from all_overlaps.
-  The discarded intervals will be removed from both the
-  set of keys and the lists of overlapping intervals."""
-  redundant = set()
-  # gather redundant intervals
-  for interval in all_overlaps:
-    if is_redundant(interval, all_overlaps[interval], slop=slop):
-      redundant.add(interval)
-  # go through all_overlaps again, discarding redundant intervals
-  for interval in all_overlaps.keys():
-    if interval in redundant:
-      del(all_overlaps[interval])
-    else:
-      all_overlaps[interval] = [overlap for overlap in all_overlaps[interval]
-        if overlap not in redundant]
-  return all_overlaps
-
-
-def is_redundant(interval, overlaps, slop=0):
-  """Return True if the interval is redundant."""
-  for overlap in overlaps:
-    # if interval is wholly contained within overlap (+ slop)
-    if (overlap[0] - slop <= interval[0] and interval[1] <= overlap[1] + slop
-        and length(interval) < length(overlap)):
-      return True
-  return False
 
 
 def get_report(lav, intervals, options):
@@ -272,8 +202,8 @@ def get_report(lav, intervals, options):
   report['nonref_flanks'] = len(get_nonref_flanks(intervals, options))
   # how many gaps are in the assembly?
   #TODO: take chromosome into account
-  merged = merge(intervals.keys(), sort=True)
-  gaps = subtract(merged, (1, lav.hits[0].subject['end']))
+  merged = lavintervals.merge(intervals.keys(), sort=True)
+  gaps = lavintervals.subtract(merged, (1, lav.hits[0].subject['end']))
   report['gaps'] = len(gaps)
   return report
 
@@ -286,54 +216,6 @@ def format_report(report, report_text):
       messages = report_text[issue]
       output += "\t".join([messages[0], str(report[issue]), messages[1]]) + "\n"
   return output
-
-
-def merge(intervals, sort=False):
-  """Merge a list of intervals into a new list of non-overlapping intervals.
-  Optionally sort the output list by starting coordinate. Merging is 1-based
-  (will merge if end == start). Totally naive implementation: O(n^2)."""
-  merged = []
-  # go through input list, adding 1 interval at a time to a growing merged list
-  for interval in intervals:
-    i = 0
-    while i < len(merged):
-      target = merged[i]
-      # if any overlap
-      if interval[0] <= target[1] and interval[1] >= target[0]:
-        # replace the target with a combination of it and the input interval
-        del(merged[i])
-        # merge the two intervals by taking the widest possible region
-        interval = (min(interval[0], target[0]), max(interval[1], target[1]))
-      else:
-        i+=1
-    merged.append(interval)
-  if sort:
-    merged.sort(key=lambda x: x[0])
-  return merged
-
-
-def subtract(merged, interval):
-  """Subtract intervals in merged from interval. Merged must be a list of
-  "merged" intervals: non-overlapping, in order from lowest to highest
-  coordinate. Returns a list of intervals representing the regions of interval
-  not overlapping any intervals in merged."""
-  begin = interval[0]
-  end = interval[1]
-  results = []
-  for i in range(len(merged)):
-    # add region before first overlap (if any)
-    if i == 0 and begin < merged[i][0]:
-      results.append((begin, merged[i][0]-1))
-    if i > 0:
-      result = (merged[i-1][1]+1, merged[i][0]-1)
-      if result[0] <= result[1]:
-        results.append(result)
-    # add region after last overlap (if any)
-    if i == len(merged) - 1 and end > merged[i][1]:
-      results.append((merged[i][1]+1, end))
-  if not merged:
-    results.append((begin, end))
-  return results
 
 
 def get_nonref_flanks(intervals, options):
@@ -353,7 +235,7 @@ def get_nonref_flanks(intervals, options):
     for alignment in hit:
       interval = (alignment.query['begin'], alignment.query['end'])
       ref_regions.append(interval)
-    asm_ref_regions[queryname] = merge(ref_regions, sort=True)
+    asm_ref_regions[queryname] = lavintervals.merge(ref_regions, sort=True)
   # check contigs for non-reference flanks
   nonref_flanks = []
   for queryname in asm_ref_regions:
@@ -380,7 +262,7 @@ def get_nonref_flanks(intervals, options):
 def curate(intervals, asmpath, outpath):
   """Remove all contigs not present in intervals and write FASTA to outpath."""
   contigs = get_contig_names(intervals)
-  fasta = bioreaders.FastaLineGenerator(asmpath)
+  fasta = fastareader.FastaLineGenerator(asmpath)
   last_name = None
   skipping = False
   with open(outpath, 'w') as outfile:
@@ -414,7 +296,7 @@ def test_output(all_overlaps, intervals):
     # for overlap in sorted(all_overlaps[interval], key=lambda x: x[0]):
     #   print format_interval(overlap, intervals)
     # print "  unique:"
-    # merged = merge(all_overlaps[interval])
+    # merged = lavintervals.merge(all_overlaps[interval])
     # merged.sort(key=lambda x: x[0])
     # for unique in get_uniques(merged, interval):
     #   print "    "+format_interval(unique)

@@ -10,10 +10,11 @@ $dirname/../unit.test.py inspect-reads.variants_from_vcf -V $dirname/R19S5-head.
 
 # functional tests
 echo -e "\tasm-curator.py ::: R19S11.lav/R19S11.fa:"
-$dirname/../asm-curator.py -l $dirname/R19S11.lav -a $dirname/R19S11.fa -o $dirname/tmp-R19S11.fa.test
+$dirname/../asm-curator.py -l $dirname/R19S11.lav -a $dirname/R19S11.fa -o $dirname/tmp-R19S11.fa.test >/dev/null
 diff -s $dirname/tmp-R19S11.fa.test $dirname/R19S11.fa.out
 rm $dirname/tmp-R19S11.fa.test
 echo -e "\tasm-curator.py ::: R20S11.lav/R20S11.fa:"
-$dirname/../asm-curator.py -l $dirname/R20S11.lav -a $dirname/R20S11.fa -o $dirname/tmp-R20S11.fa.test
+$dirname/../asm-curator.py -l $dirname/R20S11.lav -a $dirname/R20S11.fa -o $dirname/tmp-R20S11.fa.test >/dev/null
 diff -s $dirname/tmp-R20S11.fa.test $dirname/R20S11.fa.out
 rm $dirname/tmp-R20S11.fa.test
+
