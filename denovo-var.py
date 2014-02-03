@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#TODO: warn when a given directory doesn't contain files matching the others
 from __future__ import division
 import re
 import os
@@ -19,7 +20,8 @@ EXT = {
 # pull out the (full) path base in group 1, extension in group 2
 EXT_REGEX = {
   'bam':r'(.+)(\.bam)$',
-  'fastq1':r'(.+?)((?:_1)?\.f(?:ast)?q)$',  # ("_1" optional)
+  'fastq':r'(.+)(\.f(?:ast)?q)$',
+  'fastq1':r'(.+)(_1\.f(?:ast)?q)$',
   'fastq2':r'(.+)(_2\.f(?:ast)?q)$',
   'fasta':r'(.+)(\.f(?:ast)?a)$',
   'lav':r'(.+)(\.lav)$',
@@ -30,6 +32,8 @@ FILETYPE_EXTS = {
   'fastq2':'fastq2',
   'map_fastq1':'fastq1',
   'map_fastq2':'fastq2',
+  'fastq':'fastq',
+  'map_fastq':'fastq',
   'bam_in':'bam',
   'bam_out':'bam',
   'asm':'fasta',
@@ -132,6 +136,13 @@ must still provide LAV files to allow determination of which assembly to use."""
   else:
     sample_files = get_single_files(options)
 
+  # If paired-end data, delete erroneous sample names from single-end regex
+  for sample in sample_files.keys():
+    if sample.endswith('_1') or sample.endswith('_2'):
+      files = sample_files.get(sample[:-2], ())
+      if 'map_fastq1' in files and 'map_fastq2' in files:
+        del(sample_files[sample])
+
   families = {}
   if options.family_table:
     if not os.path.isfile(options.family_table):
@@ -143,7 +154,10 @@ must still provide LAV files to allow determination of which assembly to use."""
       fail("\nError: If running on multiple families, you must provide a "
         +"family table.")
     samples = sample_files.keys()
-    family = samples[0]+"-family"
+    if options.family_name:
+      family = options.family_name
+    else:
+      family = samples[0]+"-family"
     families[family] = samples
 
   # Set which pipeline steps are completed, based on input files
@@ -197,8 +211,12 @@ must still provide LAV files to allow determination of which assembly to use."""
       asmpath = sample_files[best_sample]['asm_curated']
       # align
       for sample in samples:
-        fastq1path = sample_files[sample]['map_fastq1']
-        fastq2path = sample_files[sample]['map_fastq2']
+        try:
+          fastq1path = sample_files[sample]['map_fastq1']
+          fastq2path = sample_files[sample]['map_fastq2']
+        except KeyError:  # single-end data
+          fastq1path = sample_files[sample]['map_fastq']
+          fastq2path = None
         bampath = sample_files[sample]['bam_out']
         #TODO: check exit status
         index_ref(asmpath)
@@ -232,24 +250,29 @@ def get_single_files(options):
   """When not in multi or family mode, pack a dict of single input files.
   See get_multi_files() for structure of dict."""
   #TODO: print errors when directories are given instead of files
-  inputs = collections.defaultdict()
+  files = {}
   if options.fastq_path and os.path.isfile(options.fastq_path):
-    inputs['fastq1'] = options.fastq_path
+    files['fastq1'] = options.fastq_path
+    files['map_fastq1'] = options.fastq_path
+    files['fastq'] = options.fastq_path
+    files['map_fastq'] = options.fastq_path
   if options.fastq2_path and os.path.isfile(options.fastq2_path):
-    inputs['fastq2'] = options.fastq2_path
+    files['fastq2'] = options.fastq2_path
+    files['map_fastq1'] = options.fastq2_path
   if options.mapping_fastq_path and os.path.isfile(options.mapping_fastq_path):
-    inputs['map_fastq1'] = options.mapping_fastq_path
+    files['map_fastq1'] = options.mapping_fastq_path
+    files['map_fastq'] = options.mapping_fastq_path
   if options.mapping_fastq2_path and os.path.isfile(options.mapping_fastq2_path):
-    inputs['map_fastq2'] = options.mapping_fastq2_path
+    files['map_fastq2'] = options.mapping_fastq2_path
   if options.asm_path and os.path.isfile(options.asm_path):
-    inputs['asm'] = options.asm_path
+    files['asm'] = options.asm_path
   if options.lav_path and os.path.isfile(options.lav_path):
-    inputs['lastz'] = options.lav_path
+    files['lastz'] = options.lav_path
   if options.curated_asm_path and os.path.isfile(options.curated_asm_path):
-    inputs['asm_curated'] = options.curated_asm_path
+    files['asm_curated'] = options.curated_asm_path
   if options.bam_path_out and os.path.isfile(options.bam_path_out):
-    inputs['bam_out'] = options.bam_path_out
-  return {'__sample__':inputs}
+    files['bam_out'] = options.bam_path_out
+  return {'__sample__':files}
 
 
 def get_multi_files(options):
@@ -263,9 +286,12 @@ def get_multi_files(options):
     sample_files = get_filetype(sample_files, options.fastq_path, 'fastq2')
     sample_files = get_filetype(sample_files, options.fastq_path, 'map_fastq1')
     sample_files = get_filetype(sample_files, options.fastq_path, 'map_fastq2')
+    sample_files = get_filetype(sample_files, options.fastq_path, 'fastq')
+    sample_files = get_filetype(sample_files, options.fastq_path, 'map_fastq')
   if options.mapping_fastq_path:
     sample_files = get_filetype(sample_files, options.mapping_fastq_path, 'map_fastq1')
     sample_files = get_filetype(sample_files, options.mapping_fastq_path, 'map_fastq2')
+    sample_files = get_filetype(sample_files, options.mapping_fastq_path, 'map_fastq')
   if options.asm_path:
     sample_files = get_filetype(sample_files, options.asm_path, 'asm')
   if options.lav_path:
