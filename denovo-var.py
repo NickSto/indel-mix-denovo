@@ -59,6 +59,7 @@ REPORT_TYPES = {
 }
 
 MIN_BWTSW_SIZE = 2000000000 # bytes
+BWA_OPTIONS = ['-M', '-t', '16']
 
 def main():
 
@@ -490,7 +491,9 @@ def align_reads(ref, fastq1, fastq2, bam):
   #TODO: check exit statuses
   sam = bam+'.tmp.sam'
   # align
-  align_command = ['bwa', 'mem', ref, fastq1]
+  align_command = ['bwa', 'mem']
+  align_command.extend(BWA_OPTIONS)
+  align_command.extend([ref, fastq1])
   if fastq2:
     align_command.append(fastq2)
   print ">>> $ "+' '.join(align_command)+' > '+sam
