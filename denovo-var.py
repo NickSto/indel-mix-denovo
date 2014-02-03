@@ -78,6 +78,10 @@ all the files will be assumed to be part of one family.""")
   parser.add_option('-n', '--family-name',
     help="""The name of the family, if not doing multiple. If not given, the
 name used will be the name of the first sample plus "-family".""")
+  parser.add_option('-s', '--samples',
+    help="""The name of the samples to process. Applicable only when in multi
+mode or doing a single family. This way you can process only some of the files
+in a directory. Give as a comma-delimited list.""")
   parser.add_option('-f', '--family-table',
     help="""The path to the family table file. If given, the input files will be
 grouped into multiple families according to the table. This is a tab-delimited
@@ -154,7 +158,10 @@ must still provide LAV files to allow determination of which assembly to use."""
       parser.print_help()
       fail("\nError: If running on multiple families, you must provide a "
         +"family table.")
-    samples = sample_files.keys()
+    if options.samples:
+      samples = options.samples.split(',')
+    else:
+      samples = sample_files.keys()
     if options.family_name:
       family = options.family_name
     else:
@@ -167,6 +174,8 @@ must still provide LAV files to allow determination of which assembly to use."""
   # If family-wise, loop over families. Else, loop over samples.
   if options.family_wise:
     items = families.keys()
+  elif options.samples:
+    items = options.samples.split(',')
   else:
     items = sample_files.keys()
 
