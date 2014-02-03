@@ -58,8 +58,10 @@ REPORT_TYPES = {
   'F':bool,
 }
 
+OPTIONS = {
+  'bwa':['-M', '-t', '16'],
+}
 MIN_BWTSW_SIZE = 2000000000 # bytes
-BWA_OPTIONS = ['-M', '-t', '16']
 
 def main():
 
@@ -188,6 +190,19 @@ must still provide LAV files to allow determination of which assembly to use."""
       samples = families[family]
     else:
       samples = [item]
+
+    # Skip and warn about samples with missing files
+    for sample in samples:
+      skip = False
+      if sample not in sample_files:
+        sys.stderr.write("Warning: files missing for sample "+sample)
+        if options.family_wise:
+          sys.stderr.write(". Skipping family "+family+".")
+        sys.stderr.write("\n")
+        skip = True
+        continue
+    if skip:
+      continue
 
     for sample in samples:
       if not done['tofastq']:
@@ -501,7 +516,7 @@ def align_reads(ref, fastq1, fastq2, bam):
   sam = bam+'.tmp.sam'
   # align
   align_command = ['bwa', 'mem']
-  align_command.extend(BWA_OPTIONS)
+  align_command.extend(OPTIONS['bwa'])
   align_command.extend([ref, fastq1])
   if fastq2:
     align_command.append(fastq2)
