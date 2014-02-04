@@ -17,26 +17,28 @@ import os
 description of columns in the tsv output. But to still accommodate different
 terminal widths, dynamic wrapping with simplewrap will be necessary."""
 WIDTH = simplewrap.termwidth(70)
+wrapper = simplewrap.Wrapper(width=WIDTH)
+wrap = wrapper.wrap
 
 OPT_DEFAULTS = {'human':True, 'tsv':False, 'vartypes':'ID',
   'strand_bias':0, 'mate_bias':0}
 USAGE = "%(prog)s [options] -v variantslist -V variants.vcf reads.bam"
-DESCRIPTION = simplewrap.wrap("Retrieve the reads supporting a given set of "
+DESCRIPTION = wrap("Retrieve the reads supporting a given set of "
   "variants, and report statistics on them. Provide the variants in a VCF "
-  "and/or in a list on the command line.", width=WIDTH)
-EPILOG = simplewrap.wrap("WARNING: Work in progress. Not yet implemented "
+  "and/or in a list on the command line.")
+EPILOG = wrap("WARNING: Work in progress. Not yet implemented "
   "features:\n"
   "--containing --output-bam --all --opposing options\n"
   "Considering the \"alt\" information of variants (the only thing considered "
   "right now is the location and type).\n"
   "And most important of all, ***SNVS ARE NOT SUPPORTED!*** Right now only "
-  "indels are recognized.", width=WIDTH)
+  "indels are recognized.")
 
 VALID_BASES = 'GATCNgatcn'
 
 def main():
 
-  wrap = simplewrap.wrapper(width=WIDTH-24)
+  wrapper.width = WIDTH-24
 
   parser = argparse.ArgumentParser(usage=USAGE, description=DESCRIPTION,
     epilog=EPILOG, formatter_class=argparse.RawTextHelpFormatter)
@@ -64,7 +66,8 @@ def main():
       'four columns are the same data as described in the --variants format. '
       'The strand and mate bias statistics are described in the -s and -m '
       'options. The null value is "None".\n'
-      'Columns:')+'\n'+simplewrap.wrap(
+      'Columns:')
+      +'\n'+wrap(
       '1:  chrom\n'
       '2:  coord\n'
       '3:  variant type\n'
@@ -88,7 +91,7 @@ def main():
       '21: The total number of supporting reads with each SAM flag. This is a '
           'comma-separated list of the total for each flag, from lowest to '
           'highest bit value.',
-      width=WIDTH-24, subsequent_indent='    '))
+      lspace=4, indent=-4))
   parser.add_argument('-L', '--no-labels', action='store_true',
     help=wrap('If csv output is selected, do not print column labels (normally '
       'the first line, begins with #).'))
