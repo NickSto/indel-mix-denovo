@@ -43,7 +43,7 @@ def main():
   parser.set_defaults(**OPT_DEFAULTS)
 
   parser.add_argument('bamfilepath', metavar='reads.bam',
-    help="""the input reads""")
+    help='the input reads')
   parser.add_argument('-v', '--variants',
     help=wrap('Use these variants. Give a comma-separated list, in the format '
       '"chrom:pos-type[:alt]" e.g. "chr1:2345-D:2". "pos" is the 1-based '
@@ -58,7 +58,7 @@ def main():
   parser.add_argument('-o', '--output-bam',
     help='Output the selected reads to this BAM file.')
   parser.add_argument('-H', '--human', action='store_true',
-    help="""Print statistics in a human-readable format (default).""")
+    help='Print statistics in a human-readable format (default).')
   parser.add_argument('-t', '--tsv', action='store_true',
     help=wrap('Print statistics in a tab-delimited columnar format. The first '
       'four columns are the same data as described in the --variants format. '
@@ -84,7 +84,7 @@ def main():
       '17: %% with the highest MAPQ\n'
       '18: the highest MAPQ in the supporting reads\n'
       '19: strand bias\n'
-      '20: mate bias'
+      '20: mate bias\n'
       '21: The total number of supporting reads with each SAM flag. This is a '
           'comma-separated list of the total for each flag, from lowest to '
           'highest bit value.',
