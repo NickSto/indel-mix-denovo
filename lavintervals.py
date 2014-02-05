@@ -39,6 +39,7 @@ def conversion_coefficients(block):
   into a subject coordinate.
   Returns a tuple of (strand, offset), where
   subject_coord = query_coord * strand + offset
+  strand is -1 if the query is reverse complemented, 1 otherwise
   """
   if block.parent.parent.query['revcomp']:
     strand = -1
@@ -54,23 +55,29 @@ def blocks_to_conv_table(lav, contigs=None):
   "lav" is an LavReader object
   "contigs" contains the names of the valid query sequences to add to the table.
     any hit whose query name is "not in contigs" will be left out of the table.
-  The return value is a list of tuples, one per block. The 3 elements of each
+  The return value is a list of tuples, one per block. The 5 elements of each
   tuple are:
-  "chrom" is chromosome the block is in (the query name)
-  "interval" is the query start, end coordinate of the block
-  "block" is the LavBlock itself
+  0 (chrom):  the chromosome the block is in (the query name)
+  1 (begin):  the block's start coordinate (in the query)
+  2 (end):    the block's end coordinate (in the query)
+  3 (ref):    the name of the corresponding reference chromosome
+  4 (strand): the strand value for coordinate conversion
+  5 (offset): the offset for coordinate conversion
+  The last two values are the output of conversion_coefficients()
   """
   intervals = blocks_to_intervals(lav)
   table = []
   for hit in lav:
     chrom = hit.query['name']
+    ref = hit.subject['name']
     if contigs is not None and chrom not in contigs:
       continue
     for alignment in hit:
       for block in alignment:
-        interval = (block.query['begin'], block.query['end'])
+        begin = block.query['begin']
+        end = block.query['end'])
         coef = conversion_coefficients(block)
-        table.append((chrom, interval, block))
+        table.append((chrom, begin, end, ref, coef[0], coef[1]))
   return table
 
 
