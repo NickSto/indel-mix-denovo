@@ -138,9 +138,8 @@ overlap situation, only the smaller contig is removed. Default: %default""")
     sys.stderr.write('Warning: Too many contigs in assembly ('+str(len(lav))
       +' LASTZ hits). Aborting.\n')
     sys.exit(0)
-  lav.convert()
 
-  intervals = lavintervals.lav_to_intervals(lav)
+  intervals = lavintervals.alignments_to_intervals(lav)
   all_overlaps = lavintervals.get_all_overlaps(intervals)
   all_overlaps = lavintervals.discard_redundant(all_overlaps, slop=options.slop)
   if options.test_output:

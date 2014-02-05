@@ -5,8 +5,8 @@ import quicksect
 
 SLOP_DEFAULT = 20
 
-def lav_to_intervals(lav):
-  """Convert a LASTZ alignment to a series of intervals along the reference
+def alignments_to_intervals(lav):
+  """Convert a set of LASTZ alignments to a set of intervals along the reference
   sequence.
   Give an LavReader and it will return a dict with the intervals as keys and
   the corresponding LavAlignments as values. Each interval is a tuple of the
@@ -17,6 +17,61 @@ def lav_to_intervals(lav):
       interval = (alignment.subject['begin'], alignment.subject['end'])
       intervals[interval] = alignment
   return intervals
+
+
+def blocks_to_intervals(lav):
+  """Convert a set of LASTZ blocks to a set of intervals along the reference
+  sequence.
+  Give an LavReader and it will return a dict with the intervals as keys and
+  the corresponding LavBlocks as values. Each interval is a tuple of the
+  "begin" and "end" values of an LavBlocks."""
+  intervals = {}
+  for hit in lav:
+    for alignment in hit:
+      for block in alignment:
+        interval = (block.subject['begin'], block.subject['end'])
+        intervals[interval] = block
+  return intervals
+
+
+def conversion_coefficients(block):
+  """Return the coefficients needed to convert a query coordinate in "block"
+  into a subject coordinate.
+  Returns a tuple of (strand, offset), where
+  subject_coord = query_coord * strand + offset
+  """
+  if block.parent.parent.query['revcomp']:
+    strand = -1
+  else:
+    strand = 1
+  offset = block.subject['begin'] - strand * block.query['begin']
+  return (strand, offset)
+
+
+def blocks_to_conv_table(lav, contigs=None):
+  """Build a coordinate conversion table from an LAV file.
+  Table is for converting query coordinates to subject coordinates.
+  "lav" is an LavReader object
+  "contigs" contains the names of the valid query sequences to add to the table.
+    any hit whose query name is "not in contigs" will be left out of the table.
+  The return value is a list of tuples, one per block. The 3 elements of each
+  tuple are:
+  "chrom" is chromosome the block is in (the query name)
+  "interval" is the query start, end coordinate of the block
+  "block" is the LavBlock itself
+  """
+  intervals = blocks_to_intervals(lav)
+  table = []
+  for hit in lav:
+    chrom = hit.query['name']
+    if contigs is not None and chrom not in contigs:
+      continue
+    for alignment in hit:
+      for block in alignment:
+        interval = (block.query['begin'], block.query['end'])
+        coef = conversion_coefficients(block)
+        table.append((chrom, interval, block))
+  return table
 
 
 def get_all_overlaps(intervals):

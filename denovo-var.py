@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#TODO: print record of which reference was chosen for each family
 #TODO: warn when a given directory doesn't contain files matching the others
 from __future__ import division
 import re
