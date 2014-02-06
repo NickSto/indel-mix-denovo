@@ -9,7 +9,7 @@ import lavreader
 import lavintervals
 
 OPT_DEFAULTS = {'tsv':True}
-USAGE = "USAGE: %(prog)s [options] align.lav sites.tsv"
+USAGE = "USAGE: %(prog)s [options] align.lav (sites.tsv|-s chr:coord)"
 DESCRIPTION = """Default input format: the tsv output of inspect-reads.py.
 If a site lies in an unknown region (does not align to the reference), it will
 be left unaltered (unless -N is specified)."""
@@ -24,13 +24,17 @@ def main():
 
   parser.add_argument('lavpath', metavar='align.lav',
     help="""""")
-  parser.add_argument('sitespath', metavar='sites.tsv',
+  parser.add_argument('sites',
     help="""""")
   parser.add_argument('-t', '--tsv', action='store_true',
     help="""Input data (second file) is in the tsv format produced by
       inspect-reads.py (default).""")
   parser.add_argument('-v', '--vcf', action='store_true',
     help="""Input data (second file) is a VCF.""")
+  parser.add_argument('-s', '--string', action='store_true',
+    help="""The sites-source is a string of sites, not a file.
+      Specify with UCSC coordinates in a comma-delimited list, e.g.
+      "chr3:517,chrM:2453".""")
   parser.add_argument('-N', '--null-note',
     help="""If a site lies in an unknown region (does not align to the
       reference), append this string to the chromosome name.""")
@@ -39,7 +43,7 @@ def main():
 
   args = parser.parse_args()
 
-  sitesreader = read_sitesfile(args.sitespath, args)
+  sites = read_sites(args.sites, args)
   lav = lavreader.LavReader(args.lavpath)
 
   contigs = get_kept_contigs(lav)
@@ -48,7 +52,7 @@ def main():
   # for each site:
   # just compare to each interval to check if it's contained
   # use the longest one
-  for site in sitesreader:
+  for site in sites:
     if site[1] is None:
       sys.stdout.write(site[3])
       continue
@@ -70,6 +74,9 @@ def main():
       if block[2] - block[1] > longest_block[2] - longest_block[1]:
         longest_block = block
     # do actual conversion
+    # print site[3]+':'
+    # print str(longest_block[1])+' to '+str(longest_block[2])+' = strand ' \
+    #   +str(longest_block[4])+', offset '+str(longest_block[5])
     site[0] = longest_block[3]
     site[1] = site[1] * longest_block[4] + longest_block[5]
     if site[2]:
@@ -94,8 +101,8 @@ def get_kept_contigs(lav):
 
 #TODO: Join into one function (they're mostly the same, it ends up)
 #TODO: Compute site end
-def read_sitesfile(filepath, args):
-  """Read in a sites file, return a generator.
+def read_sites(source, args):
+  """Read in a sites file (or string), return a generator.
   "args" must have bool attributes args.tsv and args.vcf to determine filetype.
   For each line, the generator returns a list of 4 values:
   0 (chrom): the chromosome of the variant (str)
@@ -104,17 +111,29 @@ def read_sitesfile(filepath, args):
   3 (line):  the raw input line (str)
   For non-data lines (headers, etc), the first 3 values will be None.
   """
-  if args.vcf:
-    return read_vcffile(filepath)
+  if args.string:
+    return parse_sites_string(source)
+  elif args.vcf:
+    return read_vcffile(source)
   elif args.tsv:
-    return read_tsvfile(filepath)
+    return read_tsvfile(source)
   else:
     fail("Error: Must specify the sites input filetype.")
 
 
+def parse_sites_string(sites_str):
+  sites = sites_str.split(',')
+  for site_str in sites:
+    try:
+      (chrom, coord) = site_str.split(':')
+      yield [chrom, int(coord), None, site_str]
+    except ValueError:
+      fail('Error: Invalid site string "'+site_str+'"')
+
+
 def read_tsvfile(filepath):
   """Read in a tsv file produced from inspect-reads.py.
-  Return data structure described in read_sitesfile().
+  Return data structure described in read_sites_file().
   """
   with open(filepath, 'r') as filehandle:
     for raw_line in filehandle:
@@ -158,7 +177,9 @@ def edit_line(site, args, strand=1):
     'vcf' - VCF (not yet implemented)
   Output is the final line, ready for printing (includes newline).
   """
-  if args.vcf:
+  if args.string:
+    return edit_site_string(site, strand=strand)
+  elif args.vcf:
     return edit_vcfline(site, strand=strand)
   elif args.tsv:
     return edit_tsvline(site, strand=strand)
@@ -180,12 +201,17 @@ def edit_tsvline(site, strand=1):
     if chrom is not None:
       fields[0] = chrom
     if begin is not None:
-      fields[1] = str(begin)
+      # preserve newline if it's the last field
+      if fields[1][-2:] == '\r\n':
+        begin = str(begin)+fields[1][-2:]
+      elif fields[1][-1] in '\r\n':
+        begin = str(begin)+fields[1][-1]
+      fields[1] = begin
   except IndexError:
     fail('Error: Raw line not in the tsv format expected from '
       'inspect-reads.py: "'+raw_line+'"')
   #TODO: make sure newline is preserved
-  return '\t'.join(fields)
+  return '\t'.join(map(str, fields))
 
 
 def edit_vcfline(site, strand=1):
@@ -209,7 +235,32 @@ def edit_vcfline(site, strand=1):
   except (IndexError, TypeError):
     fail('Error: Raw line not in VCF: "'+raw_line+'"')
   #TODO: make sure newline is preserved
-  return '\t'.join(fields)
+  return '\t'.join(map(str, fields))
+
+
+def edit_site_string(site, strand=1):
+  chrom = site[0]
+  begin = site[1]
+  end = site[2]
+  site_str = site[3]
+  # do not alter empty/header lines
+  if begin is None:
+    return site_str
+  fields = site_str.split(':')
+  try:
+    if chrom is not None:
+      fields[0] = chrom
+    if begin is not None:
+      fields[1] = str(begin)
+    if end is not None:
+      fields[2] = str(end)
+  except (IndexError, TypeError):
+    fail('Error: Invalid site string: "'+site_str+'"')
+  #TODO: make sure newline is preserved
+  if end is None:
+    return chrom+':'+str(begin)+'\n'
+  else:
+    return chrom+':'+str(begin)+'-'+str(end)+'\n'
 
 
 def fail(message):
