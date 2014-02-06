@@ -2,7 +2,7 @@
 import random
 import quicksect
 """Methods useful for manipulating intervals in an LAV file."""
-__version__ = '0.3'
+__version__ = '0.4'
 
 SLOP_DEFAULT = 20
 
@@ -69,8 +69,8 @@ def blocks_to_conv_table(lav, contigs=None):
   intervals = blocks_to_intervals(lav)
   table = []
   for hit in lav:
-    chrom = hit.query['name']
-    ref = hit.subject['name']
+    chrom = hit.query['name'].split()[0]
+    ref = hit.subject['name'].split()[0]
     if contigs is not None and chrom not in contigs:
       continue
     for alignment in hit:

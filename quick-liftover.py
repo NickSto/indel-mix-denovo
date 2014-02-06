@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+#TODO: Warn when site spans the edge of an alignment block
+#TODO: Reverse complement sequence
 from __future__ import division
 import os
 import sys
@@ -72,7 +74,7 @@ def main():
     site[1] = site[1] * longest_block[4] + longest_block[5]
     if site[2]:
       site[2] = site[2] * longest_block[4] + longest_block[5]
-    sys.stdout.write(edit_line(site, args))
+    sys.stdout.write(edit_line(site, args, strand=longest_block[4]))
 
 
 def get_kept_contigs(lav):
@@ -85,11 +87,13 @@ def get_kept_contigs(lav):
   for interval in intervals.keys():
     if interval in all_overlaps:
       hit = intervals[interval].parent
-      contigs.add(hit.query['name'])
+      contig = hit.query['name'].split()[0]
+      contigs.add(contig)
   return contigs
 
 
 #TODO: Join into one function (they're mostly the same, it ends up)
+#TODO: Compute site end
 def read_sitesfile(filepath, args):
   """Read in a sites file, return a generator.
   "args" must have bool attributes args.tsv and args.vcf to determine filetype.
@@ -142,7 +146,7 @@ def read_vcffile(filepath):
 
 
 #TODO: Join into one function (they're mostly the same, it ends up)
-def edit_line(site, args):
+def edit_line(site, args, strand=1):
   """Edit a raw line from an input file to reflect the converted coordinates.
   I.e. It replaces the chromosome and coordinate data in the raw line (the last
   value in "site") with the first three values in "site". Any None value will
@@ -155,14 +159,14 @@ def edit_line(site, args):
   Output is the final line, ready for printing (includes newline).
   """
   if args.vcf:
-    return edit_vcfline(site)
+    return edit_vcfline(site, strand=strand)
   elif args.tsv:
-    return edit_tsvline(site)
+    return edit_tsvline(site, strand=strand)
   else:
     fail("Error: Unrecognized filetype.")
 
 
-def edit_tsvline(site):
+def edit_tsvline(site, strand=1):
   """See edit_line() for interface."""
   chrom = site[0]
   begin = site[1]
@@ -184,7 +188,7 @@ def edit_tsvline(site):
   return '\t'.join(fields)
 
 
-def edit_vcfline(site):
+def edit_vcfline(site, strand=1):
   """See edit_line() for interface."""
   chrom = site[0]
   begin = site[1]
@@ -199,7 +203,10 @@ def edit_vcfline(site):
       fields[0] = chrom
     if begin is not None:
       fields[1] = str(begin)
-  except IndexError:
+    if strand == -1:
+      fields[3] = 'r'+fields[3]
+      fields[4] = 'r'+fields[4]
+  except (IndexError, TypeError):
     fail('Error: Raw line not in VCF: "'+raw_line+'"')
   #TODO: make sure newline is preserved
   return '\t'.join(fields)
