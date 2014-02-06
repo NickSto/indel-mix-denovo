@@ -197,19 +197,20 @@ def edit_tsvline(site, strand=1):
   if begin is None:
     return raw_line
   fields = raw_line.split('\t')
-  try:
-    if chrom is not None:
-      fields[0] = chrom
-    if begin is not None:
-      # preserve newline if it's the last field
-      if fields[1][-2:] == '\r\n':
-        begin = str(begin)+fields[1][-2:]
-      elif fields[1][-1] in '\r\n':
-        begin = str(begin)+fields[1][-1]
-      fields[1] = begin
-  except IndexError:
+  if len(fields) < 2:
     fail('Error: Raw line not in the tsv format expected from '
       'inspect-reads.py: "'+raw_line+'"')
+  # adjust coordinates for reverse complement indels
+  if strand == -1 and len(fields) > 2 and fields[2] in 'ID':
+    begin -= 2
+  if chrom is not None:
+    fields[0] = chrom
+  # preserve newline if it's the last field
+  if fields[1][-2:] == '\r\n':
+    begin = str(begin)+fields[1][-2:]
+  elif fields[1][-1] in '\r\n':
+    begin = str(begin)+fields[1][-1]
+  fields[1] = begin
   #TODO: make sure newline is preserved
   return '\t'.join(map(str, fields))
 

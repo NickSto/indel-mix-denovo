@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# requires Python 2.7
 """The guts of the read selection and statistics calculation will be done by the
 bamslicer module, so that it can also be used by nvc-filter.py. Then
 nvc-filter.py can use the statistics as a filter."""
@@ -93,7 +94,7 @@ def main():
           'highest bit value.',
       lspace=4, indent=-4))
   parser.add_argument('-L', '--no-labels', action='store_true',
-    help=wrap('If csv output is selected, do not print column labels (normally '
+    help=wrap('If tsv output is selected, do not print column labels (normally '
       'the first line, begins with #).'))
   parser.add_argument('-T', '--vartypes', metavar='TYPES',
     help=wrap('Only consider these variant types. Give a string of letters, '
@@ -133,7 +134,7 @@ def main():
     fail("\nError: Please provide a list of variants in either a VCF file or a "
       +"command line option.")
   # eliminate variants that aren't one of the specified types
-  variants[:] = [var for var in variants if var['type'] in args.vartypes]
+  variants[:] = filter(lambda var: var['type'] in args.vartypes, variants)
 
   if args.tsv:
     outformat = 'tsv'
@@ -145,6 +146,8 @@ def main():
   # sort variants by coordinate
   variants.sort(key=lambda variant: variant['coord'])
 
+  #TODO: make readgroup-aware
+  #      probably have to return a dict of reads and stats for every variant
   (read_sets, stat_sets) = bamslicer.get_reads_and_stats(
     args.bamfilepath, variants)
 
@@ -155,7 +158,7 @@ def main():
     if outformat == 'human':
       sys.stdout.write(humanize(output_stats))
     elif outformat == 'tsv':
-      sys.stdout.write("\t".join([str(v) for v in output_stats.values()])+"\n")
+      sys.stdout.write("\t".join(map(str, output_stats.values()))+"\n")
 
 
 
