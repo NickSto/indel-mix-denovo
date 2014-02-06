@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-"""Methods useful for manipulating intervals in an LAV file."""
 import random
 import quicksect
+"""Methods useful for manipulating intervals in an LAV file."""
+__version__ = '0.3'
 
 SLOP_DEFAULT = 20
 
@@ -75,9 +76,9 @@ def blocks_to_conv_table(lav, contigs=None):
     for alignment in hit:
       for block in alignment:
         begin = block.query['begin']
-        end = block.query['end'])
+        end = block.query['end']
         coef = conversion_coefficients(block)
-        table.append((chrom, begin, end, ref, coef[0], coef[1]))
+        table.append([chrom, begin, end, ref, coef[0], coef[1]])
   return table
 
 
