@@ -4,10 +4,9 @@ import os
 import re
 import sys
 import errno
+import vcfreader
 from collections import deque
 from optparse import OptionParser
-from bioreaders import VCFReader
-from bioreaders import VCFSite
 
 # Command line options
 
@@ -114,6 +113,7 @@ unspecified by omitting it, but leaving the comma, like "100," """)
 
   # Setup I/O
 
+  # global to allow cleanup() to close open filehandle on premature exit
   global infile
   if vcfpath == '-':
     infile = sys.stdin
@@ -128,11 +128,12 @@ unspecified by omitting it, but leaving the comma, like "100," """)
   elif not split_file:
     outfile = open(output, 'w')
 
-  vcfreader = VCFReader(infile)
-  meta_header = vcfreader.get_meta_header()
-  column_header = vcfreader.get_column_header()
-  sample_names = vcfreader.get_sample_names()
+  vcffile = vcfreader.VCFReader(infile)
+  meta_header = vcffile.get_meta_header()
+  column_header = vcffile.get_column_header()
+  sample_names = vcffile.get_sample_names()
 
+  # global to allow cleanup() to close open filehandles on premature exit
   global outfiles
   if split_file:
     (outfile_base, outfile_ext) = get_outfile_base(output, vcfpath)
@@ -160,7 +161,7 @@ unspecified by omitting it, but leaving the comma, like "100," """)
   first_pos = last_pos = 0
   if start is not None:
     first_pos = start
-  for site in vcfreader:
+  for site in vcffile:
     pos = site.get_pos()
     if not first_pos:
       first_pos = pos
@@ -333,7 +334,7 @@ def cleanup():
 
 def test():
   vcfhandle = open('../testdata/run19.vcf', 'rU')
-  reader = VCFReader(vcfhandle)
+  reader = vcfreader.VCFReader(vcfhandle)
   position = reader.next()
   position = reader.next()
   varcounts = position.get_varcounts()['S1']
