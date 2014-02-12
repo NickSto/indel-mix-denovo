@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-# requires Python 2.7
-__version__ = '2859f6c'
+__version__ = '0.5'
 
 
 class FormatError(Exception):
@@ -83,7 +82,7 @@ class FastaBaseGenerator(object):
         self.id = ''
       elif self.header:
         if self._in_id:
-          if base in string.whitespace:
+          if base.isspace():
             self._in_id = False
           else:
             self.id += base
