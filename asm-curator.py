@@ -11,6 +11,8 @@ import fastareader
 import lavintervals
 from optparse import OptionParser
 
+VERSIONS = {'lavreader':'0.5', 'fastareader':'0.5', 'lavintervals':'0.5'}
+
 OPT_DEFAULTS = {'lav':'', 'asm':'', 'ref':'', 'report':'', 'fragmented':500,
   'minor_len':600, 'min_flank':75, 'min_gap':10, 'contig_limit':10000,
   'slop':20, 'test_output':False}
@@ -46,6 +48,7 @@ REPORT_TEXT = {
 #TODO: When a contig is made of multiple alignments, check whether they look
 #      incorrect (basically anything except a break at the reference edge).
 def main():
+  version_check(VERSIONS)
 
   parser = OptionParser(usage=USAGE, description=DESCRIPTION, epilog=EPILOG)
 
@@ -314,9 +317,24 @@ def format_interval(interval, intervals=None):
   return output
 
 
+def version_check(VERSIONS):
+  actual = {}
+  for module_str in VERSIONS:
+    module = sys.modules[module_str]
+    for vername in ['version', 'VERSION', '__version__']:
+      if vername in dir(module):
+        actual[module_str] = getattr(module, vername)
+    expected = VERSIONS[module_str]
+  for (module_str, version) in actual.items():
+    if version != VERSIONS[module_str]:
+      fail("Error: Wrong version of "+module_str+". Expected: "+version
+        +", actual: "+VERSIONS[module_str])
+
+
 def fail(message):
   sys.stderr.write(message+"\n")
   sys.exit(1)
+
 
 if __name__ == "__main__":
   main()
