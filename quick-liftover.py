@@ -38,8 +38,6 @@ def main():
   parser.add_argument('-N', '--null-note',
     help="""If a site lies in an unknown region (does not align to the
       reference), append this string to the chromosome name.""")
-  parser.add_argument('-f', '--float', type=float,
-    help="""default: %(default)s""")
 
   args = parser.parse_args()
 

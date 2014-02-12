@@ -12,7 +12,8 @@ DEFAULT_MAX_MAPQ = 40
 STAT_NAMES = ['supporting', 'coverage', 'flags', 'mapqs', 'freq', 'strand_bias',
   'mate_bias']
 
-def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False):
+def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
+    readgroups=None):
   """Take a BAM and a list of variants, and return the reads covering the
   variants, as well as statistics on those reads.
   The selected reads support and/or oppose the given variants, depending on the

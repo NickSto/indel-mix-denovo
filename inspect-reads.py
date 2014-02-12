@@ -299,8 +299,8 @@ def get_output_stats(variant, stats):
   output['mapq30']      = pct(mapq_ge_thres(mapqs, 30), total)
   output['mapq-top']    = pct(mapqs[-1], total)
   output['mapq-best']   = len(mapqs)-1
-  output['strand_bias'] = stats.get('strand_bias')
-  output['mate_bias']   =  stats.get('mate_bias')
+  output['strand_bias'] = round(stats.get('strand_bias'), 4)
+  output['mate_bias']   = round(stats.get('mate_bias'), 4)
   output['flags'] = ','.join([str(flag) for flag in flags])
   return output
 
