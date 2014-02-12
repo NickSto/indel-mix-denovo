@@ -53,21 +53,20 @@ def main():
     outfiles.append(open(outfile, 'w'))
 
   # main loop
-  done = False
+  eof = False
   linenum = 0
-  while not done:
+  while not eof:
     linenum+=1
     last_site = None
-    passed = False
+    all_passed = False
     # check each infile to see if the site passes the filters
     lines = []
     for infile in infiles:
       place = (linenum, infile.name)
       line = infile.readline()
       lines.append(line)
-      # EOF
       if not line:
-        done = True
+        eof = True
         break
       fields = line.strip().split('\t')
       # format check; only require columns that are actually needed
@@ -80,30 +79,18 @@ def main():
           "file %s)." % place)
       last_site = this_site
       # apply filters
-      if fields[1] == '14511' and fields[2] == 'D':
-        print "Testing "+infile.name
       try:
-        passed = passes(fields, args)
+        this_passed = passes(fields, args)
       except ValueError:
         format_fail("Wrong type found when parsing line %d of file %s.", place)
       except IndexError:
         format_fail("Too few columns on line %d of file %s.", place)
-      if infile.name == 'R20S9.tsv' and fields[1] == '14511' and fields[2] == 'D':
-        if passed:
-          print "R20S9.tsv passed at 14511 D"
-        else:
-          print "R20S9.tsv failed at 14511 D"
-      # sys.stdout.write(infile.name+'\t')
-    if done:
+      all_passed = all_passed or this_passed
+    if eof:
       break
-    if passed:
+    if all_passed:
       for (line, outfile) in zip(lines, outfiles):
-        if outfile.name.startswith('R20S9') and '14511\tD' in line:
-          print "writing 14511 D line to "+outfile.name
         outfile.write(line)
-    elif '14511\tD' in lines[0]:
-      print "skipping writing of 14511 D line in all files."
-    # print "%2d: %s" % (linenum, fields[1])
 
   success = True
   cleanup()
@@ -126,18 +113,10 @@ def passes(fields, args):
   passed = True
   if args.strand_bias:
     if float(fields[18]) > args.strand_bias:
-      if fields[1] == '14511' and fields[2] == 'D':
-        print "failed strand bias: %s > %s" % (fields[18], args.strand_bias)
       passed = False
-    elif fields[1] == '14511' and fields[2] == 'D':
-      print "passed strand bias: %s <= %s" % (fields[18], args.strand_bias)
   if args.mate_bias:
     if float(fields[19]) > args.mate_bias:
-      if fields[1] == '14511' and fields[2] == 'D':
-        print "failed mate bias: %s > %s" % (fields[19], args.mate_bias)
       passed = False
-    elif fields[1] == '14511' and fields[2] == 'D':
-        print "passed mate bias: %s <= %s" % (fields[19], args.mate_bias)
   return passed
 
 
