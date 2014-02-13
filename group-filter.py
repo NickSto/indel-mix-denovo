@@ -7,11 +7,11 @@ import itertools
 
 OPT_DEFAULTS = {'ending':'filt'}
 USAGE = "%(prog)s [options] -e ending infile1.tsv [infile2.tsv [..]]"
-DESCRIPTION = """Filter variant files as a group. E.g. only remove a site if it
-fails a filter in *all* files. *IMPORTANT* All files must contain the same sites
+DESCRIPTION = """Filter variant files as a group. By default, if a site passes
+all filters in at least one file, it will be kept (in all files)."""
+EPILOG = """*IMPORTANT* All files must contain the same sites
 on the same lines. If site locations are not the same for a given line number,
 this will fail."""
-EPILOG = """"""
 
 def main():
 
@@ -24,7 +24,7 @@ def main():
   parser.add_argument('-e', '--ending',
     help="""The ending to append to the output filename (before the extension.
       E.g. "-e nobias" on file "R19S1.tsv" will write to the file
-      "R19S1-nobias.tsv". Default: "%(default)s\"""")
+      "R19S1-nobias.tsv". Default: "%(default)s".""")
   parser.add_argument('-s', '--strand-bias', metavar='BIAS', type=float,
     help="""Strand bias threshold. Sites with a bias above this value fail.
       The bias statistic is method 1 (SB) of Guo et al., 2012.""")
@@ -33,7 +33,7 @@ def main():
       The bias statistic is calculated identically to the strand bias, replacing
       forward/reverse strands with first/second mate in the pair.""")
   parser.add_argument('-a', '--any', action='store_true',
-    help="""***NOT YET IMPLEMENTED*** Remove a site if fails a filter in *any*
+    help="""**Not tested yet** Remove a site if fails a filter in *any*
       file (default is to remove if it fails in *all* files).""")
 
   args = parser.parse_args()
@@ -58,7 +58,10 @@ def main():
   while not eof:
     linenum+=1
     last_site = None
-    all_passed = False
+    if args.any:
+      all_passed = True
+    else:
+      all_passed = False
     # check each infile to see if the site passes the filters
     lines = []
     for infile in infiles:
@@ -85,7 +88,10 @@ def main():
         format_fail("Wrong type found when parsing line %d of file %s.", place)
       except IndexError:
         format_fail("Too few columns on line %d of file %s.", place)
-      all_passed = all_passed or this_passed
+      if args.any:
+        all_passed = all_passed and this_passed
+      else:
+        all_passed = all_passed or this_passed
     if eof:
       break
     if all_passed:
