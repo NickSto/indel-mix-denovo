@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """A wrapper for textwrap, to simplify its usage and add an important
 capability."""
-__version__ = 'da883a4'
 import textwrap
+__version__ = '0.6'
 
 DEFAULT_WIDTH = 70
 
@@ -43,7 +43,7 @@ def termwidth(default=None):
   devnull = open(os.devnull, 'wb')
   try:
     output = subprocess.check_output(['stty', 'size'], stderr=devnull)
-  except OSError:
+  except (OSError, subprocess.CalledProcessError):
     devnull.close()
     return default
   devnull.close()
@@ -129,3 +129,4 @@ class Wrapper(object):
     if indent + self.lspace < 0:
       indent = -self.lspace
     self._textwrapper.initial_indent = ' ' * (indent + self.lspace)
+
