@@ -25,6 +25,13 @@ function fail {
 }
 
 
+for command in samtools nvc-filter.py inspect-reads.py quick-liftover.py group-filter.py; do
+  if ! which $command >/dev/null; then
+    fail "Error: cannot find $command command."
+  fi
+done
+
+
 ##### check inputs #####
 
 # family.bam must end in .bam
@@ -77,8 +84,8 @@ tmpdir=$root/indels/filt/tmp
 if [[ ! -d $tmpdir ]]; then
   mkdir $tmpdir
 fi
-if [[ ! -d $root/indels/vars ]]; then
-  mkdir $root/indels/vars
+if [[ ! -d $root/indels/vars/$family ]]; then
+  mkdir -p $root/indels/vars/$family
 fi
 
 set -x
@@ -93,14 +100,14 @@ nvc-filter.py -r S -c 1000 -f 0.75 $nvcout > $root/indels/nvc/$family-filt.vcf
 
 # get read statistics
 for sample in $samples; do
-  inspect-reads.py -t $tmpdir/$sample.bam -V $root/indels/nvc/$family-filt.vcf > $root/indels/vars/$sample.tsv
+  inspect-reads.py -t $tmpdir/$sample.bam -V $root/indels/nvc/$family-filt.vcf > $root/indels/vars/$family/$sample.tsv
 done
 
 # convert coordinates
 sample_vars=''
 for sample in $samples; do
-  quick-liftover.py $lav $root/indels/vars/$sample.tsv > $root/indels/vars/$sample-conv.tsv
-  sample_vars="$sample_vars $root/indels/vars/$sample-conv.tsv"
+  quick-liftover.py $lav $root/indels/vars/$family/$sample.tsv > $root/indels/vars/$family/$sample-conv.tsv
+  sample_vars="$sample_vars $root/indels/vars/$family/$sample-conv.tsv"
 done
 
 # filter for strand bias and mate bias
