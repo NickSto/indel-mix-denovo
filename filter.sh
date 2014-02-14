@@ -4,8 +4,13 @@ set -ue
 # assumes form M477-filt1-filt2.bam or M477.bam
 BAMREGEX='s/^([^-]+)(-.+)*\.bam$/\1/g'
 
+function fail {
+  echo $1 >&2
+  exit 1
+}
+
 if [[ $# -lt 4 ]]; then
-  echo "USAGE: $(basename $0) families.tsv choices.tsv family.bam nvc-out.vcf [asm.lav]
+  fail "USAGE: $(basename $0) families.tsv choices.tsv family.bam nvc-out.vcf [asm.lav]
 There must be a directory structure like:
 root
  |- asm
@@ -14,18 +19,12 @@ root
     |- filt - family.bam
     |- nvc  - nvc-out.vcf
     \- vars"
-  exit 1
 fi
 
 families=$1
 choices=$2
 fambam=$3
 nvcout=$4
-
-function fail {
-  echo $1 >&2
-  exit 1
-}
 
 
 for command in samtools nvc-filter.py inspect-reads.py quick-liftover.py group-filter.py; do
@@ -108,7 +107,7 @@ done
 # convert coordinates
 sample_vars=''
 for sample in $samples; do
-  quick-liftover.py $lav $root/indels/vars/$family/$sample-asm-unfilt.tsv > $root/indels/vars/$family/$sample-unfilt.tsv
+  quick-liftover.py $lav $root/indels/vars/$family/$sample-unfilt-asm.tsv > $root/indels/vars/$family/$sample-unfilt.tsv
   sample_vars="$sample_vars $root/indels/vars/$family/$sample-unfilt.tsv"
 done
 
