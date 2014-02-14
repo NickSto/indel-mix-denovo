@@ -100,15 +100,20 @@ nvc-filter.py -r S -c 1000 -f 0.75 $nvcout > $root/indels/nvc/$family-filt.vcf
 
 # get read statistics
 for sample in $samples; do
-  inspect-reads.py -t $tmpdir/$sample.bam -V $root/indels/nvc/$family-filt.vcf > $root/indels/vars/$family/$sample.tsv
+  inspect-reads.py -t $tmpdir/$sample.bam -V $root/indels/nvc/$family-filt.vcf > $root/indels/vars/$family/$sample-unfilt-asm.tsv
 done
 
 # convert coordinates
 sample_vars=''
 for sample in $samples; do
-  quick-liftover.py $lav $root/indels/vars/$family/$sample.tsv > $root/indels/vars/$family/$sample-conv.tsv
-  sample_vars="$sample_vars $root/indels/vars/$family/$sample-conv.tsv"
+  quick-liftover.py $lav $root/indels/vars/$family/$sample-asm-unfilt.tsv > $root/indels/vars/$family/$sample-unfilt.tsv
+  sample_vars="$sample_vars $root/indels/vars/$family/$sample-unfilt.tsv"
 done
 
 # filter for strand bias and mate bias
 group-filter.py -s 1 -m 1 $sample_vars
+
+# rename output files
+for sample in $samples; do
+  mv $root/indels/vars/$family/$sample-unfilt-filt.tsv $root/indels/vars/$family/$sample.tsv
+done
