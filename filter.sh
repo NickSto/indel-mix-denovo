@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -ue
 
+# assumes form M477-filt1-filt2.bam or M477.bam
+BAMREGEX='s/^([^-]+)(-.+)*\.bam$/\1/g'
+
 if [[ $# -lt 4 ]]; then
   echo "USAGE: $(basename $0) families.tsv choices.tsv family.bam nvc-out.vcf [asm.lav]
 There must be a directory structure like:
@@ -34,10 +37,6 @@ done
 
 ##### check inputs #####
 
-# family.bam must end in .bam
-if [[ ${fambam:(-4)} != '.bam' ]]; then
-  fail "Error: $fambam does not end in .bam"
-fi
 root=$(dirname $(dirname $(dirname $(readlink -e $fambam))))
 # required directories
 if [[ $(dirname $(readlink -e $fambam)) != $root/indels/filt ]]; then
@@ -57,7 +56,10 @@ done
 ##### establish derived parameters #####
 
 # get family and sample names
-family=$(basename $fambam .bam)
+family=$(basename $fambam | sed -E $BAMREGEX)
+if [[ ! "$family" ]]; then
+  fail "Error: $fambam does not match pattern $BAMREGEX"
+fi
 samples=$(grep -E "^$family\b" $families | cut -f 2-)
 if [[ ! "$samples" ]]; then
   fail "Error: $family not found in $families"
