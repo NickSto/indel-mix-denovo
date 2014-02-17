@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # requires Python 2.7
+#TODO: make readgroup-aware
 """The guts of the read selection and statistics calculation will be done by the
 bamslicer module, so that it can also be used by nvc-filter.py. Then
 nvc-filter.py can use the statistics as a filter."""
@@ -35,6 +36,9 @@ EPILOG = wrap("WARNING: Work in progress. Not yet implemented features:\n"
   "indels are recognized.")
 
 VALID_BASES = 'GATCNgatcn'
+LABELS = """Sample Chrom Coord Type Alt Covg Reads Freq Unmap Improp Fwd First
+  Sndary Dup Mapq0 Mapq20 Mapq30 MapqMax MapqMaxReads SBias MBias Flags"""
+LABEL_LINE = '\t'.join(LABELS.split())
 
 def main():
 
@@ -68,33 +72,37 @@ def main():
       'options. The null value is "None".\n'
       'Columns:')
       +'\n'+wrap(
-      '1:  chrom\n'
-      '2:  coord\n'
-      '3:  variant type\n'
-      '4:  alt allele\n'
-      '5:  coverage, in # of reads\n'
-      '6:  # of variant-supporting reads\n'
-      '7:  %% frequency\n'
-      '8:  %% of supporting reads that are unmapped\n'
-      '9:  %% not mapped in proper pair\n'
-      '10: %% on the forward strand\n'
-      '11: %% that are the 1st mate in the pair\n'
-      '12: %% that are a secondary alignment\n'
-      '13: %% that are marked duplicates\n'
-      '14: %% with a MAPQ == 0\n'
-      '15: %% with a MAPQ >= 20\n'
-      '16: %% with a MAPQ >= 30\n'
-      '17: %% with the highest MAPQ\n'
-      '18: the highest MAPQ in the supporting reads\n'
-      '19: strand bias\n'
-      '20: mate bias\n'
-      '21: The total number of supporting reads with each SAM flag. This is a '
+      '1:  sample (read group)\n'
+      '2:  chrom\n'
+      '3:  coord\n'
+      '4:  variant type\n'
+      '5:  alt allele\n'
+      '6:  coverage, in # of reads\n'
+      '7:  # of variant-supporting reads\n'
+      '8:  %% frequency\n'
+      '9:  %% of supporting reads that are unmapped\n'
+      '10: %% not mapped in proper pair\n'
+      '11: %% on the forward strand\n'
+      '12: %% that are the 1st mate in the pair\n'
+      '13: %% that are a secondary alignment\n'
+      '14: %% that are marked duplicates\n'
+      '15: %% with a MAPQ == 0\n'
+      '16: %% with a MAPQ >= 20\n'
+      '17: %% with a MAPQ >= 30\n'
+      '18: %% with the highest MAPQ\n'
+      '19: the highest MAPQ in the supporting reads\n'
+      '20: strand bias\n'
+      '21: mate bias\n'
+      '22: The total number of supporting reads with each SAM flag. This is a '
           'comma-separated list of the total for each flag, from lowest to '
           'highest bit value.',
       lspace=4, indent=-4))
-  parser.add_argument('-L', '--no-labels', action='store_true',
-    help=wrap('If tsv output is selected, do not print column labels (normally '
-      'the first line, begins with #).'))
+  parser.add_argument('-l', '--labels', action='store_true',
+    help=wrap('If tsv output is selected, print column labels. The first line '
+      'will be:\n#'+LABEL_LINE))
+  parser.add_argument('--no-comment', action='store_true',
+    help=wrap('If printing a label line, don\'t comment it (can be easier to '
+      'import into environments like R).'))
   parser.add_argument('-T', '--vartypes', metavar='TYPES',
     help=wrap('Only consider these variant types. Give a string of letters, '
       'e.g. "SID" to keep SNVs (S), insertions (I), and deletions (D). '
@@ -149,6 +157,12 @@ def main():
   #      probably have to return a dict of reads and stats for every variant
   (read_sets, stat_sets) = bamslicer.get_reads_and_stats(
     args.bamfilepath, variants)
+
+  # Print header
+  if args.tsv and args.labels:
+    if not args.no_comment:
+      sys.stdout.write('#')
+    print LABEL_LINE
 
   for (variant, reads, stats) in zip(variants, read_sets, stat_sets):
     if filter_out(variant, reads, stats, args):
@@ -272,6 +286,8 @@ def filter_out(variant, reads, stats, args):
 
 def get_output_stats(variant, stats):
   output = collections.OrderedDict()
+  #TODO: replace with read group name
+  output['sample']      = '__NONE__'
   output['chrom']       = variant.get('chrom')
   output['coord']       = variant.get('coord')
   output['type']        = variant.get('type')
@@ -314,6 +330,8 @@ def humanize(output_stats):
     if output_stats[key] is None and key != 'alt':
       output_stats[key] = 'N/A'
   output = ""
+  if output_stats['sample'] != '__NONE__':
+    output += output_stats['sample']+' '
   output += (output_stats['chrom']+':'+str(output_stats['coord'])+'-'
     +output_stats['type'])
   if output_stats['alt']:
