@@ -44,10 +44,10 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
     read_sets_opposite[i] = []
 
   for read in bam_reader:
+    read_rname  = read.get_reference_name()
     read_pos    = read.get_position()
     read_end    = read.get_end_position()
-    read_rname  = read.get_reference_name()
-    read_indels = read.get_indels()
+    (read_ins, read_del) = read.get_indels()
 
     #TODO: use deque for local variants by discarding variants we've moved past
     #      and only adding ones to the end when needed
@@ -67,15 +67,15 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
       var_type = variant['type']
       supports = False
       if var_type == 'I':
-        for (ins_pos, ins_len) in read_indels[0]:
+        for (ins_pos, ins_len) in read_ins:
           if ins_pos == var_pos:
             supports = True
       elif var_type == 'D':
-        for (del_pos, del_len) in read_indels[1]:
+        for (del_pos, del_len) in read_del:
           if del_pos == var_pos:
             supports = True
       else:
-        raise Exception('Unsupported variant type "'+var_type+'"')
+        raise NotImplementedError('Unsupported variant type "'+var_type+'"')
       if (supporting and supports) or (opposing and not supports):
         read_sets[i].append(read)
       else:
@@ -91,6 +91,8 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
   return (read_sets, stat_sets)
 
 
+#TODO: Break this into individual functions that add one stat each. No more
+#      reads/reads_opposite distinction, no more stats_to_get checks.
 def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES):
   """Calculate a set of summary statistics for the set of reads.
   If stats_to_get is given, it will only include the statistics whose keys are
@@ -124,8 +126,10 @@ def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES)
   Mate bias of the variant toward 1st or 2nd read in the pair.
   Calculated in same way as strand_bias.
     'read_pos':
-  ***PLANNED*** The distribution of where the variant occurs along the length of
-  the reads
+  The distribution of where the variant occurs along the length of the reads.
+  Note: if the reads given are the opposing reads, it will still look for the
+  variant in them and report its findings (zeroes), wasting time. Consider not
+  asking for this statistic in that case.
     'flank_quals':
   ***PLANNED*** The PHRED quality of the bases flanking the
   variant
@@ -182,6 +186,9 @@ def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES)
     stats['freq'] = len(reads)/(len(reads)+len(reads_opposite))
   else:
     stats['freq'] = None
+
+  if 'read_pos' in stats_to_get:
+    stats['read_pos'] = get_read_pos(reads, variant)
 
   return stats
 
@@ -253,3 +260,15 @@ def get_bias(a, b, c, d):
     return abs(b/(a+b) - d/(c+d)) / ((b+d) / (a+b+c+d))
   except ZeroDivisionError:
     return None
+
+
+def get_read_pos(reads, variant):
+  """Get the variant's distribution of positions along the reads.
+  Returns a dict of the offset of the variant in each read. Keys are the offsets
+  (variant coord - read start coord) and values are counts (how many reads had
+  the variant at that position)."""
+  raise NotImplementedError
+  read_pos = {}
+  for read in reads:
+    pass
+  return read_pos
