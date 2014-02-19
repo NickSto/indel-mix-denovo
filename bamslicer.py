@@ -16,6 +16,8 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
     readgroups=None):
   """Take a BAM and a list of variants, and return the reads covering the
   variants, as well as statistics on those reads.
+  ***Note: requesting both supporting and opposing reads is not allowed at the
+  moment.***
   The selected reads support and/or oppose the given variants, depending on the
   value of those arguments (if both supporting and opposing are True, it will
   select all reads covering that site). The statistics summarize whatever reads
@@ -32,16 +34,18 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
   the description of get_read_stats() for the format.
   """
   #TODO: see about chromosome issues in order of reads and variants
+  if supporting and opposing:
+    raise NotImplementedError
 
   bam_reader = Reader(bamfilepath)
 
-  read_sets = [None] * len(variants)
+  read_sets_supporting = [None] * len(variants)
+  read_sets_opposing = [None] * len(variants)
   stat_sets = [None] * len(variants)
-  read_sets_opposite = [None] * len(variants)
   for i in range(len(variants)):
-    read_sets[i] = []
+    read_sets_supporting[i] = []
+    read_sets_opposing[i] = []
     stat_sets[i] = {}
-    read_sets_opposite[i] = []
 
   for read in bam_reader:
     read_rname  = read.get_reference_name()
@@ -59,9 +63,6 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
       var_chrom = variant['chrom']
       if read_rname != var_chrom:
         continue
-      if supporting and opposing:
-        read_sets[i].append(read)
-        break
       # now check if the read supports the variant
       #TODO: add support for checking the alt allele identity
       var_type = variant['type']
@@ -76,19 +77,20 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
             supports = True
       else:
         raise NotImplementedError('Unsupported variant type "'+var_type+'"')
-      if (supporting and supports) or (opposing and not supports):
-        read_sets[i].append(read)
+      # add read to the appropriate list of reads
+      if supports:
+        read_sets_supporting[i].append(read)
       else:
-        read_sets_opposite[i].append(read)
+        read_sets_opposing[i].append(read)
 
-  for (i, reads) in enumerate(read_sets):
-    if supporting and opposing:
-      stat_sets[i] = get_read_stats(reads, variants[i])
-    else:
-      stat_sets[i] = get_read_stats(reads, variants[i],
-        reads_opposite=read_sets_opposite[i])
+  for (i, reads_supporting) in enumerate(read_sets_supporting):
+    stat_sets[i] = get_read_stats(reads_supporting, variants[i],
+      reads_opposite=read_sets_opposing[i])
 
-  return (read_sets, stat_sets)
+  if supporting:
+    return (read_sets_supporting, stat_sets)
+  else:
+    return (read_sets_opposing, stat_sets)
 
 
 #TODO: Break this into individual functions that add one stat each. No more
