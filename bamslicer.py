@@ -9,19 +9,10 @@ from pyBamParser.bam import Reader
 
 NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
-STAT_NAMES = ['supporting', 'coverage', 'flags', 'mapqs', 'freq', 'strand_bias',
-  'mate_bias']
 
-def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
-    readgroups=None):
-  """Take a BAM and a list of variants, and return the reads covering the
-  variants, as well as statistics on those reads.
-  ***Note: requesting both supporting and opposing reads is not allowed at the
-  moment.***
-  The selected reads support and/or oppose the given variants, depending on the
-  value of those arguments (if both supporting and opposing are True, it will
-  select all reads covering that site). The statistics summarize whatever reads
-  are selected.
+def get_reads_and_stats(bamfilepath, variants, readgroups=None):
+  """Take a BAM and a list of variants, and return the reads supporting the
+  variants, as well as statistics on the reads covering it.
   The BAM file and variants list should be sorted by start coordinate. Each
   variant is a dict, e.g.:
     {'chrom':'chrM', 'coord':310, 'type':'S', 'alt':None}
@@ -29,23 +20,19 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
     {'chrom':'pUC18', 'coord':4210, 'type':'I', 'alt':'GAT'}
   Return value: A 2-tuple of reads and stats. Both are lists where each element
   corresponds to a variant of the same index in the input variants list. Each
-  element in the reads list is a list of BAMReads which support and/or oppose
-  that variant. The elements of the stats list summarize each set of reads. See
-  the description of get_read_stats() for the format.
+  element in the reads list is a list of BAMReads which support that variant.
+  The elements of the stats list summarize each set of reads. See the
+  description of get_read_stats() for the format.
   """
-  #TODO: see about chromosome issues in order of reads and variants
-  if supporting and opposing:
-    raise NotImplementedError
 
   bam_reader = Reader(bamfilepath)
 
+  # pre-allocate lists of reads so they can be randomly accessed later
   read_sets_supporting = [None] * len(variants)
   read_sets_opposing = [None] * len(variants)
-  stat_sets = [None] * len(variants)
   for i in range(len(variants)):
     read_sets_supporting[i] = []
     read_sets_opposing[i] = []
-    stat_sets[i] = {}
 
   for read in bam_reader:
     read_rname  = read.get_reference_name()
@@ -83,32 +70,29 @@ def get_reads_and_stats(bamfilepath, variants, supporting=True, opposing=False,
       else:
         read_sets_opposing[i].append(read)
 
-  for (i, reads_supporting) in enumerate(read_sets_supporting):
-    stat_sets[i] = get_read_stats(reads_supporting, variants[i],
-      reads_opposite=read_sets_opposing[i])
+  # calculate sets of stats on the reads covering each variant
+  stat_sets = []
+  for (variant, reads_supporting, reads_opposing) in zip(
+      variants, read_sets_supporting, read_sets_opposing):
+    stat_sets.append(get_read_stats(reads_supporting, reads_opposing, variant))
 
-  if supporting:
-    return (read_sets_supporting, stat_sets)
-  else:
-    return (read_sets_opposing, stat_sets)
+  return (read_sets_supporting, stat_sets)
 
 
-#TODO: Break this into individual functions that add one stat each. No more
-#      reads/reads_opposite distinction, no more stats_to_get checks.
-def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES):
+def get_read_stats(reads_supporting, reads_opposing, variant=None):
   """Calculate a set of summary statistics for the set of reads.
-  If stats_to_get is given, it will only include the statistics whose keys are
-  provided in that list. Other statistics will be None. reads_opposite is a list
-  of reads that oppose the variant, if reads is the list of reads supporting it.
+  'reads_supporting' is a list of reads supporting the variant.
+  'reads_opposing' is a list of reads opposing the variant.
+  'variant' is the variant in question, in the format described in
+  get_reads_and_stats(). If not given, the 'read_pos' stat will be omitted.
   If reads are the reads opposing the variant, then vice-versa.
   Returns a dict. Descriptions of the keys and their values:
     'supporting':
   The number of supporting reads.
-    'coverage':
-  Total number of reads spanning this position.
-  None if no opposite reads are provided.
+    'opposing':
+  The number of opposing reads.
     'flags':
-  The totals of how many reads have each flag set.
+  The totals of how many supporting reads have each flag set.
   Format: a list, where flags[i] = the total number of reads that have the
   flag 2**i set.
     'mapqs':
@@ -116,10 +100,6 @@ def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES)
   Format: a list, where mapq[value] = the total number of reads that have a
   MAPQ equal to "value". Note the list is 0-based, so MAPQ value 40 will be the
   41st element in it.
-    'freq':
-  The frequency of the variant.
-  freq = len(reads)/(len(reads)+len(reads_opposing))
-  None if no opposite reads are provided.
     'strand_bias':
   Strand bias of the variant.
   Based on method 1 (SB) of Guo et al., 2012.
@@ -128,9 +108,8 @@ def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES)
   Mate bias of the variant toward 1st or 2nd read in the pair.
   Calculated in same way as strand_bias.
     'read_pos':
-  The distribution of where the variant occurs along the length of the reads.
-  Note: if the reads given are the opposing reads, it will still look for the
-  variant in them and report its findings (zeroes), wasting time. Consider not
+  ***PLANNED*** The distribution of where the variant occurs along the length of
+  the reads.
   asking for this statistic in that case.
     'flank_quals':
   ***PLANNED*** The PHRED quality of the bases flanking the
@@ -141,56 +120,16 @@ def get_read_stats(reads, variant, reads_opposite=None, stats_to_get=STAT_NAMES)
   #TODO: doublecheck values that could be incalculable given the input data
   stats = {}
 
-  if 'supporting' in stats_to_get:
-    stats['supporting'] = len(reads)
-  else:
-    stats['supporting'] = None
-
-  if 'coverage' in stats_to_get and reads_opposite is not None:
-    stats['coverage'] = len(reads) + len(reads_opposite)
-  else:
-    stats['coverage'] = None
-
-  if 'mapqs' in stats_to_get:
-    stats['mapqs'] = sum_mapqs(reads)
-  else:
-    stats['mapqs'] = None
-
-  if 'flags' in stats_to_get:
-    stats['flags'] = sum_flags(reads)
-  else:
-    stats['flags'] = None
-
-  if 'strand_bias' in stats_to_get and reads_opposite is not None:
-    if stats['flags'] is None:
-      flags_for = sum_flags(reads)
-    else:
-      flags_for = stats['flags']
-    flags_against = sum_flags(reads_opposite)
-    stats['strand_bias'] = get_strand_bias(flags_for, flags_against,
-      len(reads), len(reads_opposite))
-  else:
-    stats['strand_bias'] = None
-
-  if 'mate_bias' in stats_to_get and reads_opposite is not None:
-    if stats['flags'] is None:
-      flags_for = sum_flags(reads)
-    else:
-      flags_for = stats['flags']
-    flags_against = sum_flags(reads_opposite)
-    stats['mate_bias'] = get_mate_bias(flags_for, flags_against)
-  else:
-    stats['strand_bias'] = None
-
-  if ('freq' in stats_to_get and
-      reads_opposite is not None and
-      len(reads) + len(reads_opposite) > 0):
-    stats['freq'] = len(reads)/(len(reads)+len(reads_opposite))
-  else:
-    stats['freq'] = None
-
-  if 'read_pos' in stats_to_get:
-    stats['read_pos'] = get_read_pos(reads, variant)
+  stats['supporting'] = len(reads_supporting)
+  stats['opposing'] = len(reads_opposing)
+  stats['mapqs'] = sum_mapqs(reads_supporting)
+  stats['flags'] = sum_flags(reads_supporting)
+  stats['flags_opposing'] = sum_flags(reads_opposing)
+  stats['strand_bias'] = get_strand_bias(
+    stats['flags'], stats['flags_opposing'],
+    stats['supporting'], stats['opposing']
+  )
+  stats['mate_bias'] = get_mate_bias(stats['flags'], stats['flags_opposing'])
 
   return stats
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # requires Python 2.7
-#TODO: make readgroup-aware
 """The guts of the read selection and statistics calculation will be done by the
 bamslicer module, so that it can also be used by nvc-filter.py. Then
 nvc-filter.py can use the statistics as a filter."""
@@ -141,12 +140,7 @@ def main():
     fail("\nError: Please provide a list of variants in either a VCF file or a "
       +"command line option.")
   # eliminate variants that aren't one of the specified types
-  variants[:] = filter(lambda var: var['type'] in args.vartypes, variants)
-
-  if args.tsv:
-    outformat = 'tsv'
-  else:
-    outformat = 'human'
+  variants[:] = [var for var in variants if var['type'] in args.vartypes]
 
   #TODO: make sure BAM is sorted
   #TODO: take chrom in to account when sorting variants: use order in BAM header
@@ -164,14 +158,14 @@ def main():
       sys.stdout.write('#')
     print LABEL_LINE
 
-  for (variant, reads, stats) in zip(variants, read_sets, stat_sets):
-    if filter_out(variant, reads, stats, args):
+  for (variant, reads, raw_stats) in zip(variants, read_sets, stat_sets):
+    if filter_out(variant, reads, raw_stats, args):
       continue
-    output_stats = get_output_stats(variant, stats)
-    if outformat == 'human':
-      sys.stdout.write(humanize(output_stats))
-    elif outformat == 'tsv':
+    output_stats = summarize_stats(variant, raw_stats)
+    if args.tsv:
       sys.stdout.write("\t".join(map(str, output_stats.values()))+"\n")
+    else:
+      sys.stdout.write(humanize(output_stats))
 
 
 
@@ -284,7 +278,15 @@ def filter_out(variant, reads, stats, args):
   return filter_out
 
 
-def get_output_stats(variant, stats):
+def summarize_stats(variant, stats):
+  """Take the raw read data and transform them into useful statistics.
+  Input: A single variant and a stats dict for that variant from
+    bamslicer.get_reads_and_stats().
+  Output: A dict of the summarized stats.
+  Later, anything added here will automatically be printed as a column (if tsv).
+  N.B.: If you do add a stat, add one to TOTAL_FIELDS. 
+  """
+  TOTAL_FIELDS = 22
   output = collections.OrderedDict()
   #TODO: replace with read group name
   output['sample']      = '__NONE__'
@@ -292,16 +294,19 @@ def get_output_stats(variant, stats):
   output['coord']       = variant.get('coord')
   output['type']        = variant.get('type')
   output['alt']         = variant.get('alt')
-  output['coverage']    = stats.get('coverage')
-  total = stats.get('supporting')
-  output['supporting']  = total
-  output['freq']        = round(100*stats['freq'], 2)
-  if total == 0:
+  output['supporting']  = stats.get('supporting')
+  output['coverage']    = output['supporting'] + stats.get('opposing')
+  try:
+    output['freq'] = round(100*stats['supporting']/output['coverage'], 2)
+  except ZeroDivisionError:
+    output['freq'] = None
+  if output['supporting'] == 0:
     # the rest of the fields aren't meaningful if no supporting reads
-    for i in range(14):
+    for i in range(TOTAL_FIELDS - 8):
       output[i] = None
     return output
   flags = stats['flags']
+  total = output['supporting']  # shorthand
   output['unmapped']    = pct(flags[2], total)
   output['improper']    = pct(total-flags[1], total)
   output['forward']     = pct(total-flags[4], total)
@@ -322,7 +327,7 @@ def get_output_stats(variant, stats):
 
 def humanize(output_stats):
   """Format variant statistics into a human-readable printout.
-  Input: output of get_output_stats()
+  Input: output of summarize_stats()
   Output: a string ready to print (including ending newline)
   """
   # print 'N/A' as null value
@@ -355,6 +360,7 @@ def humanize(output_stats):
     pct_str(output_stats['mapq-top']))
   output += "  strand bias: %s\n" % output_stats['strand_bias']
   output += "  mate bias:   %s\n" % output_stats['mate_bias']
+  #TODO: add measure of read position bias
   return output
 
 
