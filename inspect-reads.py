@@ -36,7 +36,7 @@ EPILOG = wrap("WARNING: Work in progress. Not yet implemented features:\n"
 
 VALID_BASES = 'GATCNgatcn'
 LABELS = """Sample Chrom Coord Type Alt Covg Reads Freq Unmap Improp Fwd First
-  Sndary Dup Mapq0 Mapq20 Mapq30 MapqMax MapqMaxReads SBias MBias Flags"""
+  Sndary Dup Mapq0 Mapq20 Mapq30 MapqMax MapqMaxReads SBias MBias Flags PosDist"""
 LABEL_LINE = '\t'.join(LABELS.split())
 
 def main():
@@ -94,7 +94,9 @@ def main():
       '21: mate bias\n'
       '22: The total number of supporting reads with each SAM flag. This is a '
           'comma-separated list of the total for each flag, from lowest to '
-          'highest bit value.',
+          'highest bit value.\n'
+      '23: The distribution of where the variant occurs along the supporting '
+          'reads.',
       lspace=4, indent=-4))
   parser.add_argument('-l', '--labels', action='store_true',
     help=wrap('If tsv output is selected, print column labels. The first line '
@@ -291,7 +293,7 @@ def summarize_stats(variant, stats):
   Later, anything added here will automatically be printed as a column (if tsv).
   N.B.: If you do add a stat, add one to TOTAL_FIELDS. 
   """
-  TOTAL_FIELDS = 22
+  TOTAL_FIELDS = 23
   output = collections.OrderedDict()
   #TODO: replace with read group name
   output['sample']      = '__NONE__'
@@ -299,8 +301,9 @@ def summarize_stats(variant, stats):
   output['coord']       = variant.get('coord')
   output['type']        = variant.get('type')
   output['alt']         = variant.get('alt')
-  output['supporting']  = stats.get('supporting')
-  output['coverage']    = output['supporting'] + stats.get('opposing')
+  output['supporting']  = stats['supporting']
+  output['coverage']    = output['supporting'] + stats['opposing']
+  # no valid freq if no reads at all
   try:
     output['freq'] = round(100*stats['supporting']/output['coverage'], 2)
   except ZeroDivisionError:
@@ -311,7 +314,7 @@ def summarize_stats(variant, stats):
       output[i] = None
     return output
   flags = stats['flags']
-  total = output['supporting']  # shorthand
+  total = output['supporting']
   output['unmapped']    = pct(flags[2], total)
   output['improper']    = pct(total-flags[1], total)
   output['forward']     = pct(total-flags[4], total)
@@ -323,10 +326,27 @@ def summarize_stats(variant, stats):
   output['mapq20']      = pct(mapq_ge_thres(mapqs, 20), total)
   output['mapq30']      = pct(mapq_ge_thres(mapqs, 30), total)
   output['mapq-top']    = pct(mapqs[-1], total)
-  output['mapq-best']   = len(mapqs)-1
-  output['strand_bias'] = round(stats.get('strand_bias'), 4)
-  output['mate_bias']   = round(stats.get('mate_bias'), 4)
-  output['flags'] = ','.join([str(flag) for flag in flags])
+  # walk mapqs to find highest one
+  mapq_best = 0
+  for mapq in range(len(mapqs)):
+    if mapqs[mapq] > 0:
+      mapq_best = max(mapq, mapq_best)
+  output['mapq-best']   = mapq_best
+  # prevent trying to round strand/mate bias when they're None
+  if stats['strand_bias'] is None:
+    output['strand_bias'] = None
+  else:
+    output['strand_bias'] = round(stats['strand_bias'], 4)
+  if stats['mate_bias'] is None:
+    output['mate_bias']   = None
+  else:
+    output['mate_bias']   = round(stats['mate_bias'], 4)
+  output['flags']         = ','.join(map(str, flags))
+  var_pos_dist = stats['var_pos_dist']
+  if var_pos_dist is None:
+    output['var_pos_dist']  = None
+  else:
+    output['var_pos_dist']  = ','.join(map(str, var_pos_dist.keys().sort()))
   return output
 
 

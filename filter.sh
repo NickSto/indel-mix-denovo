@@ -93,26 +93,42 @@ set -x
 
 # break family BAM into individual sample BAMs
 for sample in $samples; do
-  samtools view -b -r $sample $fambam > $tmpdir/$sample.bam
+  if [[ ! -s $tmpdir/$sample.bam ]]; then
+    samtools view -b -r $sample $fambam > $tmpdir/$sample.bam
+  fi
 done
 
 # filter for indels above 0.75%
-nvc-filter.py -r S -c 1000 -f 0.75 $nvcout > $root/indels/nvc/$family-filt.vcf
+if [[ ! -s $root/indels/nvc/$family-filt.vcf ]]; then
+  nvc-filter.py -r S -c 1000 -f 0.75 $nvcout > $root/indels/nvc/$family-filt.vcf
+fi
 
 # get read statistics
 for sample in $samples; do
-  inspect-reads.py -t $tmpdir/$sample.bam -V $root/indels/nvc/$family-filt.vcf > $root/indels/vars/$family/$sample-unfilt-asm.tsv
+  if [[ ! -s $root/indels/vars/$family/$sample-unfilt-asm.tsv ]]; then
+    inspect-reads.py -t $tmpdir/$sample.bam -V $root/indels/nvc/$family-filt.vcf > $root/indels/vars/$family/$sample-unfilt-asm.tsv
+  fi
 done
 
 # convert coordinates
 sample_vars=''
 for sample in $samples; do
-  quick-liftover.py $lav $root/indels/vars/$family/$sample-unfilt-asm.tsv > $root/indels/vars/$family/$sample-unfilt.tsv
+  if [[ -s ! $root/indels/vars/$family/$sample-unfilt.tsv ]]; then
+    quick-liftover.py $lav $root/indels/vars/$family/$sample-unfilt-asm.tsv > $root/indels/vars/$family/$sample-unfilt.tsv
+  fi
   sample_vars="$sample_vars $root/indels/vars/$family/$sample-unfilt.tsv"
 done
 
 # filter for strand bias and mate bias
-group-filter.py -s 1 -m 1 $sample_vars
+do_filter=""
+for sample in $samples; do
+  if [[ ! -s $root/indels/vars/$family/$sample.tsv ]]; then
+    do_filter="true"
+  fi
+fi
+if [[ "$do_filter" ]]; then
+  group-filter.py -s 1 -m 1 $sample_vars
+fi
 
 # rename output files
 for sample in $samples; do
