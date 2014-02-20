@@ -142,7 +142,7 @@ def read_tsvfile(filepath):
         continue
       fields = raw_line.split('\t')
       try:
-        yield [fields[0], int(fields[1]), None, raw_line]
+        yield [fields[1], int(fields[2]), None, raw_line]
       except (IndexError, ValueError):
         fail("Error: Input file "+filepath+" not in the tsv format expected "
           "from inspect-reads.py.")
@@ -195,20 +195,20 @@ def edit_tsvline(site, strand=1):
   if begin is None:
     return raw_line
   fields = raw_line.split('\t')
-  if len(fields) < 2:
+  if len(fields) < 3:
     fail('Error: Raw line not in the tsv format expected from '
       'inspect-reads.py: "'+raw_line+'"')
   # adjust coordinates for reverse complement indels
-  if strand == -1 and len(fields) > 2 and fields[2] in 'ID':
+  if strand == -1 and len(fields) > 3 and fields[3] in 'ID':
     begin -= 2
   if chrom is not None:
-    fields[0] = chrom
+    fields[1] = chrom
   # preserve newline if it's the last field
-  if fields[1][-2:] == '\r\n':
+  if fields[2][-2:] == '\r\n':
     begin = str(begin)+fields[1][-2:]
-  elif fields[1][-1] in '\r\n':
+  elif fields[2][-1] in '\r\n':
     begin = str(begin)+fields[1][-1]
-  fields[1] = begin
+  fields[2] = begin
   #TODO: make sure newline is preserved
   return '\t'.join(map(str, fields))
 
