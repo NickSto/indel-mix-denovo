@@ -342,13 +342,7 @@ def summarize_stats(variant, stats):
   else:
     output['mate_bias']   = round(stats['mate_bias'], 4)
   output['flags']         = ','.join(map(str, flags))
-  var_pos_dist = stats['var_pos_dist']
-  if var_pos_dist is None:
-    output['var_pos_dist']  = None
-  else:
-    var_pos_dist = var_pos_dist.keys()
-    var_pos_dist.sort()
-    output['var_pos_dist']  = ','.join(map(str, var_pos_dist))
+  output['var_pos_dist']  = format_var_pos_dist(stats['var_pos_dist'])
   return output
 
 
@@ -429,6 +423,21 @@ def pct_str(percent, decimals=1, const_width=True):
       return "N/A"
     else:
       return str(round(percent, decimals))+"%"
+
+
+def format_var_pos_dist(raw_dist):
+  """Format var_pos_dist for output.
+  Currently, it transforms the dict of counts into a (sorted) list, where each
+  key occurs once for every count in the original dict."""
+  if raw_dist is None:
+    return str(raw_dist)
+  new_dist = []
+  for pos in raw_dist:
+    new_dist.extend([pos]*raw_dist[pos])
+    new_dist = raw_dist.keys()
+  new_dist.sort()
+  dist_str = ','.join(map(str, new_dist))
+  return dist_str
 
 
 def fail(message):
