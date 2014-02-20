@@ -126,7 +126,7 @@ def get_read_stats(reads_supporting, reads_opposing, variant=None):
   ***PLANNED*** NM tag edit distances.
   """
   #TODO: doublecheck values that could be incalculable given the input data
-  stats = collections.defaultdict()
+  stats = collections.defaultdict(lambda: None)
 
   stats['supporting'] = len(reads_supporting)
   stats['opposing'] = len(reads_opposing)

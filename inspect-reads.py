@@ -104,6 +104,9 @@ def main():
   parser.add_argument('--no-comment', action='store_true',
     help=wrap('If printing a label line, don\'t comment it (can be easier to '
       'import into environments like R).'))
+  parser.add_argument('-S', '--sample-name', metavar='NAME',
+    help=wrap('Label all output with this sample name (the first tsv column), '
+      'ignoring any read group data from the input BAM.'))
   parser.add_argument('-T', '--vartypes', metavar='TYPES',
     help=wrap('Only consider these variant types. Give a string of letters, '
       'e.g. "SID" to keep SNVs (S), insertions (I), and deletions (D). '
@@ -163,6 +166,10 @@ def main():
   for (variant, reads, raw_stats) in zip(variants, read_sets, stat_sets):
     if filter_out(variant, reads, raw_stats, args):
       continue
+    if args.sample_name:
+      raw_stats['sample'] = args.sample_name
+    elif not raw_stats['sample']:
+      raw_stats['sample'] = '__NONE__'
     output_stats = summarize_stats(variant, raw_stats)
     if args.tsv:
       sys.stdout.write("\t".join(map(str, output_stats.values()))+"\n")
@@ -296,7 +303,7 @@ def summarize_stats(variant, stats):
   TOTAL_FIELDS = 23
   output = collections.OrderedDict()
   #TODO: replace with read group name
-  output['sample']      = '__NONE__'
+  output['sample']      = stats['sample']
   output['chrom']       = variant.get('chrom')
   output['coord']       = variant.get('coord')
   output['type']        = variant.get('type')
