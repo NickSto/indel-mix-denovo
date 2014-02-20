@@ -126,7 +126,7 @@ def get_read_stats(reads_supporting, reads_opposing, variant=None):
   ***PLANNED*** NM tag edit distances.
   """
   #TODO: doublecheck values that could be incalculable given the input data
-  stats = {}
+  stats = collections.defaultdict()
 
   stats['supporting'] = len(reads_supporting)
   stats['opposing'] = len(reads_opposing)
@@ -138,7 +138,8 @@ def get_read_stats(reads_supporting, reads_opposing, variant=None):
     stats['supporting'], stats['opposing']
   )
   stats['mate_bias'] = get_mate_bias(stats['flags'], stats['flags_opposing'])
-
+  if variant:
+    stats['var_pos_dist'] = get_var_pos_dist(reads_supporting, variant)
   return stats
 
 
@@ -211,13 +212,18 @@ def get_bias(a, b, c, d):
     return None
 
 
-def get_read_pos(reads, variant):
+def get_var_pos_dist(reads, variant):
   """Get the variant's distribution of positions along the reads.
   Returns a dict of the offset of the variant in each read. Keys are the offsets
   (variant coord - read start coord) and values are counts (how many reads had
   the variant at that position)."""
-  raise NotImplementedError
-  read_pos = {}
+  var_pos_dist = collections.defaultdict(int)
   for read in reads:
-    pass
-  return read_pos
+    reverse = read.get_flag() & 0b10000 == 0b10000
+    if reverse:
+      var_pos = read.get_end_position() - variant['coord']
+    else:
+      var_pos = variant['coord'] - read.get_position() + 2
+    var_pos_dist[var_pos]+=1
+  return var_pos_dist
+  
