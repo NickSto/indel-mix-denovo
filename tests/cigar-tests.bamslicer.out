@@ -12,6 +12,15 @@ chrM 199 I
   flags: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   mapqs:
   reads:
+chrM 310 I
+  flags: [1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0]
+  mapqs: 60=1
+  reads:
+    12333
+chrM 1900 D
+  flags: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+  mapqs:
+  reads:
 chrM 3106 D
   flags: [2, 2, 0, 0, 0, 2, 1, 1, 0, 0, 0, 0]
   mapqs: 60=2

@@ -55,13 +55,15 @@ provided, it will select any read with that type of variant at that location."""
 ##### UNIT TEST FUNCTIONS #####
 
 def bamslicer_get_reads_and_stats(options):
+  # kludge to get around dash in name
+  inspect_reads = __import__("inspect-reads")
   if options.bam:
     if not os.path.exists(options.bam):
       fail('Error: Cannot find BAM file "'+options.bam+'"')
   else:
     fail("Error: A BAM file is required for this function.")
   if options.variants:
-    variants = variants_from_str(options.variants)
+    variants = inspect_reads.variants_from_str(options.variants)
   else:
     fail("Error: A list of variants is required for this function.")
 
@@ -77,7 +79,7 @@ def bamslicer_get_reads_and_stats(options):
     sys.stdout.write("  mapqs:")
     for (quality, total) in enumerate(stats['mapqs']):
       if total > 0:
-        sys.stdout.write(" "+str(quality)+"="+str(total))
+        sys.stdout.write(' %s=%d' % (quality, total))
     print
     if not options.no_reads:
       print "  reads:"
@@ -104,37 +106,6 @@ def inspect_reads_variants_from_vcf(options):
 
 
 ##### UTILITY FUNCTIONS #####
-
-def variants_from_str(variants_str):
-  """Parse the list of variants passed in from the command line.
-  Example list: "chrM:310-S,1:2345-D:2,pUC18:4210-I:GAT"
-  Will return: [
-    {'chrom':'chrM', 'coord':310, 'type':'S', 'alt':None},
-    {'chrom':'1', 'coord':2345, 'type':'D', 'alt':'2'},
-    {'chrom':'pUC18', 'coord':4210, 'type':'I', 'alt':'GAT'},
-  ]
-  """
-  variants = []
-  for variant_str in variants_str.split(','):
-    if '-' not in variant_str:
-      fail('Error: Incorrect format in variants list: "'+variant_str+'"')
-    fields = variant_str.split('-')
-    location = '-'.join(fields[:-1])
-    var_details = fields[-1]
-    try:
-      (chrom, coord) = location.split(':')
-      coord = int(coord)
-    except ValueError:
-      fail('Error: Incorrect format in variants list: "'+variant_str+'"')
-    if ':' in var_details:
-      (vartype, alt) = var_details.split(':')
-      if not (vartype in 'SID' and valid_variant(vartype, alt)):
-        fail('Error: Incorrect format in variants list: "'+variant_str+'"')
-    else:
-      vartype = var_details
-      alt = None
-    variants.append({'chrom':chrom, 'coord':coord, 'type':vartype, 'alt':alt})
-  return variants
 
 
 def fail(message):

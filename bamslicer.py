@@ -15,14 +15,19 @@ def get_reads_and_stats(bamfilepath, variants, readgroups=None):
   variants, as well as statistics on the reads covering it.
   The BAM file and variants list should be sorted by start coordinate. Each
   variant is a dict, e.g.:
-    {'chrom':'chrM', 'coord':310, 'type':'S', 'alt':None}
     {'chrom':'1', 'coord':2345, 'type':'D', 'alt':'2'}
     {'chrom':'pUC18', 'coord':4210, 'type':'I', 'alt':'GAT'}
+    {'chrom':'chrM', 'coord':310, 'type':'S', 'alt':None}
+  NOTE: Currently SNV's are not supported!
   Return value: A 2-tuple of reads and stats. Both are lists where each element
   corresponds to a variant of the same index in the input variants list. Each
   element in the reads list is a list of BAMReads which support that variant.
   The elements of the stats list summarize each set of reads. See the
   description of get_read_stats() for the format.
+  N.B.: When looking for the variant in a read, this checks for the same ALT
+  allele, but only the length, not the identity. This only matters for
+  insertions, not deletions. So it will fail to distinguish insertions of the
+  same length but different sequences.
   """
 
   bam_reader = Reader(bamfilepath)
@@ -53,15 +58,18 @@ def get_reads_and_stats(bamfilepath, variants, readgroups=None):
       # now check if the read supports the variant
       #TODO: add support for checking the alt allele identity
       var_type = variant['type']
+      var_alt = variant['alt']
       supports = False
       if var_type == 'I':
         for (ins_pos, ins_len) in read_ins:
           if ins_pos == var_pos:
-            supports = True
+            if var_alt is None or ins_len == len(var_alt):
+              supports = True
       elif var_type == 'D':
         for (del_pos, del_len) in read_del:
           if del_pos == var_pos:
-            supports = True
+            if var_alt is None or del_len == int(var_alt):
+              supports = True
       else:
         raise NotImplementedError('Unsupported variant type "'+var_type+'"')
       # add read to the appropriate list of reads
