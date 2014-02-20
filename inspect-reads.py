@@ -346,7 +346,9 @@ def summarize_stats(variant, stats):
   if var_pos_dist is None:
     output['var_pos_dist']  = None
   else:
-    output['var_pos_dist']  = ','.join(map(str, var_pos_dist.keys().sort()))
+    var_pos_dist = var_pos_dist.keys()
+    var_pos_dist.sort()
+    output['var_pos_dist']  = ','.join(map(str, var_pos_dist))
   return output
 
 
