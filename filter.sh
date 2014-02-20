@@ -36,12 +36,12 @@ done
 
 ##### check inputs #####
 
-root=$(dirname $(dirname $(dirname $(readlink -e $fambam))))
+root=$(dirname $(dirname $(cd $(dirname $fambam); pwd)))
 # required directories
-if [[ $(dirname $(readlink -e $fambam)) != $root/indels/filt ]]; then
+if [[ $(cd $(dirname $fambam); pwd) != $root/indels/filt ]]; then
   fail "Error in directory structure: dirname $fambam != $root/indels/filt"
 fi
-if [[ $(dirname $(readlink -e $nvcout)) != $root/indels/nvc ]]; then
+if [[ $(cd $(dirname $nvcout); pwd) != $root/indels/nvc ]]; then
   fail "Error in directory structure: dirname $nvcout != $root/indels/nvc"
 fi
 # required files
