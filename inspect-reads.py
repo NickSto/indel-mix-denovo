@@ -75,7 +75,7 @@ def main():
       '2:  chrom\n'
       '3:  coord\n'
       '4:  variant type\n'
-      '5:  alt allele\n'
+      '5:  alt allele (not including preceding base)\n'
       '6:  coverage, in # of reads\n'
       '7:  # of variant-supporting reads\n'
       '8:  %% frequency\n'
@@ -181,7 +181,7 @@ def variants_from_str(variants_str):
   variants = []
   for variant_str in variants_str.split(','):
     if '-' not in variant_str:
-      fail('Error: Incorrect format in variants list: "'+variant_str+'"')
+      fail('Error 1: Incorrect format in variants list: "'+variant_str+'"')
     fields = variant_str.split('-')
     location = '-'.join(fields[:-1])
     var_details = fields[-1]
@@ -189,11 +189,11 @@ def variants_from_str(variants_str):
       (chrom, coord) = location.split(':')
       coord = int(coord)
     except ValueError:
-      fail('Error: Incorrect format in variants list: "'+variant_str+'"')
+      fail('Error 2: Incorrect format in variants list: "'+variant_str+'"')
     if ':' in var_details:
       (vartype, alt) = var_details.split(':')
       if not valid_variant(vartype, alt):
-        fail('Error: Incorrect format in variants list: "'+variant_str+'"')
+        fail('Error 3: Incorrect format in variants list: "'+variant_str+'"')
     else:
       vartype = var_details
       alt = None
@@ -203,28 +203,31 @@ def variants_from_str(variants_str):
 
 def valid_variant(vartype, alt):
   """Make sure the vartype is valid, and that the alt is the correct format for
-  the vartype."""
-  if vartype == 'S':
-    if len(alt) == 1 and alt in VALID_BASES:
-      return True
-  elif vartype == 'I':
-    if len(alt) < 2:
-      return False
-    for base in alt:
-      if base not in VALID_BASES:
-        return False
-    return True
-  elif vartype == 'D':
-    if len(alt) < 2:
-      return False
-    if alt[0] != 'd':
-      return False
+  the vartype. This is for the actual alt, e.g. "1", "A", "GT", not the NVC
+  genotype column-style altstr, e.g. "d1", "A", "AGT"."""
+  # universal requirements
+  if len(alt) < 1:
+    return False
+  if vartype not in 'SID':
+    return False
+  # deletions
+  if vartype == 'D':
     try:
-      int(alt[1:])
+      int(alt)
       return True
     except ValueError:
       return False
-  return False
+  # both insertions and SNVs
+  else:
+    # check that all characters are valid bases
+    for base in alt:
+      if base not in VALID_BASES:
+        return False
+    # SNV additional constraint
+    if vartype == 'S':
+      if len(alt) != 1:
+        return False
+    return True
 
 
 def variants_from_vcf(vcffilename):
@@ -239,12 +242,12 @@ def variants_from_vcf(vcffilename):
       #TODO: make sure this is the desired handling of reference allele
       if alt == ref:
         continue
-      varstr = site.alt_to_variant(alt)
-      variants.append(parse_varstr(varstr, chrom, pos))
+      altstr = site.alt_to_variant(alt)
+      variants.append(parse_altstr(altstr, chrom, pos))
   return variants
 
 
-def parse_varstr(varstr, chrom, coord):
+def parse_altstr(altstr, chrom, coord):
   """Take in a variant string like in the NVC sample columns and return a data
   structure of the format specified in variants_from_str().
   Input string examples:
@@ -253,16 +256,18 @@ def parse_varstr(varstr, chrom, coord):
     deletion:   'd1', 'd4'
   """
   #TODO: handle reference allele (currently classified as an SNV)
-  if len(varstr) == 1:
-    return {'chrom':chrom, 'coord':coord, 'type':'S', 'alt':varstr}
-  elif varstr[0] == 'd':
+  if len(altstr) == 1:
+    return {'chrom':chrom, 'coord':coord, 'type':'S', 'alt':altstr}
+  elif altstr[0] == 'd':
     try:
-      int(varstr[1:])
-      return {'chrom':chrom, 'coord':coord, 'type':'D', 'alt':varstr[1:]}
+      int(altstr[1:])
+      return {'chrom':chrom, 'coord':coord, 'type':'D', 'alt':altstr[1:]}
     except ValueError:
-      return None
-  elif len(varstr) > 1:
-    return {'chrom':chrom, 'coord':coord, 'type':'I', 'alt':varstr}
+      raise vcfreader.FormatError('Invalid alt string in sample column: '+altstr)
+  elif len(altstr) > 1:
+    return {'chrom':chrom, 'coord':coord, 'type':'I', 'alt':altstr[1:]}
+  else:
+    raise vcfreader.FormatError('Invalid alt string in sample column: '+altstr)
 
 
 def filter_out(variant, reads, stats, args):
