@@ -214,16 +214,20 @@ def get_bias(a, b, c, d):
 
 def get_var_pos_dist(reads, variant):
   """Get the variant's distribution of positions along the reads.
-  Returns a dict of the offset of the variant in each read. Keys are the offsets
-  (variant coord - read start coord) and values are counts (how many reads had
-  the variant at that position)."""
+  Returns a dict of the offset of the variant in each read. Keys are the
+  positions along the read, as an integer percentage of the read length (0 is
+  start, 100 is end, no matter the orientation). Values are counts (how many
+  reads had the variant at that position)."""
   var_pos_dist = collections.defaultdict(int)
   for read in reads:
+    start = read.get_position()
+    end = read.get_end_position()
+    length = abs(start - end) + 1
     reverse = read.get_flag() & 0b10000 == 0b10000
     if reverse:
-      var_pos = read.get_end_position() - variant['coord']
+      var_pos = 100 * (end - variant['coord']) // length
     else:
-      var_pos = variant['coord'] - read.get_position() + 2
+      var_pos = 100 * (variant['coord'] - read.get_position() + 2) // length
     var_pos_dist[var_pos]+=1
   return var_pos_dist
   
