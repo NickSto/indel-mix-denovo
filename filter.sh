@@ -125,7 +125,7 @@ for sample in $samples; do
   if [[ ! -s $root/indels/vars/$family/$sample.tsv ]]; then
     do_filter="true"
   fi
-fi
+done
 if [[ "$do_filter" ]]; then
   group-filter.py -s 1 -m 1 $sample_vars
 fi
