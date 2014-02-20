@@ -27,9 +27,11 @@ def main():
       "R19S1-nobias.tsv". Default: "%(default)s".""")
   parser.add_argument('-s', '--strand-bias', metavar='BIAS', type=float,
     help="""Strand bias threshold. Sites with a bias above this value fail.
+      Sites with no strand bias reported always fail.
       The bias statistic is method 1 (SB) of Guo et al., 2012.""")
   parser.add_argument('-m', '--mate-bias', metavar='BIAS', type=float,
     help="""Mate bias threshold. Sites with a bias above this value fail.
+      Sites with no mate bias reported always fail.
       The bias statistic is calculated identically to the strand bias, replacing
       forward/reverse strands with first/second mate in the pair.""")
   parser.add_argument('-a', '--any', action='store_true',
@@ -66,11 +68,16 @@ def main():
     lines = []
     for infile in infiles:
       place = (linenum, infile.name)
-      line = infile.readline()
-      lines.append(line)
-      if not line or line.startswith('#'):
+      line_raw = infile.readline()
+      lines.append(line_raw)
+      if not line_raw:
         eof = True
         break
+      line = line_raw.strip()
+      if not line or line.startswith('#'):
+        last_site = ('blank', 'comment')
+        all_passed = True
+        continue
       fields = line.strip().split('\t')
       # format check; only require columns that are actually needed
       if len(fields) < 2:
@@ -118,10 +125,10 @@ def get_outfile_name(infile, args):
 def passes(fields, args):
   passed = True
   if args.strand_bias:
-    if float(fields[19]) > args.strand_bias:
+    if fields[19] == 'None' or float(fields[19]) > args.strand_bias:
       passed = False
   if args.mate_bias:
-    if float(fields[20]) > args.mate_bias:
+    if fields[20] == 'None' or float(fields[20]) > args.mate_bias:
       passed = False
   return passed
 
