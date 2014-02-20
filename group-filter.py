@@ -76,7 +76,7 @@ def main():
       if len(fields) < 2:
         format_fail("Too few columns on line %d of file %s.", place)
       # site matches up with the ones in the other files?
-      this_site = (fields[0], fields[1])
+      this_site = (fields[1], fields[0])
       if last_site and last_site != this_site:
         fail("Error: lines do not match up (mismatching site on line %d of "
           "file %s)." % place)
@@ -118,10 +118,10 @@ def get_outfile_name(infile, args):
 def passes(fields, args):
   passed = True
   if args.strand_bias:
-    if float(fields[18]) > args.strand_bias:
+    if float(fields[19]) > args.strand_bias:
       passed = False
   if args.mate_bias:
-    if float(fields[19]) > args.mate_bias:
+    if float(fields[20]) > args.mate_bias:
       passed = False
   return passed
 
