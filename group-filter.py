@@ -68,7 +68,7 @@ def main():
       place = (linenum, infile.name)
       line = infile.readline()
       lines.append(line)
-      if not line:
+      if not line or line.startswith('#'):
         eof = True
         break
       fields = line.strip().split('\t')
