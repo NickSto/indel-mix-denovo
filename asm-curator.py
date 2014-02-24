@@ -4,14 +4,16 @@ from __future__ import division
 import os
 import sys
 import random
+import collections
+from optparse import OptionParser
 import quicksect
 import lavreader
-import collections
 import fastareader
 import lavintervals
-from optparse import OptionParser
 
-EXPECTED = {'lavreader':'0.7', 'fastareader':'0.5', 'lavintervals':'0.5'}
+EXPECTED_VERSIONS = {
+  'lavreader':'0.7', 'fastareader':'0.5', 'lavintervals':'0.5'
+}
 
 OPT_DEFAULTS = {'lav':'', 'asm':'', 'ref':'', 'report':'', 'fragmented':500,
   'minor_len':600, 'min_flank':75, 'min_gap':10, 'contig_limit':10000,
@@ -48,7 +50,7 @@ REPORT_TEXT = {
 #TODO: When a contig is made of multiple alignments, check whether they look
 #      incorrect (basically anything except a break at the reference edge).
 def main():
-  version_check(EXPECTED)
+  version_check(EXPECTED_VERSIONS)
 
   parser = OptionParser(usage=USAGE, description=DESCRIPTION, epilog=EPILOG)
 
@@ -325,9 +327,10 @@ def version_check(expected):
       if version_name in dir(module):
         actual[module_name] = getattr(module, version_name)
   for module_name in actual:
-    if actual[module_name] != expected[module_name]:
-      fail("Error: Wrong version of "+module_name+". Expected: "
-        +expected[module_name]+", actual: "+actual[module_name])
+    assert actual[module_name] == expected[module_name], (
+      "Wrong version of "+module_name+". Expected: "+expected[module_name]
+      +", actual: "+actual[module_name]
+    )
 
 
 def fail(message):

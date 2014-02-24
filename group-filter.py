@@ -3,7 +3,6 @@ from __future__ import division
 import os
 import sys
 import argparse
-import itertools
 
 OPT_DEFAULTS = {'ending':'filt'}
 USAGE = "%(prog)s [options] -e ending infile1.tsv [infile2.tsv [..]]"

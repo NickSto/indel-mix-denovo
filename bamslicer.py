@@ -5,12 +5,16 @@ from __future__ import division
 import os
 import sys
 import collections
-from pyBamParser.bam import Reader
+import pyBamParser.bam
+import fastareader
+__version__ = '0.6'
+
+EXPECTED_VERSIONS = {'fastareader':'0.51'}
 
 NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
 
-def get_reads_and_stats(bamfilepath, variants, readgroups=None):
+def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
   """Take a BAM and a list of variants, and return the reads supporting the
   variants, as well as statistics on the reads covering it.
   The BAM file and variants list should be sorted by start coordinate. Each
@@ -30,7 +34,7 @@ def get_reads_and_stats(bamfilepath, variants, readgroups=None):
   same length but different sequences.
   """
 
-  bam_reader = Reader(bamfilepath)
+  bam_reader = pyBamParser.bam.Reader(bamfilepath)
 
   # pre-allocate lists of reads so they can be randomly accessed later
   read_sets_supporting = [None] * len(variants)
@@ -230,4 +234,19 @@ def get_var_pos_dist(reads, variant):
       var_pos = 100 * (variant['coord'] - read.get_position() + 2) // length
     var_pos_dist[var_pos]+=1
   return var_pos_dist
-  
+
+
+def version_check(expected):
+  actual = {}
+  for module_name in expected:
+    module = sys.modules[module_name]
+    for version_name in ['version', 'VERSION', '__version__']:
+      if version_name in dir(module):
+        actual[module_name] = getattr(module, version_name)
+  for module_name in actual:
+    assert actual[module_name] == expected[module_name], (
+      "Wrong version of "+module_name+". Expected: "+expected[module_name]
+      +", actual: "+actual[module_name]
+    )
+
+version_check(EXPECTED_VERSIONS)

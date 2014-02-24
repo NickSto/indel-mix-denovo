@@ -4,15 +4,17 @@
 bamslicer module, so that it can also be used by nvc-filter.py. Then
 nvc-filter.py can use the statistics as a filter."""
 from __future__ import division
+import os
+import sys
+import argparse
 import collections
 import simplewrap
 import vcfreader
 import bamslicer
-import argparse
-import sys
-import os
 # ./inspect-reads.py ~/backuphide/bfx/R19S5-new-nm.bam -H -v chrM-R19S5-new-nm-dedup:15873-I,chrM-R19S5-new-nm-dedup:15873-D,chrM-R19S5-new-nm-dedup:13718-D,chrM-R19S5-new-nm-dedup:11571-D,chrM-R19S5-new-nm-dedup:3757-D
 # ./inspect-reads.py tests/cigar-tests.bam -H -v chrM:5-I,chrM:199-D,chrM:199-I,chrM:3106-D,chrM:6110-D,chrM:16568-I
+
+EXPECTED_VERSIONS = {'simplewrap':'0.6', 'vcfreader':'0.51', 'bamslicer':'0.6'}
 
 """Need to use argparse.RawTextHelpFormatter to preserve formatting in the
 description of columns in the tsv output. But to still accommodate different
@@ -40,6 +42,7 @@ LABELS = """Sample Chrom Coord Type Alt Covg Reads Freq Unmap Improp Fwd First
 LABEL_LINE = '\t'.join(LABELS.split())
 
 def main():
+  version_check(EXPECTED_VERSIONS)
 
   wrapper.width = WIDTH-24
 
@@ -445,6 +448,20 @@ def format_var_pos_dist(raw_dist):
   new_dist.sort()
   dist_str = ','.join(map(str, new_dist))
   return dist_str
+
+
+def version_check(expected):
+  actual = {}
+  for module_name in expected:
+    module = sys.modules[module_name]
+    for version_name in ['version', 'VERSION', '__version__']:
+      if version_name in dir(module):
+        actual[module_name] = getattr(module, version_name)
+  for module_name in actual:
+    assert actual[module_name] == expected[module_name], (
+      "Wrong version of "+module_name+". Expected: "+expected[module_name]
+      +", actual: "+actual[module_name]
+    )
 
 
 def fail(message):

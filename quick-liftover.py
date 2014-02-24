@@ -8,6 +8,8 @@ import argparse
 import lavreader
 import lavintervals
 
+EXPECTED_VERSIONS = {'lavreader':'0.7', 'lavintervals':'0.5'}
+
 OPT_DEFAULTS = {'tsv':True}
 USAGE = "USAGE: %(prog)s [options] align.lav (sites.tsv|-s chr:coord)"
 DESCRIPTION = """Default input format: the tsv output of inspect-reads.py.
@@ -18,6 +20,7 @@ EPILOG = """"""
 SLOP = 20
 
 def main():
+  version_check(EXPECTED_VERSIONS)
 
   parser = argparse.ArgumentParser(description=DESCRIPTION, usage=USAGE)
   parser.set_defaults(**OPT_DEFAULTS)
@@ -260,6 +263,20 @@ def edit_site_string(site, strand=1):
     return chrom+':'+str(begin)+'\n'
   else:
     return chrom+':'+str(begin)+'-'+str(end)+'\n'
+
+
+def version_check(expected):
+  actual = {}
+  for module_name in expected:
+    module = sys.modules[module_name]
+    for version_name in ['version', 'VERSION', '__version__']:
+      if version_name in dir(module):
+        actual[module_name] = getattr(module, version_name)
+  for module_name in actual:
+    assert actual[module_name] == expected[module_name], (
+      "Wrong version of "+module_name+". Expected: "+expected[module_name]
+      +", actual: "+actual[module_name]
+    )
 
 
 def fail(message):
