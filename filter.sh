@@ -106,7 +106,7 @@ fi
 # get read statistics
 for sample in $samples; do
   if [[ ! -s $root/indels/vars/$family/$sample-unfilt-asm.tsv ]]; then
-    inspect-reads.py -tl $tmpdir/$sample.bam -V $root/indels/nvc/$family-filt.vcf > $root/indels/vars/$family/$sample-unfilt-asm.tsv
+    inspect-reads.py -tl -S $sample $tmpdir/$sample.bam -V $root/indels/nvc/$family-filt.vcf > $root/indels/vars/$family/$sample-unfilt-asm.tsv
   fi
 done
 

@@ -83,7 +83,7 @@ def main():
       if len(fields) < 2:
         format_fail("Too few columns on line %d of file %s.", place)
       # site matches up with the ones in the other files?
-      this_site = (fields[1], fields[0])
+      this_site = (fields[1], fields[2])
       if last_site and last_site != this_site:
         fail("Error: lines do not match up (mismatching site on line %d of "
           "file %s)." % place)
