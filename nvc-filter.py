@@ -3,12 +3,12 @@ from __future__ import division
 import os
 import re
 import sys
-import errno
+import signal
 import vcfreader
 from collections import deque
 from optparse import OptionParser
 
-# Command line options
+EXPECTED_VERSIONS = {'vcfreader':'0.51'}
 
 OPT_DEFAULTS = {'output':'-', 'freq_thres':0.0, 'covg_thres':0, 'minor':False,
   'strand':False, 'keep_types':'', 'rm_types':'', 'compliant':False,
@@ -23,6 +23,7 @@ position passes the filters, the position will be omitted in the output."""
 EPILOG = """"""
 
 def main():
+  version_check(EXPECTED_VERSIONS)
 
   parser = OptionParser(usage=USAGE, description=DESCRIPTION, epilog=EPILOG)
 
@@ -113,6 +114,8 @@ unspecified by omitting it, but leaving the comma, like "100," """)
 
   # Setup I/O
 
+  signal.signal(signal.SIGPIPE, sigpipe_handler)
+
   # global to allow cleanup() to close open filehandle on premature exit
   global infile
   if vcfpath == '-':
@@ -147,10 +150,7 @@ unspecified by omitting it, but leaving the comma, like "100," """)
     headers = [meta_header+column_header]
   
   for (outfile, header) in zip(outfiles, headers):
-    try:
-      outfile.write(header)
-    except IOError as ioerror:
-      handle_broken_pipe(ioerror)
+    outfile.write(header)
 
   buffers = []
   for file_ in outfiles:
@@ -227,11 +227,7 @@ unspecified by omitting it, but leaving the comma, like "100," """)
         buffer_.append((line, pos))
         while len(buffer_) > drop_end_len:
           (line, pos) = buffer_.popleft()
-          try:
-            # sys.stderr.write('printing')
-            outfile.write(line)
-          except IOError as ioerror:
-            handle_broken_pipe(ioerror)
+          outfile.write(line)
         # sys.stderr.write("\t")
     # sys.stderr.write("\n")
 
@@ -241,10 +237,7 @@ unspecified by omitting it, but leaving the comma, like "100," """)
   for (buffer_, outfile) in zip(buffers, outfiles):
     for (line, pos) in buffer_:
       if last_pos - pos > drop_end_len:
-        try:
-          outfile.write(line)
-        except IOError as ioerror:
-          handle_broken_pipe(ioerror)
+        outfile.write(line)
 
   cleanup()
 
@@ -313,23 +306,39 @@ def get_vartype(variant):
     return 'I'
 
 
-def fail(message):
-  sys.stderr.write(message+"\n")
-  sys.exit(1)
-
-
-def handle_broken_pipe(ioerror):
-  if ioerror.errno == errno.EPIPE:
-    cleanup()
-    sys.exit(0)
-
-
 def cleanup():
   if isinstance(infile, file):
     infile.close()
   for outfile in outfiles:
-    if isinstance(outfile, file):
-      outfile.close()
+    if isinstance(outfile, file) and not outfile.closed:
+      try:
+        outfile.close()
+      except IOError:
+        pass
+
+
+def sigpipe_handler(signal, frame):
+  cleanup()
+  sys.exit(0)
+
+
+def version_check(expected):
+  actual = {}
+  for module_name in expected:
+    module = sys.modules[module_name]
+    for version_name in ['version', 'VERSION', '__version__']:
+      if version_name in dir(module):
+        actual[module_name] = getattr(module, version_name)
+  for module_name in actual:
+    assert actual[module_name] == expected[module_name], (
+      "Wrong version of "+module_name+". Expected: "+expected[module_name]
+      +", actual: "+actual[module_name]
+    )
+
+
+def fail(message):
+  sys.stderr.write(message+"\n")
+  sys.exit(1)
 
 
 def test():
