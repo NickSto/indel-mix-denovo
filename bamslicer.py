@@ -5,11 +5,12 @@ from __future__ import division
 import os
 import sys
 import collections
+import pkg_resources
 import pyBamParser.bam
 import fastareader
 __version__ = '0.6'
 
-EXPECTED_VERSIONS = {'fastareader':'0.51'}
+EXPECTED_VERSIONS = {'fastareader':'0.5', 'pyBamParser':'0.0.1'}
 
 NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
@@ -239,10 +240,13 @@ def get_var_pos_dist(reads, variant):
 def version_check(expected):
   actual = {}
   for module_name in expected:
-    module = sys.modules[module_name]
-    for version_name in ['version', 'VERSION', '__version__']:
-      if version_name in dir(module):
-        actual[module_name] = getattr(module, version_name)
+    try:
+      actual[module_name] = pkg_resources.get_distribution(module_name).version
+    except pkg_resources.DistributionNotFound:
+      module = sys.modules[module_name]
+      for version_name in ['version', 'VERSION', '__version__']:
+        if version_name in dir(module):
+          actual[module_name] = getattr(module, version_name)
   for module_name in actual:
     assert actual[module_name] == expected[module_name], (
       "Wrong version of "+module_name+". Expected: "+expected[module_name]
