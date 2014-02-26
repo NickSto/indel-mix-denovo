@@ -46,9 +46,9 @@ def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
     read_sets_opposing[i] = []
 
   for read in bam_reader:
-    read_rname  = read.get_reference_name()
-    read_pos    = read.get_position()
-    read_end    = read.get_end_position()
+    read_rname = read.get_reference_name()
+    read_pos   = read.get_position()
+    read_end   = read.get_end_position()
     (read_ins, read_del) = read.get_indels()
 
     #TODO: use deque for local variants by discarding variants we've moved past
@@ -90,7 +90,7 @@ def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
       variants, read_sets_supporting, read_sets_opposing):
     stats = get_read_stats(reads_supporting, reads_opposing)
     stats['var_pos_dist'] = get_var_pos_dist(reads_supporting, variant)
-    stats['seq'] = get_seq(variant, ref)
+    stats['context'] = get_context(variant, ref)
     stat_sets.append(stats)
 
   return (read_sets_supporting, stat_sets)
@@ -237,13 +237,44 @@ def get_var_pos_dist(reads, variant):
   return var_pos_dist
 
 
-def get_seq(variant, ref, flank_len=DEFAULT_FLANK_LEN):
-  """Return the (reference) sequence context surrounding the variant."""
-  if ref is None:
+def get_context(variant, refpath, flank_len=DEFAULT_FLANK_LEN):
+  """Return the (reference) sequence context surrounding the variant.
+  The returned sequence will be 2*flank_len long*, centered on variant['coord'].
+  E.g. for {'chrom':'chrM','coord':12417,'type':'S','alt':'G'} it will give
+  'CTCGTTAACCCTAAcAAAAAAAACTCATAC', where the lowercased "c" is base 12417,
+  with 14bp of left flank sequence and 15bp of right flank.
+  If the variant is an insertion, the base after variant['coord'] will be lower-
+  cased. The same goes for a deletion with a None variant['alt']. If an alt is
+  provided, the deleted sequence will be lowercased.
+  *If the edge of the chromosome is closer than flank_len, the output will be
+  shorter, consisting of the bases up to the end."""
+  if refpath is None:
     return None
-  chrom = variant['chrom']
-  coord = variant['coord']
-  
+  assert variant['type'] in 'SID', 'Variant type must be one of "S", "I", "D".'
+  # get the sequence flank_len bp before and after the variant
+  start = max(1, variant['coord'] - flank_len + 1)
+  end = variant['coord'] + flank_len
+  fasta = fastareader.FastaLineGenerator(refpath)
+  # print "requesting %s:%s-%s" % (variant['chrom'], start, end)
+  seq = fasta.extract(start, end, chrom=variant['chrom'])
+  # lowercase the variant
+  lflank_len = variant['coord'] - start + 1
+  if variant['type'] in 'S':
+    var_start = lflank_len - 1
+    var_end = var_start + 1
+  elif variant['type'] == 'D':
+    var_start = lflank_len
+    if variant['alt'] is None:
+      var_end = var_start + 1
+    else:
+      var_end = var_start + int(variant['alt'])
+  elif variant['type'] == 'I':
+    var_start = lflank_len
+    var_end = var_start + 1
+  lflank = seq[:var_start]
+  var_seq = seq[var_start:var_end].lower()
+  rflank = seq[var_end:]
+  return lflank+var_seq+rflank
 
 
 def version_check(expected):

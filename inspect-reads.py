@@ -12,7 +12,7 @@ import simplewrap
 import vcfreader
 import bamslicer
 # ./inspect-reads.py ~/backuphide/bfx/R19S5-new-nm.bam -H -v chrM-R19S5-new-nm-dedup:15873-I,chrM-R19S5-new-nm-dedup:15873-D,chrM-R19S5-new-nm-dedup:13718-D,chrM-R19S5-new-nm-dedup:11571-D,chrM-R19S5-new-nm-dedup:3757-D
-# ./inspect-reads.py tests/cigar-tests.bam -H -v chrM:5-I,chrM:199-D,chrM:199-I,chrM:3106-D,chrM:6110-D,chrM:16568-I
+# ./inspect-reads.py tests/cigar-tests.bam -t -v chrM:5-I,chrM:199-D,chrM:199-I,chrM:3106-D,chrM:6110-D,chrM:16568-I
 
 EXPECTED_VERSIONS = {'simplewrap':'0.6', 'vcfreader':'0.51', 'bamslicer':'0.6'}
 
@@ -99,7 +99,9 @@ def main():
           'comma-separated list of the total for each flag, from lowest to '
           'highest bit value.\n'
       '23: The distribution of where the variant occurs along the supporting '
-          'reads.',
+          'reads.\n'
+      '24: The reference sequence surrounding the variant ("." if no reference'
+          'file is given).',
       lspace=4, indent=-4))
   parser.add_argument('-l', '--labels', action='store_true',
     help=wrap('If tsv output is selected, print column labels. The first line '
@@ -107,6 +109,9 @@ def main():
   parser.add_argument('--no-comment', action='store_true',
     help=wrap('If printing a label line, don\'t comment it (can be easier to '
       'import into environments like R).'))
+  parser.add_argument('-r', '--ref',
+    help=wrap('The reference file the BAM was aligned to. Providing this is '
+      'necessary for filling in the reference sequence column.'))
   parser.add_argument('-S', '--sample-name', metavar='NAME',
     help=wrap('Label all output with this sample name (the first tsv column), '
       'ignoring any read group data from the input BAM.'))
@@ -158,7 +163,7 @@ def main():
   #TODO: make readgroup-aware
   #      probably have to return a dict of reads and stats for every variant
   (read_sets, stat_sets) = bamslicer.get_reads_and_stats(
-    args.bamfilepath, variants)
+    args.bamfilepath, variants, ref=args.ref)
 
   # Print header
   if args.tsv and args.labels:
@@ -353,6 +358,10 @@ def summarize_stats(variant, stats):
     output['mate_bias']   = round(stats['mate_bias'], 4)
   output['flags']         = ','.join(map(str, flags))
   output['var_pos_dist']  = format_var_pos_dist(stats['var_pos_dist'])
+  if stats['context'] is None:
+    output['context']     = '.'
+  else:
+    output['context']     = stats['context']
   return output
 
 
