@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+#TODO: incorporate improvements from version in library repo
 import bamslicer
 import optparse
 import sys

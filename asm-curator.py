@@ -12,7 +12,7 @@ import fastareader
 import lavintervals
 
 EXPECTED_VERSIONS = {
-  'lavreader':'0.7', 'fastareader':'0.5', 'lavintervals':'0.5'
+  'lavreader':'0.7', 'fastareader':'0.7', 'lavintervals':'0.5'
 }
 
 OPT_DEFAULTS = {'lav':'', 'asm':'', 'ref':'', 'report':'', 'fragmented':500,

@@ -10,10 +10,11 @@ import pyBamParser.bam
 import fastareader
 __version__ = '0.6'
 
-EXPECTED_VERSIONS = {'fastareader':'0.5', 'pyBamParser':'0.0.1'}
+EXPECTED_VERSIONS = {'fastareader':'0.7', 'pyBamParser':'0.0.1'}
 
 NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
+DEFAULT_FLANK_LEN = 15
 
 def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
   """Take a BAM and a list of variants, and return the reads supporting the
@@ -87,13 +88,19 @@ def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
   stat_sets = []
   for (variant, reads_supporting, reads_opposing) in zip(
       variants, read_sets_supporting, read_sets_opposing):
-    stat_sets.append(get_read_stats(reads_supporting, reads_opposing, variant))
+    stats = get_read_stats(reads_supporting, reads_opposing)
+    stats['var_pos_dist'] = get_var_pos_dist(reads_supporting, variant)
+    stats['seq'] = get_seq(variant, ref)
+    stat_sets.append(stats)
 
   return (read_sets_supporting, stat_sets)
 
 
-def get_read_stats(reads_supporting, reads_opposing, variant=None):
+def get_read_stats(reads_supporting, reads_opposing):
   """Calculate a set of summary statistics for the set of reads.
+  This bundles all the stats that can be obtained just from inspecting the
+  supporting and opposing reads. Supplementary stats using other inputs can be
+  obtained from other methods.
   'reads_supporting' is a list of reads supporting the variant.
   'reads_opposing' is a list of reads opposing the variant.
   'variant' is the variant in question, in the format described in
@@ -120,13 +127,8 @@ def get_read_stats(reads_supporting, reads_opposing, variant=None):
     'mate_bias':
   Mate bias of the variant toward 1st or 2nd read in the pair.
   Calculated in same way as strand_bias.
-    'read_pos':
-  ***PLANNED*** The distribution of where the variant occurs along the length of
-  the reads.
-  asking for this statistic in that case.
     'flank_quals':
-  ***PLANNED*** The PHRED quality of the bases flanking the
-  variant
+  ***PLANNED*** The PHRED quality of the bases flanking the variant
     'nm_edits':
   ***PLANNED*** NM tag edit distances.
   """
@@ -143,8 +145,6 @@ def get_read_stats(reads_supporting, reads_opposing, variant=None):
     stats['supporting'], stats['opposing']
   )
   stats['mate_bias'] = get_mate_bias(stats['flags'], stats['flags_opposing'])
-  if variant:
-    stats['var_pos_dist'] = get_var_pos_dist(reads_supporting, variant)
   return stats
 
 
@@ -235,6 +235,15 @@ def get_var_pos_dist(reads, variant):
       var_pos = 100 * (variant['coord'] - read.get_position() + 2) // length
     var_pos_dist[var_pos]+=1
   return var_pos_dist
+
+
+def get_seq(variant, ref, flank_len=DEFAULT_FLANK_LEN):
+  """Return the (reference) sequence context surrounding the variant."""
+  if ref is None:
+    return None
+  chrom = variant['chrom']
+  coord = variant['coord']
+  
 
 
 def version_check(expected):
