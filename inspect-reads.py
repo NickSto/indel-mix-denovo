@@ -38,7 +38,8 @@ EPILOG = wrap("WARNING: Work in progress. Not yet implemented features:\n"
 
 VALID_BASES = 'GATCNgatcn'
 LABELS = """Sample Chrom Coord Type Alt Covg Reads Freq Unmap Improp Fwd First
-  Sndary Dup Mapq0 Mapq20 Mapq30 MapqMax MapqMaxReads SBias MBias Flags PosDist"""
+  Sndary Dup Mapq0 Mapq20 Mapq30 MapqMax MapqMaxReads SBias MBias Flags PosDist
+  Seq"""
 LABEL_LINE = '\t'.join(LABELS.split())
 
 def main():
