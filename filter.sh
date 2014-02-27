@@ -8,9 +8,9 @@ function fail {
   echo $1 >&2
   exit 1
 }
-function ecec {
+function echev {
   echo "$1"
-  exec "$1"
+  eval "$1"
 }
 
 if [[ $# -lt 4 ]]; then
@@ -101,28 +101,28 @@ sampdir=$root/indels/filt/sample
 ##### do actual analysis #####
 
 if [[ ! -d $sampdir ]]; then
-  ecec "mkdir $sampdir"
+  echev "mkdir $sampdir"
 fi
 if [[ ! -d $root/indels/vars/$family ]]; then
-  ecec "mkdir -p $root/indels/vars/$family"
+  echev "mkdir -p $root/indels/vars/$family"
 fi
 
 # break family BAM into individual sample BAMs
 for sample in $samples; do
   if [[ ! -s $sampdir/$sample.bam ]]; then
-    ecec "samtools view -b -r $sample $fambam > $sampdir/$sample.bam"
+    echev "samtools view -b -r $sample $fambam > $sampdir/$sample.bam"
   fi
 done
 
 # filter for indels above 0.75%
 if [[ ! -s $root/indels/nvc/$family-filt.vcf ]]; then
-  ecec "nvc-filter.py -r S -c 1000 -f 0.75 $nvcout > $root/indels/nvc/$family-filt.vcf"
+  echev "nvc-filter.py -r S -c 1000 -f 0.75 $nvcout > $root/indels/nvc/$family-filt.vcf"
 fi
 
 # get read statistics
 for sample in $samples; do
   if [[ ! -s $root/indels/vars/$family/$sample-unfilt-asm.tsv ]]; then
-    ecec "inspect-reads.py -tl -S $sample $sampdir/$sample.bam -V $root/indels/nvc/$family-filt.vcf -r $asm > $root/indels/vars/$family/$sample-unfilt-asm.tsv"
+    echev "inspect-reads.py -tl -S $sample $sampdir/$sample.bam -V $root/indels/nvc/$family-filt.vcf -r $asm > $root/indels/vars/$family/$sample-unfilt-asm.tsv"
   fi
 done
 
@@ -130,7 +130,7 @@ done
 sample_vars=''
 for sample in $samples; do
   if [[ ! -s $root/indels/vars/$family/$sample-unfilt.tsv ]]; then
-    ecec "quick-liftover.py $lav $root/indels/vars/$family/$sample-unfilt-asm.tsv > $root/indels/vars/$family/$sample-unfilt.tsv"
+    echev "quick-liftover.py $lav $root/indels/vars/$family/$sample-unfilt-asm.tsv > $root/indels/vars/$family/$sample-unfilt.tsv"
   fi
   sample_vars="$sample_vars $root/indels/vars/$family/$sample-unfilt.tsv"
 done
@@ -143,10 +143,10 @@ for sample in $samples; do
   fi
 done
 if [[ "$do_filter" ]]; then
-  ecec "group-filter.py -s 1 -m 1 $sample_vars"
+  echev "group-filter.py -s 1 -m 1 $sample_vars"
 fi
 
 # rename output files
 for sample in $samples; do
-  ecec "mv $root/indels/vars/$family/$sample-unfilt-filt.tsv $root/indels/vars/$family/$sample.tsv"
+  echev "mv $root/indels/vars/$family/$sample-unfilt-filt.tsv $root/indels/vars/$family/$sample.tsv"
 done
