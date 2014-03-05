@@ -62,7 +62,6 @@ def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
       if read_rname != var_chrom:
         continue
       # now check if the read supports the variant
-      #TODO: add support for checking the alt allele identity
       var_type = variant['type']
       var_alt = variant['alt']
       supports = False
