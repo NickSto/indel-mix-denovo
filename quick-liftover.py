@@ -11,7 +11,7 @@ import lavintervals
 EXPECTED_VERSIONS = {'lavreader':'0.7', 'lavintervals':'0.5'}
 
 OPT_DEFAULTS = {'tsv':True}
-USAGE = "USAGE: %(prog)s [options] align.lav (sites.tsv|-s chr:coord)"
+USAGE = "%(prog)s [options] align.lav (sites.tsv|-s chr:coord)"
 DESCRIPTION = """Default input format: the tsv output of inspect-reads.py.
 If a site lies in an unknown region (does not align to the reference), it will
 be left unaltered (unless -N is specified)."""

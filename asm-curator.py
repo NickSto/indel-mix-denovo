@@ -32,12 +32,13 @@ within another contig (in terms of their footprints on the reference)."""
 EPILOG = """"""
 
 REPORT_TEXT = {
-  'hits':['h','contigs with hits to the reference'],
-  'curated':['c','contigs kept after curation'],
-  'failure':['F','assembly failure: no contigs with similarity to the reference'],
-  'fragmented':['f','fragmented assembly: a very high number of contigs'],
-  'duplicated':['d','whole-chromosome duplications'],
-  'nonref_flanks':['n','non-reference contig flanks'],
+  'hits':('h','contigs with hits to the reference'),
+  'curated':('c','contigs kept after curation'),
+  'failure':('F','assembly failure: no contigs with similarity to the reference'),
+  'fragmented':('f','fragmented assembly: a very high number of contigs'),
+  'duplicated':('d','whole-chromosome duplications'),
+  'nonref_flanks':('n','non-reference contig flanks'),
+  'gaps':('g','assembly gaps (between contigs)')
 }
 DUPLICATE_THRES = 1.8
 # lastz ref.fa asm.fa --format=lav > out.lav
