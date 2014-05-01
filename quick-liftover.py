@@ -13,8 +13,8 @@ EXPECTED_VERSIONS = {'lavreader':'0.7', 'lavintervals':'0.5'}
 OPT_DEFAULTS = {'tsv':True}
 USAGE = "%(prog)s [options] align.lav (sites.tsv|-s chr:coord)"
 DESCRIPTION = """Default input format: the tsv output of inspect-reads.py.
-If a site lies in an unknown region (does not align to the reference), it will
-be left unaltered (unless -N is specified)."""
+Prints new version to stdout. If a site lies in an unknown region (does not
+align to the reference), it will be left unaltered (unless -N is specified)."""
 EPILOG = """"""
 
 SLOP = 20
@@ -22,29 +22,34 @@ SLOP = 20
 def main():
   version_check(EXPECTED_VERSIONS)
 
-  parser = argparse.ArgumentParser(description=DESCRIPTION, usage=USAGE)
+  parser = argparse.ArgumentParser(description=DESCRIPTION)#, usage=USAGE)
   parser.set_defaults(**OPT_DEFAULTS)
 
   parser.add_argument('lavpath', metavar='align.lav',
-    help="""""")
-  parser.add_argument('sites',
-    help="""""")
+    help='The LASTZ alignment, in LAV format.')
+  parser.add_argument('sites_file', metavar='sites.txt', nargs='?',
+    help='A file containing the sites to convert. By default, should be in '
+      'a tsv returned by inspect-reads.py. Can be omitted, if sites are given '
+      'on command line.')
   parser.add_argument('-t', '--tsv', action='store_true',
-    help="""Input data (second file) is in the tsv format produced by
-      inspect-reads.py (default).""")
+    help='Input sites file is in the tsv format produced by inspect-reads.py '
+      '(default mode).')
   parser.add_argument('-v', '--vcf', action='store_true',
-    help="""Input data (second file) is a VCF.""")
-  parser.add_argument('-s', '--string', action='store_true',
-    help="""The sites-source is a string of sites, not a file.
-      Specify with UCSC coordinates in a comma-delimited list, e.g.
-      "chr3:517,chrM:2453".""")
-  parser.add_argument('-N', '--null-note',
-    help="""If a site lies in an unknown region (does not align to the
-      reference), append this string to the chromosome name.""")
+    help='Input sites file is a VCF.')
+  parser.add_argument('-s', '--sites', nargs='*', metavar='SITE',
+    help='The sites to convert, given as a series of UCSC-format coordinates. '
+      'Allows giving the sites directly as command-line arguments, instead of '
+      'in a file. Example: "-s chr3:513 chrM:2456 21:4090".')
+  parser.add_argument('-N', '--null-note', metavar='NOTE',
+    help='If a site lies in an unknown region (does not align to the '
+      'reference), append this string to the chromosome name.')
 
   args = parser.parse_args()
+  if not (args.sites or args.sites_file):
+    parser.print_help()
+    fail('Error: Must provide sites in either a file or command-line arguments.')
 
-  sites = read_sites(args.sites, args)
+  sites = read_sites(args)
   lav = lavreader.LavReader(args.lavpath)
 
   contigs = get_kept_contigs(lav)
@@ -102,9 +107,10 @@ def get_kept_contigs(lav):
 
 #TODO: Join into one function (they're mostly the same, it ends up)
 #TODO: Compute site end
-def read_sites(source, args):
+def read_sites(args):
   """Read in a sites file (or string), return a generator.
-  "args" must have bool attributes args.tsv and args.vcf to determine filetype.
+  "args" must have attributes 'sites', 'tsv', and 'vcf' to input source, and
+  'sites_file' if source is a file.
   For each line, the generator returns a list of 4 values:
   0 (chrom): the chromosome of the variant (str)
   1 (begin): the start coordinate of the variant (int)
@@ -112,14 +118,14 @@ def read_sites(source, args):
   3 (line):  the raw input line (str)
   For non-data lines (headers, etc), the first 3 values will be None.
   """
-  if args.string:
-    return parse_sites_string(source)
+  if args.sites:
+    return parse_sites_string(args.sites)
   elif args.vcf:
-    return read_vcffile(source)
+    return read_vcffile(args.sites_file)
   elif args.tsv:
-    return read_tsvfile(source)
+    return read_tsvfile(args.sites_file)
   else:
-    fail("Error: Must specify the sites input filetype.")
+    fail("Error: Unable to determine input filetype.")
 
 
 def parse_sites_string(sites_str):
