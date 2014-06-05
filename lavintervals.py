@@ -2,7 +2,7 @@
 import random
 import quicksect
 """Methods useful for manipulating intervals in an LAV file."""
-__version__ = '0.5'
+__version__ = '0.55'
 
 SLOP_DEFAULT = 20
 
@@ -52,19 +52,21 @@ def conversion_coefficients(block):
 
 def blocks_to_conv_table(lav, contigs=None):
   """Build a coordinate conversion table from an LAV file.
-  Table is for converting query coordinates to subject coordinates.
-  "lav" is an LavReader object
+  The table lists the values needed to convert sites in each gap-free block
+  from query coordinates to subject coordinates.
+  "lav" is an LavReader object.
   "contigs" contains the names of the valid query sequences to add to the table.
-    any hit whose query name is "not in contigs" will be left out of the table.
-  The return value is a list of tuples, one per block. The 5 elements of each
-  tuple are:
+    If "contigs" is given, any hit whose query name is not in "contigs" will be
+    left out of the table.
+  The return value is a list of tuples, one per LavBlock. The 5 elements of
+  each tuple are:
   0 (chrom):  the chromosome the block is in (the query name)
   1 (begin):  the block's start coordinate (in the query)
   2 (end):    the block's end coordinate (in the query)
   3 (ref):    the name of the corresponding reference chromosome
   4 (strand): the strand value for coordinate conversion
   5 (offset): the offset for coordinate conversion
-  The last two values are the output of conversion_coefficients()
+  The last two values are the output of conversion_coefficients().
   """
   intervals = blocks_to_intervals(lav)
   table = []
@@ -109,6 +111,20 @@ def get_all_overlaps(intervals):
     overlaps = [overlap for overlap in overlaps if overlap != interval]
     all_overlaps[interval] = overlaps
   return all_overlaps
+
+
+def get_overlaps(tree, interval):
+  """Return a list of the intervals overlapping with a query interval.
+  "interval" is the query interval, a tuple of (start, stop) coordinates.
+  "tree" is a quicksect.IntervalNode of set of intervals which might overlap.
+  If "tree" is None, this will return an empty list."""
+  overlaps = []
+  if tree is None:
+    return overlaps
+  # reporter function: is given the matching interval when one is found
+  add_overlap = lambda node: overlaps.append((node.start, node.end))
+  tree.intersect(interval[0], interval[1], add_overlap)
+  return overlaps
 
 
 def discard_redundant(all_overlaps, slop=SLOP_DEFAULT):
