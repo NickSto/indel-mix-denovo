@@ -169,7 +169,7 @@ def main():
   report = get_report(lav, intervals, args)
   report_handle.write(format_report(report, REPORT_TEXT))
 
-  if isinstance(report_handle, file):
+  if report_handle is not sys.stdout:
     report_handle.close()
 
   if args.asm and args.out:
