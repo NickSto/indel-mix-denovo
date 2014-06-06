@@ -10,14 +10,14 @@ import lavintervals
 
 EXPECTED_VERSIONS = {'lavreader':'0.7', 'lavintervals':'0.5'}
 
-OPT_DEFAULTS = {'tsv':True}
+OPT_DEFAULTS = {'tsv':True, 'slop':20}
 USAGE = "%(prog)s [options] align.lav (sites.tsv|-s chr:coord)"
 DESCRIPTION = """Default input format: the tsv output of inspect-reads.py.
 Prints new version to stdout. If a site lies in an unknown region (does not
-align to the reference), it will be left unaltered (unless -N is specified)."""
+align to the reference), it will be left unaltered (unless -N is specified).
+If a site lies in multiple contigs, the alignment data from the largest one
+will be used to compute the new coordinates."""
 EPILOG = """"""
-
-SLOP = 20
 
 def main():
   version_check(EXPECTED_VERSIONS)
@@ -40,6 +40,8 @@ def main():
     help='The sites to convert, given as a series of UCSC-format coordinates. '
       'Allows giving the sites directly as command-line arguments, instead of '
       'in a file. Example: "-s chr3:513 chrM:2456 21:4090".')
+  parser.add_argument('-S', '--slop',
+    help='The "slop" value used for asm-curator.py. Default: %(default)s.')
   parser.add_argument('-N', '--null-note', metavar='NOTE',
     help='If a site lies in an unknown region (does not align to the '
       'reference), append this string to the chromosome name.')
@@ -52,50 +54,55 @@ def main():
   sites = read_sites(args)
   lav = lavreader.LavReader(args.lavpath)
 
-  contigs = get_kept_contigs(lav)
+  # Only use the contigs kept by asm-curator.py, for simplicity.
+  #TODO: allow skipping curation
+  contigs = get_kept_contigs(lav, slop=args.slop)
+  # Get the coordinate conversion coefficients for every gap-free block.
   table = lavintervals.blocks_to_conv_table(lav, contigs=contigs)
 
-  # for each site:
-  # just compare to each interval to check if it's contained
-  # use the longest one
+  # For each site, compare it to every block to check if it's contained in it.
+  # Use the longest one.
   for site in sites:
     if site[1] is None:
+      # if no start coordinate, just print the input line back out
       sys.stdout.write(site[3])
       continue
+    # Get a list of all blocks that contain the site.
     containing_blocks = []
     for block in table:
       if site[0] == block[0] and block[1] <= site[1] <= block[2]:
         containing_blocks.append(block)
-    # no hit: there is no reference sequence corresponding to this region
-    # just print the old site unedited
+    # If there are no blocks that contain the site, there is no reference
+    # sequence corresponding to this region. Just print the old site unedited.
     if not containing_blocks:
       if args.null_note:
-        fail("Error: --null-note not yet implemented.")
+        raise NotImplementedError('--null-note not yet implemented.')
       else:
         sys.stdout.write(site[3])
       continue
-    # find the longest block among the hits
-    longest_block = (None,0,0,None,None,None)
+    # Find the longest block among the hits.
+    longest_block = (None, 0, 0, None, None, None)
     for block in containing_blocks:
       if block[2] - block[1] > longest_block[2] - longest_block[1]:
         longest_block = block
-    # do actual conversion
-    # print site[3]+':'
-    # print str(longest_block[1])+' to '+str(longest_block[2])+' = strand ' \
-    #   +str(longest_block[4])+', offset '+str(longest_block[5])
+    # Do the actual conversion.
+    # get the chromosome name
     site[0] = longest_block[3]
+    # calculate the new coordinate, using the conversion coefficients
     site[1] = site[1] * longest_block[4] + longest_block[5]
     if site[2]:
       site[2] = site[2] * longest_block[4] + longest_block[5]
     sys.stdout.write(edit_line(site, args, strand=longest_block[4]))
 
 
-def get_kept_contigs(lav):
+def get_kept_contigs(lav, slop=20):
+  """Return the contigs which would be retained by asm-curator.py.
+  Uses the same procedure as in that script."""
   contigs = set()
   #TODO: replace with reading retained contigs from FASTA
   intervals = lavintervals.alignments_to_intervals(lav)
   all_overlaps = lavintervals.get_all_overlaps(intervals)
-  all_overlaps = lavintervals.discard_redundant(all_overlaps, slop=SLOP)
+  all_overlaps = lavintervals.discard_redundant(all_overlaps, slop=slop)
   # remove discarded intervals
   for interval in intervals.keys():
     if interval in all_overlaps:
