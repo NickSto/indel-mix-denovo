@@ -172,6 +172,7 @@ def main():
       sys.stdout.write('#')
     print LABEL_LINE
 
+  # N.B.: Currently, read_sets is not actually used.
   for (variant, reads, raw_stats) in zip(variants, read_sets, stat_sets):
     if filter_out(variant, reads, raw_stats, args):
       continue
@@ -289,15 +290,16 @@ def parse_altstr(altstr, chrom, coord):
 
 
 def filter_out(variant, reads, stats, args):
+  """Decide whether to filter out this variant based on all the read stats.
+  Returns True if the variant should be filtered out.
+  N.B.: Currently only "stats" is currently used for filtering."""
   filter_out = False
   if args.strand_bias and stats['strand_bias'] is not None:
     if stats['strand_bias'] > args.strand_bias:
-      filter_out = True
-      return filter_out
+      return True
   if args.mate_bias and stats['mate_bias'] is not None:
     if stats['mate_bias'] > args.mate_bias:
-      filter_out = True
-      return filter_out
+      return True
   return filter_out
 
 

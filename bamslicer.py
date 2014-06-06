@@ -16,6 +16,9 @@ NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
 DEFAULT_FLANK_LEN = 15
 
+#TODO: Support read groups
+#      Probably do it by returning dicts mapping read group strings to stats
+#      (two dicts: one for reads and one for stats).
 def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
   """Take a BAM and a list of variants, and return the reads supporting the
   variants, as well as statistics on the reads covering it.
@@ -167,6 +170,7 @@ def sum_flags(reads):
   return flags_sum
 
 
+#TODO: use samflags.py
 def get_flags(flagint):
   """Give a SAM flag as an integer, return a list of whether each flag is set.
   Returns a list of booleans, where set_flags[i] = whether flag 2**i is set"""
