@@ -161,10 +161,9 @@ def main():
   # sort variants by coordinate
   variants.sort(key=lambda variant: variant['coord'])
 
-  #TODO: make readgroup-aware
-  #      probably have to return a dict of reads and stats for every variant
   (read_sets, stat_sets) = bamslicer.get_reads_and_stats(
-    args.bamfilepath, variants, ref=args.ref)
+    args.bamfilepath, variants, ref=args.ref
+  )
 
   # Print header
   if args.tsv and args.labels:
@@ -173,18 +172,19 @@ def main():
     print LABEL_LINE
 
   # N.B.: Currently, read_sets is not actually used.
-  for (variant, reads, raw_stats) in zip(variants, read_sets, stat_sets):
-    if filter_out(variant, reads, raw_stats, args):
-      continue
-    if args.sample_name:
-      raw_stats['sample'] = args.sample_name
-    elif not raw_stats['sample']:
-      raw_stats['sample'] = '__NONE__'
-    output_stats = summarize_stats(variant, raw_stats)
-    if args.tsv:
-      sys.stdout.write("\t".join(map(str, output_stats.values()))+"\n")
-    else:
-      sys.stdout.write(humanize(output_stats))
+  for (variant, read_set, stat_set) in zip(variants, read_sets, stat_sets):
+    for sample in read_set:
+      if filter_out(variant, read_set[sample], stat_set[sample], args):
+        continue
+      if args.sample_name:
+        sample_name = args.sample_name
+      else:
+        sample_name = sample
+      output_stats = summarize_stats(sample_name, variant, stat_set[sample])
+      if args.tsv:
+        sys.stdout.write("\t".join(map(str, output_stats.values()))+"\n")
+      else:
+        sys.stdout.write(humanize(output_stats))
 
 
 
@@ -303,7 +303,7 @@ def filter_out(variant, reads, stats, args):
   return filter_out
 
 
-def summarize_stats(variant, stats):
+def summarize_stats(sample, variant, stats):
   """Take the raw read data and transform them into useful statistics.
   Input: A single variant and a stats dict for that variant from
     bamslicer.get_reads_and_stats().
@@ -313,8 +313,10 @@ def summarize_stats(variant, stats):
   """
   TOTAL_FIELDS = 23
   output = collections.OrderedDict()
-  #TODO: replace with read group name
-  output['sample']      = stats['sample']
+  if sample is None:
+    output['sample']    = '__NONE__'
+  else:
+    output['sample']    = sample
   output['chrom']       = variant.get('chrom')
   output['coord']       = variant.get('coord')
   output['type']        = variant.get('type')

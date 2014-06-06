@@ -16,9 +16,10 @@ NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
 DEFAULT_FLANK_LEN = 15
 
-#TODO: Support read groups
-#      Probably do it by returning dicts mapping read group strings to stats
-#      (two dicts: one for reads and one for stats).
+#TODO: Maybe make each of the two return values a dict of lists instead of a
+#      list of dicts?
+#TODO: Clean up mess of "read sets supporting" and "read sets opposing".
+#      Should probably forget about being able to return opposing reads.
 def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
   """Take a BAM and a list of variants, and return the reads supporting the
   variants, as well as statistics on the reads covering it.
@@ -45,10 +46,13 @@ def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
   read_sets_supporting = [None] * len(variants)
   read_sets_opposing = [None] * len(variants)
   for i in range(len(variants)):
-    read_sets_supporting[i] = []
-    read_sets_opposing[i] = []
+    read_sets_supporting[i] = {}
+    read_sets_opposing[i] = {}
 
   for read in bam_reader:
+    # get sample name from read group (returns None if no RG tag)
+    sample = read.get_read_group()
+
     read_rname = read.get_reference_name()
     read_pos   = read.get_position()
     read_end   = read.get_end_position()
@@ -81,19 +85,26 @@ def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
       else:
         raise NotImplementedError('Unsupported variant type "'+var_type+'"')
       # add read to the appropriate list of reads
+      # if sample not in dict for this variant, add it
+      if sample not in read_sets_supporting[i]:
+        read_sets_supporting[i][sample] = []
+        read_sets_opposing[i][sample] = []
       if supports:
-        read_sets_supporting[i].append(read)
+        read_sets_supporting[i][sample].append(read)
       else:
-        read_sets_opposing[i].append(read)
+        read_sets_opposing[i][sample].append(read)
 
   # calculate sets of stats on the reads covering each variant
   stat_sets = []
   for (variant, reads_supporting, reads_opposing) in zip(
       variants, read_sets_supporting, read_sets_opposing):
-    stats = get_read_stats(reads_supporting, reads_opposing)
-    stats['var_pos_dist'] = get_var_pos_dist(reads_supporting, variant)
-    stats['context'] = get_context(variant, ref)
-    stat_sets.append(stats)
+    stat_set = {}
+    for sample in reads_supporting:
+      stats = get_read_stats(reads_supporting[sample], reads_opposing[sample])
+      stats['var_pos_dist'] = get_var_pos_dist(reads_supporting[sample], variant)
+      stats['context'] = get_context(variant, ref)
+      stat_set[sample] = stats
+    stat_sets.append(stat_set)
 
   return (read_sets_supporting, stat_sets)
 
