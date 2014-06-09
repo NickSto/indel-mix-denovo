@@ -23,7 +23,7 @@ diff -s $dirname/tsv-vars/R20S9-test.tsv $dirname/tsv-vars/R20S9.tsv.out
 diff -s $dirname/tsv-vars/R24S8-test.tsv $dirname/tsv-vars/R24S8.tsv.out
 diff -s $dirname/tsv-vars/R35S11-test.tsv $dirname/tsv-vars/R35S11.tsv.out
 diff -s $dirname/tsv-vars/R35S2-test.tsv $dirname/tsv-vars/R35S2.tsv.out
-rm $dirname/tsv-vars/R20S9-test.tsv
-rm $dirname/tsv-vars/R24S8-test.tsv
-rm $dirname/tsv-vars/R35S11-test.tsv
-rm $dirname/tsv-vars/R35S2-test.tsv
+[[ -f $dirname/tsv-vars/R20S9-test.tsv ]] && rm $dirname/tsv-vars/R20S9-test.tsv
+[[ -f $dirname/tsv-vars/R24S8-test.tsv ]] && rm $dirname/tsv-vars/R24S8-test.tsv
+[[ -f $dirname/tsv-vars/R35S11-test.tsv ]] && rm $dirname/tsv-vars/R35S11-test.tsv
+[[ -f $dirname/tsv-vars/R35S2-test.tsv ]] && rm $dirname/tsv-vars/R35S2-test.tsv
