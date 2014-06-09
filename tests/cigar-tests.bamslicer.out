@@ -1,12 +1,12 @@
 chrM 5 I
    flags: [1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0]
    mapqs: 60=1
-pos-dist: 246
+pos-dist: 98
    reads: 13136
 chrM 199 D
    flags: [1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0]
    mapqs: 60=1
-pos-dist: 200
+pos-dist: 93
    reads: 16339
 chrM 199 I
    flags: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -16,7 +16,7 @@ pos-dist:
 chrM 310 I
    flags: [1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0]
    mapqs: 60=1
-pos-dist: 139
+pos-dist: 55
    reads: 12333
 chrM 1900 D
    flags: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
@@ -26,15 +26,15 @@ pos-dist:
 chrM 3106 D
    flags: [2, 2, 0, 0, 0, 2, 1, 1, 0, 0, 0, 0]
    mapqs: 60=2
-pos-dist: 225,167
+pos-dist: 89,66
    reads: 20881 7324
 chrM 6110 D
    flags: [1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0]
    mapqs: 53=1
-pos-dist: 184
+pos-dist: 98
    reads: 6991
 chrM 16568 I
    flags: [1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0]
    mapqs: 60=1
-pos-dist: 180
+pos-dist: 96
    reads: 4511
