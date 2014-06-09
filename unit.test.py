@@ -75,20 +75,21 @@ def bamslicer_get_reads_and_stats(options):
   (read_sets, stat_sets) = bamslicer.get_reads_and_stats(options.bam, variants)
 
   for (reads, stats, variant) in zip(read_sets, stat_sets, variants):
-    print variant['chrom'], variant['coord'], variant['type']
-    print "   flags:", stats['flags']
-    sys.stdout.write("   mapqs:")
-    for (quality, total) in enumerate(stats['mapqs']):
-      if total > 0:
-        sys.stdout.write(' %s=%d' % (quality, total))
-    print
-    print 'pos-dist: '+','.join(map(str,stats['var_pos_dist']))
-
-    if not options.no_reads:
-      sys.stdout.write("   reads:")
-      for read in reads:
-        sys.stdout.write(" "+str(read.get_read_name().split(':')[-1]))
+    for sample in reads:
+      print variant['chrom'], variant['coord'], variant['type']
+      print "   flags:", stats[sample]['flags']
+      sys.stdout.write("   mapqs:")
+      for (quality, total) in enumerate(stats[sample]['mapqs']):
+        if total > 0:
+          sys.stdout.write(' %s=%d' % (quality, total))
       print
+      print 'pos-dist: '+','.join(map(str,stats[sample]['var_pos_dist']))
+
+      if not options.no_reads:
+        sys.stdout.write("   reads:")
+        for read in reads[sample]:
+          sys.stdout.write(" "+str(read.get_read_name().split(':')[-1]))
+        print
 
 
 def inspect_reads_variants_from_vcf(options):
