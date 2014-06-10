@@ -2,36 +2,66 @@
 import random
 import quicksect
 """Methods useful for manipulating intervals in an LAV file."""
-__version__ = '0.55'
+__version__ = '0.7'
 
 SLOP_DEFAULT = 20
 
-def alignments_to_intervals(lav):
+def alignments_to_intervals(lav, reference='subject'):
   """Convert a set of LASTZ alignments to a set of intervals along the reference
   sequence.
   Give an LavReader and it will return a dict with the intervals as keys and
   the corresponding LavAlignments as values. Each interval is a tuple of the
-  "begin" and "end" values of an LavAlignment."""
+  "begin" and "end" values of an LavAlignment.
+  The reference sequence is assumed to be the "subject", but change "reference"
+  to "query" to use the other sequence.
+  N.B.: Alignments with identical begin/end coordinates are not distinguished
+  (only the last one encountered will be kept)."""
+  assert reference in ('subject', 'query'), (
+    '"reference" must be "subject" or "query".')
   intervals = {}
   for hit in lav:
     for alignment in hit:
-      interval = (alignment.subject['begin'], alignment.subject['end'])
+      seq = getattr(alignment, reference)
+      interval = (seq['begin'], seq['end'])
       intervals[interval] = alignment
   return intervals
 
 
-def blocks_to_intervals(lav):
+def blocks_to_intervals(lav, reference='subject'):
   """Convert a set of LASTZ blocks to a set of intervals along the reference
   sequence.
   Give an LavReader and it will return a dict with the intervals as keys and
   the corresponding LavBlocks as values. Each interval is a tuple of the
-  "begin" and "end" values of an LavBlocks."""
+  "begin" and "end" values of an LavBlocks.
+  The reference sequence is assumed to be the "subject", but change "reference"
+  to "query" to use the other sequence.
+  N.B.: Blocks with identical begin/end coordinates are not distinguished
+  (only the last one encountered will be kept)."""
+  assert reference in ('subject', 'query'), (
+    '"reference" must be "subject" or "query".')
   intervals = {}
   for hit in lav:
     for alignment in hit:
       for block in alignment:
-        interval = (block.subject['begin'], block.subject['end'])
+        seq = getattr(block, ref)
+        interval = (seq['begin'], seq['end'])
         intervals[interval] = block
+  return intervals
+
+
+def map_subject_to_query(lav, level='alignments'):
+  """Convert LASTZ alignments to intervals along both the subject and query
+  sequences, and return a dict mapping between the two.
+  Each key of the dict will be the interval of one alignment along the subject
+  sequence, and its value will be the alignment's interval along the query."""
+  if level != 'alignments':
+    raise NotImplementedError
+  intervals = {}
+  for hit in lav:
+    for alignment in hit:
+      subject_interval = (alignment.subject['begin'], alignment.subject['end'])
+      query_interval = (alignment.query['begin'], alignment.query['end'])
+      intervals[subject_interval] = query_interval
   return intervals
 
 
@@ -88,10 +118,12 @@ def blocks_to_conv_table(lav, contigs=None):
   return table
 
 
-def get_all_overlaps(intervals):
+def get_all_overlaps(intervals, sort=False):
   """Compare each interval to the rest, finding ones with any overlap.
   Returns a dict mapping each interval to a list of intervals which overlap.
-  The original interval is always excluded from the list."""
+  The original interval is always excluded from the list.
+  When "sort" is True, each list of overlapping intervals will be sorted
+  according to starting coordinate."""
   # build tree
   tree = None
   random.seed(1)
@@ -109,6 +141,8 @@ def get_all_overlaps(intervals):
     tree.intersect(interval[0], interval[1], add_overlap)
     # remove the query interval from the results
     overlaps = [overlap for overlap in overlaps if overlap != interval]
+    if sort:
+      overlaps.sort(key=lambda interval: interval[0])
     all_overlaps[interval] = overlaps
   return all_overlaps
 
