@@ -150,6 +150,8 @@ def convert(table, coord, chrom=None, fail='giveup', choose='id'):
   "coord", regardless of the chromosome name."""
   assert fail in ('giveup', 'tryharder'), 'Invalid "fail" parameter.'
   assert choose in ('id', 'score', 'length'), 'Invalid "choose" parameter.'
+  assert len(table) == 0 or isinstance(table[0], dict), (
+    '"table" must contain dicts, not tuples.')
   # Get a list of all blocks that contain the site.
   containing_blocks = []
   for block in table:
@@ -164,7 +166,7 @@ def convert(table, coord, chrom=None, fail='giveup', choose='id'):
     if fail == 'giveup' or best_block is None:
       return (coord, chrom)
   # matched one block
-  if len(containing_blocks) == 1:
+  elif len(containing_blocks) == 1:
     best_block = containing_blocks[0]
   # matched multiple blocks
   else:
@@ -184,9 +186,10 @@ def _closest_block(table, coord, chrom):
   best_distance = 4294967295
   for block in table:
     if chrom is None or chrom == block['chrom1']:
-      from_begin = max(0, block['begin'] - coord)
-      from_end = max(0, coord - block['end'])
-      distance = min(from_begin, from_end)
+      if coord <= block['end']:
+        distance = max(0, block['begin'] - coord)
+      elif coord >= block['begin']:
+        distance = max(0, coord - block['end'])
       if distance < best_distance:
         best_distance = distance
         best_block = block
