@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import division
 import random
 import quicksect
 """Methods useful for manipulating intervals in an LAV file."""
@@ -105,6 +106,7 @@ def blocks_to_conv_table(lav, contigs=None, dicts=False, query_to_subject=True):
   5 (offset): the offset for coordinate conversion
   6 (id):     the % identity of the block
   7 (score):  the score of the block's parent alignment
+  "begin" will always be <= "end".
   The last two values are the output of conversion_coefficients().
   If "dicts" is True, it will return a list of dicts instead, with the keys
   being the words in parentheses above.
@@ -162,8 +164,12 @@ def convert(table, coord, chrom=None, fail='giveup', choose='id'):
   # matched no blocks
   if len(containing_blocks) == 0:
     if fail == 'tryharder':
-      best_block = _closest_block(table, coord, chrom)
-    if fail == 'giveup' or best_block is None:
+      (left_block, right_block) = _flanking_blocks(table, coord, chrom)
+      if left_block is None and right_block is None:
+        return (coord, chrom)
+      else:
+        return _interpolate_coord(coord, left_block, right_block)
+    if fail == 'giveup':
       return (coord, chrom)
   # matched one block
   elif len(containing_blocks) == 1:
@@ -172,28 +178,12 @@ def convert(table, coord, chrom=None, fail='giveup', choose='id'):
   else:
     best_block = _choose_block(containing_blocks, choose)
   # Do the actual conversion
-  new_chrom = best_block['chrom2']
-  new_coord = coord * best_block['strand'] + best_block['offset']
-  return (new_coord, new_chrom)
+  return convert_with_block(coord, best_block)
 
 
-def _closest_block(table, coord, chrom):
-  """Find the block closest to the given coordinate.
-  If two blocks are equally close, it returns the first one in the table.
-  Can still fail if "chrom" does not match the chrom of any of the blocks.
-  Will return None in that case."""
-  best_block = None
-  best_distance = 4294967295
-  for block in table:
-    if chrom is None or chrom == block['chrom1']:
-      if coord <= block['end']:
-        distance = max(0, block['begin'] - coord)
-      elif coord >= block['begin']:
-        distance = max(0, coord - block['end'])
-      if distance < best_distance:
-        best_distance = distance
-        best_block = block
-  return best_block
+def convert_with_block(coord, block):
+  """The actual coordinate conversion calculation, once a block is selected."""
+  return (coord * block['strand'] + block['offset'], block['chrom2'])
 
 
 def _choose_block(blocks, choose):
@@ -212,6 +202,75 @@ def _choose_block(blocks, choose):
     else:
       raise AssertionError('"choose" must be "id", "score", or "length"')
   return best_block
+
+
+def _flanking_blocks(table, coord, chrom):
+  """Find the closest blocks on either side of the given coordinate.
+  This ignores blocks that actually contain the coordinate.
+  If there are no blocks on one side of the coordinate, None will be returned
+  for that side.
+  If two blocks are equally close, it chooses the first one in the table.
+  Can still fail if "chrom" does not match the chrom of any of the blocks.
+  Will return None in that case."""
+  left_best_block = None
+  left_best_distance = 4294967295
+  right_best_block = None
+  right_best_distance = 4294967295
+  for block in table:
+    if chrom is None or chrom == block['chrom1']:
+      # block is left of coord
+      if block['end'] < coord:
+        left_distance = coord - block['end']
+        if left_distance < left_best_distance:
+          left_best_distance = left_distance
+          left_best_block = block
+      # block is right of coord
+      elif coord < block['begin']:
+        right_distance = block['begin'] - coord
+        if right_distance < right_best_distance:
+          right_best_distance = right_distance
+          right_best_block = block
+  return (left_best_block, right_best_block)
+
+
+def _interpolate_coord(coord, left_block, right_block):
+  """Convert the coordinate of a site that doesn't exist in an aligned region.
+  This could either be because of an insertion in the origin sequence or a
+  region in the origin that just doesn't align to the target.
+  This will pick a coordinate in-between the nearest aligned bases in the
+  target, proportional to the distance from each.
+  If one block is None, it will use the other block to convert, as if it
+  extended out to the coordinate.
+  This will return an answer even if the blocks are in opposite orientations
+  (the coordinate of the closest base in the closest block)."""
+  assert left_block is not None or right_block is not None, (
+    'One of the blocks must not be None.')
+  # If one of the blocks is missing, just convert according to the other block.
+  if left_block is None:
+    return convert_with_block(coord, right_block)
+  elif right_block is None:
+    return convert_with_block(coord, left_block)
+  # Both blocks are present
+  assert left_block['end'] < right_block['begin'], (
+    'The left block must be to the left of the right block!')
+  new_chrom = left_block['chrom2']
+  # If orientation of the blocks don't match, use the coord of the closest base.
+  if left_block['strand'] != right_block['strand']:
+    # the coordinate is closer to the left block than the right block
+    if coord - left_block['end'] < right_block['begin'] - coord:
+      new_coord = left_block['end'] * left_block['strand'] + left_block['offset']
+    else:
+      new_coord = right_block['end'] * right_block['strand'] + right_block['offset']
+  # Normal case: both blocks are present and in the same orientation
+  else:
+    loffset = left_block['offset']
+    roffset = right_block['offset']
+    lend = left_block['end']
+    rend = right_block['begin']
+    # calculate an intermediate offset between those of the two blocks
+    offset = loffset + int(round((roffset - loffset) * ((coord - lend)/(rend - lend))))
+    new_coord = coord * left_block['strand'] + offset
+  return (new_coord, new_chrom)
 
 
 def get_all_overlaps(intervals, sort=False):
