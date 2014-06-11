@@ -65,22 +65,29 @@ def map_subject_to_query(lav, level='alignments'):
   return intervals
 
 
-def conversion_coefficients(block):
+def conversion_coefficients(block, query_to_subject=True):
   """Return the coefficients needed to convert a query coordinate in "block"
   into a subject coordinate.
   Returns a tuple of (strand, offset), where
   subject_coord = query_coord * strand + offset
   strand is -1 if the query is reverse complemented, 1 otherwise
   """
-  if block.parent.parent.query['revcomp']:
+  origin = 'query'
+  target = 'subject'
+  if not query_to_subject:
+    (origin, target) = (target, origin)
+  hit_origin = getattr(block.parent.parent, origin)
+  if hit_origin['revcomp']:
     strand = -1
   else:
     strand = 1
-  offset = block.subject['begin'] - strand * block.query['begin']
+  block_target = getattr(block, target)
+  block_origin = getattr(block, origin)
+  offset = block_target['begin'] - strand * block_origin['begin']
   return (strand, offset)
 
 
-def blocks_to_conv_table(lav, contigs=None):
+def blocks_to_conv_table(lav, contigs=None, dicts=False, query_to_subject=True):
   """Build a coordinate conversion table from an LAV file.
   The table lists the values needed to convert sites in each gap-free block
   from query coordinates to subject coordinates.
@@ -97,24 +104,35 @@ def blocks_to_conv_table(lav, contigs=None):
   4 (strand): the strand value for coordinate conversion
   5 (offset): the offset for coordinate conversion
   The last two values are the output of conversion_coefficients().
+  If "dicts" is True, it will return a list of dicts instead, with the keys
+  being the words in parentheses above.
   """
-  intervals = blocks_to_intervals(lav)
+  origin = 'query'
+  target = 'subject'
+  if not query_to_subject:
+    (origin, target) = (target, origin)
   table = []
   for hit in lav:
-    chrom = hit.query['name'].split()[0]
-    ref = hit.subject['name'].split()[0]
+    chrom = getattr(hit, origin)['name'].split()[0]
+    ref = getattr(hit, target)['name'].split()[0]
     if contigs is not None and chrom not in contigs:
       continue
     for alignment in hit:
       for block in alignment:
-        if block.query['begin'] < block.query['end']:
-          begin = block.query['begin']
-          end = block.query['end']
+        block_origin = getattr(block, origin)
+        if block_origin['begin'] < block_origin['end']:
+          begin = block_origin['begin']
+          end = block_origin['end']
         else:
-          begin = block.query['end']
-          end = block.query['begin']
-        coef = conversion_coefficients(block)
-        table.append([chrom, begin, end, ref, coef[0], coef[1]])
+          begin = block_origin['end']
+          end = block_origin['begin']
+        (strand, offset) = conversion_coefficients(block,
+          query_to_subject=query_to_subject)
+        if dicts:
+          table.append({'chrom':chrom, 'begin':begin, 'end':end, 'ref':ref,
+            'strand':strand, 'offset':offset})
+        else:
+          table.append([chrom, begin, end, ref, strand, offset])
   return table
 
 
