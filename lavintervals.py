@@ -92,20 +92,24 @@ def blocks_to_conv_table(lav, contigs=None, dicts=False, query_to_subject=True):
   The table lists the values needed to convert sites in each gap-free block
   from query coordinates to subject coordinates.
   "lav" is an LavReader object.
-  "contigs" contains the names of the valid query sequences to add to the table.
+  "contigs" lists the names of the valid query sequences to add to the table.
     If "contigs" is given, any hit whose query name is not in "contigs" will be
     left out of the table.
   The return value is a list of tuples, one per LavBlock. The 5 elements of
   each tuple are:
-  0 (chrom):  the chromosome the block is in (the query name)
+  0 (chrom1): the chromosome the block is in (the query name)
   1 (begin):  the block's start coordinate (in the query)
   2 (end):    the block's end coordinate (in the query)
-  3 (ref):    the name of the corresponding reference chromosome
+  3 (chrom2): the name of the corresponding subject chromosome
   4 (strand): the strand value for coordinate conversion
   5 (offset): the offset for coordinate conversion
+  6 (id):     the % identity of the block
+  7 (score):  the score of the block's parent alignment
   The last two values are the output of conversion_coefficients().
   If "dicts" is True, it will return a list of dicts instead, with the keys
   being the words in parentheses above.
+  If "query_to_subject" is False, it build a table for converting in the
+  opposite direction (swap "query" with "subject" above).
   """
   origin = 'query'
   target = 'subject'
@@ -113,27 +117,98 @@ def blocks_to_conv_table(lav, contigs=None, dicts=False, query_to_subject=True):
     (origin, target) = (target, origin)
   table = []
   for hit in lav:
-    chrom = getattr(hit, origin)['name'].split()[0]
-    ref = getattr(hit, target)['name'].split()[0]
-    if contigs is not None and chrom not in contigs:
+    chrom1 = getattr(hit, origin)['name'].split()[0]
+    chrom2 = getattr(hit, target)['name'].split()[0]
+    if contigs is not None and chrom1 not in contigs:
       continue
     for alignment in hit:
       for block in alignment:
         block_origin = getattr(block, origin)
-        if block_origin['begin'] < block_origin['end']:
-          begin = block_origin['begin']
-          end = block_origin['end']
-        else:
-          begin = block_origin['end']
-          end = block_origin['begin']
+        begin = block_origin['begin']
+        end = block_origin['end']
+        if begin > end:
+          (begin, end) = (end, begin)
         (strand, offset) = conversion_coefficients(block,
           query_to_subject=query_to_subject)
+        id_ = block.identity
+        score = block.parent.score
         if dicts:
-          table.append({'chrom':chrom, 'begin':begin, 'end':end, 'ref':ref,
-            'strand':strand, 'offset':offset})
+          table.append({'chrom1':chrom1, 'begin':begin, 'end':end,
+            'chrom2':chrom2, 'strand':strand, 'offset':offset, 'id':id_,
+            'score':score})
         else:
-          table.append([chrom, begin, end, ref, strand, offset])
+          table.append([chrom1, begin, end, chrom2, strand, offset, id_, score])
   return table
+
+
+def convert(table, coord, chrom=None, fail='giveup', choose='id'):
+  """Convert a coordinate using a conversion table produced by
+  blocks_to_conv_table().
+  Current implementation is naive: Compares the coordinate to every block in
+  the table to check if it's contained in it.
+  If "chrom" is not given, it will use any block whose interval includes
+  "coord", regardless of the chromosome name."""
+  assert fail in ('giveup', 'tryharder'), 'Invalid "fail" parameter.'
+  assert choose in ('id', 'score', 'length'), 'Invalid "choose" parameter.'
+  # Get a list of all blocks that contain the site.
+  containing_blocks = []
+  for block in table:
+    if ((chrom is None or chrom == block['chrom1']) and
+        block['begin'] <= coord <= block['end']):
+      containing_blocks.append(block)
+  # Get best_block: the best choice given the outcome of the above search.
+  # matched no blocks
+  if len(containing_blocks) == 0:
+    if fail == 'tryharder':
+      best_block = _closest_block(table, coord, chrom)
+    if fail == 'giveup' or best_block is None:
+      return (coord, chrom)
+  # matched one block
+  if len(containing_blocks) == 1:
+    best_block = containing_blocks[0]
+  # matched multiple blocks
+  else:
+    best_block = _choose_block(containing_blocks, choose)
+  # Do the actual conversion
+  new_chrom = best_block['chrom2']
+  new_coord = coord * best_block['strand'] + best_block['offset']
+  return (new_coord, new_chrom)
+
+
+def _closest_block(table, coord, chrom):
+  """Find the block closest to the given coordinate.
+  If two blocks are equally close, it returns the first one in the table.
+  Can still fail if "chrom" does not match the chrom of any of the blocks.
+  Will return None in that case."""
+  best_block = None
+  best_distance = 4294967295
+  for block in table:
+    if chrom is None or chrom == block['chrom1']:
+      from_begin = max(0, block['begin'] - coord)
+      from_end = max(0, coord - block['end'])
+      distance = min(from_begin, from_end)
+      if distance < best_distance:
+        best_distance = distance
+        best_block = block
+  return best_block
+
+
+def _choose_block(blocks, choose):
+  """Choose between blocks according to the given criteria."""
+  best_block = blocks[0]
+  for block in blocks:
+    if choose == 'id':
+      if block['id'] > best_block['id']:
+        best_block = block
+    elif choose == 'score':
+      if block['score'] > best_block['score']:
+        best_block = block
+    elif choose == 'length':
+      if block['end'] - block['begin'] > best_block['end'] - best_block['begin']:
+        best_block = block
+    else:
+      raise AssertionError('"choose" must be "id", "score", or "length"')
+  return best_block
 
 
 def get_all_overlaps(intervals, sort=False):
