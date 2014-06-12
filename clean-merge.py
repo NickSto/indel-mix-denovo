@@ -41,78 +41,121 @@ def main():
   interval_to_aln = lavintervals.alignments_to_intervals(lav)
   # extract the intervals into a simple list
   intervals = interval_to_aln.keys()
-  # compute which of the other intervals overlap each one
-  all_overlaps = lavintervals.get_all_overlaps(intervals)
   # build a table to convert subject coordinates to query coordinates
-  conversion_table = lavintervals.blocks_to_conv_table(lav, dicts=True,
-    query_to_subject=False)
+  conversion_table = lavintervals.hits_to_conv_table(lav, query_to_subject=False)
 
   # Construct a final, non-redundant sequence out of the original, by walking
   # along the reference, adding sequence from the assembly.
   # Algorithm:
-  # Sort list of intervals by starting coordinate
   # While intervals left:
-  #   Pop the first interval off the sorted list
+  #   Sort list of intervals by starting coordinate
+  #   Pop the first interval off the list
   #   If the interval is unique (does not overlap any other interval):
   #     Take the corresponding sequence from the assembly & add it to the output
   #   Else (it overlaps):
   #     Break the interval in two: a unique region, followed by the rest
-  #     Add the unique region to the list of intervals
-  #     
-  # 
-  # Walk along the reference, adding contigs when they uniquely cover a region,
-  # and if there are multiple contigs to choose from, decide using LASTZ scores
-  # of alignments to the original assembly.
-  # Uses "intervals" as an ordered queue.
+  #     Add the unique region (if any) to the list of intervals
+  #     Decide between the two overlapping intervals:
+  #       For each, align the overlapping region to the original assembly
+  #       Use the one with the highest LASTZ score
+  #     If the larger interval wins:
+  #       Pop the smaller interval from the list
+  #     Else (smaller interval wins):
+  #       Split the larger interval and pop it from the list
+  #       Add the non-overlapping segment to the list
   final_sequence = ''
-  while len(intervals) > 1:
-    # sort by start coord
+  while len(intervals) > 0:
+    # Pop the next interval, peek the one after it (if it exists)
     #TODO: add new intervals intelligently, to preserve order & avoid sorting
-    intervals.sort(key=lambda interval: interval[0])
+    intervals.sort(key=lambda interval: interval[0]) # sort by start coord
     interval = intervals[0]
-    next_interval = intervals[1]
-    intervals.remove(interval)
+    if len(intervals) > 1:
+      next_interval = intervals[1]
+    else:
+      next_interval = None
+    del(intervals[0])
+    assert interval[0] <= next_interval[0]
     # Is this interval unique (no overlap between this interval and the next)?
-    if interval[1] < next_interval[0]:
-      # Add query sequence of the interval
-      aln = interval_to_aln[interval]
-      final_sequence += fasta.extract(aln.query['begin'], aln.query['end'])
+    if next_interval is None or interval[1] < next_interval[0]:
+      # Add query sequence of the interval to the output sequence
+      interval_on_query = convert_with_alignment(interval,
+                                                 interval_to_aln[interval])
+      final_sequence += fasta.extract(*interval_on_query)
       # Is there a gap between this interval and the next?
-      if interval[1] - next_interval[0] > 1:
-        pass #TODO: add N's? create a new sequence?
+      if next_interval is not None and interval[1] - next_interval[0] > 1:
+        #TODO: add N's? create a new sequence?
+        raise NotImplementedError('There must be no gaps between contigs.')
     # or do the intervals overlap?
     else:
-      unique = (interval[0], next_interval[0]-1)
-      rest = (next_interval[0], interval[1])
+      # The overlapping region
       overlap = (next_interval[0], min(interval[1], next_interval[1]))
+      # Portion of interval before the overlapping region
+      unique = (interval[0], next_interval[0]-1)
+      # All parts of interval after the unique region
+      rest = (next_interval[0], interval[1])
       # Add the unique sequence before the overlap (if any) to the list
-      if unique[0] <= unique[1]:
-        unique_on_query = convert_interval(conversion_table, unique)
-        final_sequence += fasta.extract(*unique_on_query)
+      if length(unique) > 0:
+        intervals.append(unique)
+        interval_to_aln[unique] = interval_to_aln[interval]
       # Determine which sequence to use in the overlap section
-      if choose_contig(interval, next_interval, fasta, interval_to_aln):
-        pass
-      else:
-        pass
-    # break up into new intervals if needed, add entries in interval_to_aln
+      (winner, loser) = choose_contig(rest, next_interval, overlap, fasta,
+                                      interval_to_aln)
+      assert winner[0] == loser[0]
+      intervals.remove(loser)
+      if winner not in intervals:
+        intervals.append(winner)
+        if winner == next_interval:
+          interval_to_aln[winner] = interval_to_aln[next_interval]
+        else:
+          interval_to_aln[winner] = interval_to_aln[interval]
+      if length(loser) > length(winner):
+        loser_rest = (winner[1]+1, loser[1])
+        intervals.append(loser_rest)
+        if loser == next_interval:
+          interval_to_aln[loser_rest] = interval_to_aln[next_interval]
+        else:
+          interval_to_aln[loser_rest] = interval_to_aln[interval]
   # add final interval
 
 
-  # New idea: extract FASTA for each redundant hit, LASTZ align to original
-  # assembly, and choose the one with the highest-scoring hit in each case.
+def length(interval):
+  """Get length of interval.
+  1-based: length((10, 10)) == 1"""
+  return interval[1] - interval[0] + 1
 
 
-def get_query_seq(subinterval, interval, interval_to_aln, fasta):
+def choose_contig(interval1, interval2, overlap, fasta, interval_to_aln):
   """"""
+  alignment1 = interval_to_aln[interval1]
+  alignment2 = interval_to_aln[interval2]
+  interval1_on_query = convert_with_alignment(alignment1, interval1)
+  interval2_on_query = convert_with_alignment(alignment2, interval2)
 
-def convert_interval(table, interval):
-  begin = lavintervals.convert(table, interval[0])
-  end = lavintervals.convert(table, interval[1])
-  return (begin, end)
 
-def interval_to_fasta(intervals, fasta, fastapath):
+def interval_to_fasta(interval, fasta, fastapath):
   """Extract the given interval from a fasta file and write the sequence into
   a new file."""
+
+
+def convert_with_alignment(alignment, interval):
+  """One-off interval conversion, using a pre-chosen alignment.
+  Converts the interval's start/end coordinates from subject to query
+  coordinates using the given alignment.
+  Assumes the interval is actually contained in the alignment."""
+  table = lavintervals.alignments_to_conv_table([alignment],
+    query_to_subject=False)
+  try:
+    begin = lavintervals.convert(table, interval[0], fail='throw')
+    end = lavintervals.convert(table, interval[1], fail='throw')
+  except Exception as e:
+    if len(e.args) > 1 and e.args[1] == 'fail':
+      raise AssertionError('Interval must be contained in alignment.')
+    else:
+      raise
+  if begin > end:
+    (begin, end) = (end, begin)
+  return (begin, end)
+
 
 def get_tmp_path(base):
   attempts = 1
