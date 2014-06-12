@@ -4,14 +4,16 @@ import os
 import sys
 import random
 import argparse
-import lavreader
-import fastareader
+import subprocess
 import lavintervals
+import fastareader
+import lavreader
 
 OPT_DEFAULTS = {'str':'string', 'int':0}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 EPILOG = """"""
+FASTA_WIDTH = 70
 
 def main():
 
@@ -23,15 +25,19 @@ def main():
     help='Input LAV file aligning a single query sequence to a single '
       'reference (subject) sequence. E.g. from a command like "$ lastz chrM.fa '
       'assembly.fa > align.lav".')
-  parser.add_argument('fasta', metavar='assembly.fa',
-    help='The assembly FASTA file (the query in the LAV alignment).')
+  parser.add_argument('asm_merge', metavar='assembly.fa',
+    help='The FASTA file of the assembly to be cleaned (the query in the LAV '
+      'alignment).')
+  parser.add_argument('asm_raw', metavar='raw-assembly.fa',
+    help='The FASTA file of the original assembly, before curating, merging, '
+      'etc.')
   parser.add_argument('-b', '--bool', action='store_true',
     help='(stores False by default if not given)')
 
   args = parser.parse_args()
 
   # open LAV and FASTA files, make temporary directory
-  fasta = fastareader.FastaLineGenerator(args.fasta)
+  asm_merge = fastareader.FastaLineGenerator(args.asm_merge)
   lav = lavreader.LavReader(args.lav)
   if len(lav) > 1:
     fail('Error: Found more than 1 subject and/or query sequence in alignment.')
@@ -81,7 +87,7 @@ def main():
       # Add query sequence of the interval to the output sequence
       interval_on_query = convert_with_alignment(interval,
                                                  interval_to_aln[interval])
-      final_sequence += fasta.extract(*interval_on_query)
+      final_sequence += asm_merge.extract(*interval_on_query)
       # Is there a gap between this interval and the next?
       if next_interval is not None and interval[1] - next_interval[0] > 1:
         #TODO: add N's? create a new sequence?
@@ -101,7 +107,8 @@ def main():
       # Determine which sequence to use in the overlap section
       alignment1 = interval_to_aln[interval]
       alignment2 = interval_to_aln[next_interval]
-      if choose_sequence(alignment1, alignment2, overlap, fasta, tmpdir):
+      if choose_sequence(alignment1, alignment2, overlap, asm_merge,
+                         args.asm_raw, tmpdir):
         (winner, loser) = (rest, next_interval)
       else:
         (winner, loser) = (next_interval, rest)
@@ -120,7 +127,8 @@ def main():
           interval_to_aln[loser_rest] = interval_to_aln[next_interval]
         else:
           interval_to_aln[loser_rest] = interval_to_aln[interval]
-  # add final interval
+  print '>Cleaned'
+  print wrap_fasta(final_sequence, FASTA_WIDTH)
 
 
 def length(interval):
@@ -129,15 +137,55 @@ def length(interval):
   return interval[1] - interval[0] + 1
 
 
-def choose_sequence(alignment1, alignment2, overlap, fasta, tmpdir):
+def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
+                    tmpdir):
   """Returns True if the first sequence is best, False otherwise."""
-  overlap_coords1 = convert_with_alignment(alignment1, overlap)
-  overlap_coords2 = convert_with_alignment(alignment2, overlap)
+  #TODO: refactor into loop (join with extract_and_lastz)
+  #TODO: TEST!
+  lavpath1 = extract_and_lastz(alignment1, overlap, 'seq1', asm_merge,
+                               asm_raw_file, tmpdir)
+  lavpath2 = extract_and_lastz(alignment2, overlap, 'seq2', asm_merge,
+                               asm_raw_file, tmpdir)
+  lav1 = lavreader.LavReader(lavpath1)
+  lav2 = lavreader.LavReader(lavpath2)
+  top_score1 = 0
+  top_score2 = 0
+  for hit in lav1:
+    for alignment in hit:
+      if alignment.score > top_score1:
+        top_score1 = alignment.score
+  for hit in lav2:
+    for alignment in hit:
+      if alignment.score > top_score2:
+        top_score2 = alignment.score
+  if top_score1 > top_score2:
+    return True
+  else:
+    return False
 
 
-def interval_to_fasta(interval, fasta, fastapath):
-  """Extract the given interval from a fasta file and write the sequence into
-  a new file."""
+def extract_and_lastz(alignment, interval, filename, asm_merge, asm_raw_file,
+                      tmpdir):
+  fastapath = os.path.join(tmpdir, filename+'.fa')
+  interval_on_query = convert_with_alignment(alignment, interval)
+  sequence = asm_merge.extract(*interval_on_query)
+  with open(fastapath, 'w') as fastafile:
+    fastafile.write(fasta_format(sequence, filename))
+  lavpath = os.path.join(tmpdir, filename+'.lav')
+  with open(lavpath, 'w') as lavfile
+    subprocess.call(['lastz', asm_raw_file, fastapath], stdout=lavfile)
+  return lavpath
+
+
+def fasta_format(sequence, name, width=FASTA_WIDTH):
+  """Turn a sequence and name into a FASTA-formatted string."""
+  output = '>'+name+'\n'
+  for start in range(0, len(sequence), width):
+    end = start + width
+    if end > len(sequence):
+      end = len(sequence)
+    output += sequence[start:end]+'\n'
+  return output
 
 
 def convert_with_alignment(alignment, interval):
