@@ -140,41 +140,28 @@ def length(interval):
 def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
                     tmpdir):
   """Returns True if the first sequence is best, False otherwise."""
-  #TODO: refactor into loop (join with extract_and_lastz)
   #TODO: TEST!
-  lavpath1 = extract_and_lastz(alignment1, overlap, 'seq1', asm_merge,
-                               asm_raw_file, tmpdir)
-  lavpath2 = extract_and_lastz(alignment2, overlap, 'seq2', asm_merge,
-                               asm_raw_file, tmpdir)
-  lav1 = lavreader.LavReader(lavpath1)
-  lav2 = lavreader.LavReader(lavpath2)
-  top_score1 = 0
-  top_score2 = 0
-  for hit in lav1:
-    for alignment in hit:
-      if alignment.score > top_score1:
-        top_score1 = alignment.score
-  for hit in lav2:
-    for alignment in hit:
-      if alignment.score > top_score2:
-        top_score2 = alignment.score
-  if top_score1 > top_score2:
+  top_scores = []
+  for (alignment, name) in zip((alignment1, alignment2), ('seq1', 'seq2')):
+    fastapath = os.path.join(tmpdir, name+'.fa')
+    overlap_on_query = convert_with_alignment(alignment, overlap)
+    sequence = asm_merge.extract(*overlap_on_query)
+    with open(fastapath, 'w') as fastafile:
+      fastafile.write(fasta_format(sequence, name))
+    lavpath = os.path.join(tmpdir, name+'.lav')
+    with open(lavpath, 'w') as lavfile
+      subprocess.call(['lastz', asm_raw_file, fastapath], stdout=lavfile)
+    lav = lavreader.LavReader(lavpath)
+    top_score = 0
+    for hit in lav:
+      for alignment in hit:
+        if alignment.score > top_score:
+          top_score = alignment.score
+    top_scores.append(top_score)
+  if top_scores[0] > top_scores[1]:
     return True
   else:
     return False
-
-
-def extract_and_lastz(alignment, interval, filename, asm_merge, asm_raw_file,
-                      tmpdir):
-  fastapath = os.path.join(tmpdir, filename+'.fa')
-  interval_on_query = convert_with_alignment(alignment, interval)
-  sequence = asm_merge.extract(*interval_on_query)
-  with open(fastapath, 'w') as fastafile:
-    fastafile.write(fasta_format(sequence, filename))
-  lavpath = os.path.join(tmpdir, filename+'.lav')
-  with open(lavpath, 'w') as lavfile
-    subprocess.call(['lastz', asm_raw_file, fastapath], stdout=lavfile)
-  return lavpath
 
 
 def fasta_format(sequence, name, width=FASTA_WIDTH):
