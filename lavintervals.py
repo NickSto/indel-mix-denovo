@@ -3,7 +3,7 @@ from __future__ import division
 import random
 import quicksect
 """Methods useful for manipulating intervals in an LAV file."""
-__version__ = '0.7'
+__version__ = '0.8'
 
 SLOP_DEFAULT = 20
 
@@ -88,28 +88,32 @@ def conversion_coefficients(block, query_to_subject=True):
   return (strand, offset)
 
 
-def blocks_to_conv_table(lav, contigs=None, dicts=False, query_to_subject=True):
+def convert_with_alignment(coord, alignment, query_to_subject=True):
+  """One-off coordinate conversion, using a pre-chosen alignment."""
+
+
+def hits_to_conv_table(hits, contigs=None, tuples=False, query_to_subject=True):
   """Build a coordinate conversion table from an LAV file.
   The table lists the values needed to convert sites in each gap-free block
   from query coordinates to subject coordinates.
-  "lav" is an LavReader object.
+  "hits" can be a list of LavHits or a full LavReader object.
   "contigs" lists the names of the valid query sequences to add to the table.
     If "contigs" is given, any hit whose query name is not in "contigs" will be
     left out of the table.
-  The return value is a list of tuples, one per LavBlock. The 5 elements of
-  each tuple are:
-  0 (chrom1): the chromosome the block is in (the query name)
-  1 (begin):  the block's start coordinate (in the query)
-  2 (end):    the block's end coordinate (in the query)
-  3 (chrom2): the name of the corresponding subject chromosome
-  4 (strand): the strand value for coordinate conversion
-  5 (offset): the offset for coordinate conversion
-  6 (id):     the % identity of the block
-  7 (score):  the score of the block's parent alignment
+  The return value is a list of dicts, one per LavBlock. The key/values of each
+  dict are:
+    chrom1: the chromosome the block is in (the query name)
+    begin:  the block's start coordinate (in the query)
+    end:    the block's end coordinate (in the query)
+    chrom2: the name of the corresponding subject chromosome
+    strand: the strand value for coordinate conversion
+    offset: the offset for coordinate conversion
+    id:     the % identity of the block
+    score:  the score of the block's parent alignment
   "begin" will always be <= "end".
-  The last two values are the output of conversion_coefficients().
-  If "dicts" is True, it will return a list of dicts instead, with the keys
-  being the words in parentheses above.
+  "strand" and "offset" are the output of conversion_coefficients().
+  If "tuples" is True, it will return a list of tuples instead, with the
+  elements in the same order as above.
   If "query_to_subject" is False, it build a table for converting in the
   opposite direction (swap "query" with "subject" above).
   """
@@ -118,28 +122,47 @@ def blocks_to_conv_table(lav, contigs=None, dicts=False, query_to_subject=True):
   if not query_to_subject:
     (origin, target) = (target, origin)
   table = []
-  for hit in lav:
+  for hit in hits:
     chrom1 = getattr(hit, origin)['name'].split()[0]
     chrom2 = getattr(hit, target)['name'].split()[0]
     if contigs is not None and chrom1 not in contigs:
       continue
-    for alignment in hit:
-      for block in alignment:
-        block_origin = getattr(block, origin)
-        begin = block_origin['begin']
-        end = block_origin['end']
-        if begin > end:
-          (begin, end) = (end, begin)
-        (strand, offset) = conversion_coefficients(block,
-          query_to_subject=query_to_subject)
-        id_ = block.identity
-        score = block.parent.score
-        if dicts:
-          table.append({'chrom1':chrom1, 'begin':begin, 'end':end,
-            'chrom2':chrom2, 'strand':strand, 'offset':offset, 'id':id_,
-            'score':score})
-        else:
-          table.append([chrom1, begin, end, chrom2, strand, offset, id_, score])
+    new_blocks = alignments_to_conv_table(hit, chrom1=chrom1, chrom2=chrom2,
+      query_to_subject=query_to_subject)
+    if tuples:
+      for b in new_blocks:
+        block_tuple = (b['chrom1'], b['begin'], b['end'], b['chrom2'],
+          b['strand'], b['offset'], b['id'], b['score'])
+        table.append(block_tuple)
+    else:
+      table.extend(new_blocks)
+  return table
+
+
+def alignments_to_conv_table(alignments, chrom1=None, chrom2=None,
+    query_to_subject=True):
+  origin = 'query'
+  target = 'subject'
+  if not query_to_subject:
+    (origin, target) = (target, origin)
+  table = []
+  for alignment in alignments:
+    if chrom1 is None:
+      chrom1 = getattr(alignment.parent, origin)['name'].split()[0]
+    if chrom2 is None:
+      chrom2 = getattr(alignment.parent, target)['name'].split()[0]
+    for block in alignment:
+      block_origin = getattr(block, origin)
+      begin = block_origin['begin']
+      end = block_origin['end']
+      if begin > end:
+        (begin, end) = (end, begin)
+      (strand, offset) = conversion_coefficients(block,
+        query_to_subject=query_to_subject)
+      id_ = block.identity
+      score = block.parent.score
+      table.append({'chrom1':chrom1, 'begin':begin, 'end':end, 'chrom2':chrom2,
+        'strand':strand, 'offset':offset, 'id':id_, 'score':score})
   return table
 
 

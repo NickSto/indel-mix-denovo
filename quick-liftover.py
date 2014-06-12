@@ -8,7 +8,7 @@ import argparse
 import lavreader
 import lavintervals
 
-EXPECTED_VERSIONS = {'lavreader':'0.7', 'lavintervals':'0.7'}
+EXPECTED_VERSIONS = {'lavreader':'0.7', 'lavintervals':'0.8'}
 
 OPT_DEFAULTS = {'tsv':True, 'slop':20}
 USAGE = "%(prog)s [options] align.lav (sites.tsv|-s chr:coord)"
@@ -58,7 +58,7 @@ def main():
   #TODO: allow skipping curation
   contigs = get_kept_contigs(lav, slop=args.slop)
   # Get the coordinate conversion coefficients for every gap-free block.
-  table = lavintervals.blocks_to_conv_table(lav, contigs=contigs)
+  table = lavintervals.hits_to_conv_table(lav, contigs=contigs, tuples=True)
 
   # For each site, compare it to every block to check if it's contained in it.
   # Use the longest one.
