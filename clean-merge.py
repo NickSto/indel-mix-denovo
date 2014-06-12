@@ -30,11 +30,12 @@ def main():
 
   args = parser.parse_args()
 
-  # open LAV and FASTA files
+  # open LAV and FASTA files, make temporary directory
   fasta = fastareader.FastaLineGenerator(args.fasta)
   lav = lavreader.LavReader(args.lav)
   if len(lav) > 1:
     fail('Error: Found more than 1 subject and/or query sequence in alignment.')
+  tmpdir = get_tmp_path()
 
   # Compute info that will be needed on the intervals:
   # convert alignments to a set of intervals and map back to lav objects
@@ -98,8 +99,12 @@ def main():
         intervals.append(unique)
         interval_to_aln[unique] = interval_to_aln[interval]
       # Determine which sequence to use in the overlap section
-      (winner, loser) = choose_contig(rest, next_interval, overlap, fasta,
-                                      interval_to_aln)
+      alignment1 = interval_to_aln[interval]
+      alignment2 = interval_to_aln[next_interval]
+      if choose_sequence(alignment1, alignment2, overlap, fasta, tmpdir):
+        (winner, loser) = (rest, next_interval)
+      else:
+        (winner, loser) = (next_interval, rest)
       assert winner[0] == loser[0]
       intervals.remove(loser)
       if winner not in intervals:
@@ -124,12 +129,10 @@ def length(interval):
   return interval[1] - interval[0] + 1
 
 
-def choose_contig(interval1, interval2, overlap, fasta, interval_to_aln):
-  """"""
-  alignment1 = interval_to_aln[interval1]
-  alignment2 = interval_to_aln[interval2]
-  interval1_on_query = convert_with_alignment(alignment1, interval1)
-  interval2_on_query = convert_with_alignment(alignment2, interval2)
+def choose_sequence(alignment1, alignment2, overlap, fasta, tmpdir):
+  """Returns True if the first sequence is best, False otherwise."""
+  overlap_coords1 = convert_with_alignment(alignment1, overlap)
+  overlap_coords2 = convert_with_alignment(alignment2, overlap)
 
 
 def interval_to_fasta(interval, fasta, fastapath):
