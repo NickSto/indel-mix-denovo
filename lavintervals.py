@@ -88,10 +88,6 @@ def conversion_coefficients(block, query_to_subject=True):
   return (strand, offset)
 
 
-def convert_with_alignment(coord, alignment, query_to_subject=True):
-  """One-off coordinate conversion, using a pre-chosen alignment."""
-
-
 def hits_to_conv_table(hits, contigs=None, tuples=False, query_to_subject=True):
   """Build a coordinate conversion table from an LAV file.
   The table lists the values needed to convert sites in each gap-free block
@@ -124,28 +120,27 @@ def hits_to_conv_table(hits, contigs=None, tuples=False, query_to_subject=True):
   table = []
   for hit in hits:
     chrom1 = getattr(hit, origin)['name'].split()[0]
-    chrom2 = getattr(hit, target)['name'].split()[0]
     if contigs is not None and chrom1 not in contigs:
       continue
-    new_blocks = alignments_to_conv_table(hit, chrom1=chrom1, chrom2=chrom2,
-      query_to_subject=query_to_subject)
+    new_blocks = alignments_to_conv_table(hit,
+                                          query_to_subject=query_to_subject)
     if tuples:
       for b in new_blocks:
         block_tuple = (b['chrom1'], b['begin'], b['end'], b['chrom2'],
-          b['strand'], b['offset'], b['id'], b['score'])
+                       b['strand'], b['offset'], b['id'], b['score'])
         table.append(block_tuple)
     else:
       table.extend(new_blocks)
   return table
 
 
-def alignments_to_conv_table(alignments, chrom1=None, chrom2=None,
-    query_to_subject=True):
+def alignments_to_conv_table(alignments, query_to_subject=True):
   origin = 'query'
   target = 'subject'
   if not query_to_subject:
     (origin, target) = (target, origin)
   table = []
+  chrom1 = chrom2 = None
   for alignment in alignments:
     if chrom1 is None:
       chrom1 = getattr(alignment.parent, origin)['name'].split()[0]
@@ -158,11 +153,11 @@ def alignments_to_conv_table(alignments, chrom1=None, chrom2=None,
       if begin > end:
         (begin, end) = (end, begin)
       (strand, offset) = conversion_coefficients(block,
-        query_to_subject=query_to_subject)
+                                              query_to_subject=query_to_subject)
       id_ = block.identity
       score = block.parent.score
       table.append({'chrom1':chrom1, 'begin':begin, 'end':end, 'chrom2':chrom2,
-        'strand':strand, 'offset':offset, 'id':id_, 'score':score})
+                    'strand':strand, 'offset':offset, 'id':id_, 'score':score})
   return table
 
 
@@ -173,7 +168,7 @@ def convert(table, coord, chrom=None, fail='giveup', choose='id'):
   the table to check if it's contained in it.
   If "chrom" is not given, it will use any block whose interval includes
   "coord", regardless of the chromosome name."""
-  assert fail in ('giveup', 'tryharder'), 'Invalid "fail" parameter.'
+  assert fail in ('throw', 'giveup', 'tryharder'), 'Invalid "fail" parameter.'
   assert choose in ('id', 'score', 'length'), 'Invalid "choose" parameter.'
   assert len(table) == 0 or isinstance(table[0], dict), (
     '"table" must contain dicts, not tuples.')
@@ -186,14 +181,16 @@ def convert(table, coord, chrom=None, fail='giveup', choose='id'):
   # Get best_block: the best choice given the outcome of the above search.
   # matched no blocks
   if len(containing_blocks) == 0:
-    if fail == 'tryharder':
+    if fail == 'throw':
+      raise Exception('No matching blocks for the given coordinate.', 'fail')
+    elif fail == 'giveup':
+      return (coord, chrom)
+    elif fail == 'tryharder':
       (left_block, right_block) = _flanking_blocks(table, coord, chrom)
       if left_block is None and right_block is None:
         return (coord, chrom)
       else:
         return _interpolate_coord(coord, left_block, right_block)
-    if fail == 'giveup':
-      return (coord, chrom)
   # matched one block
   elif len(containing_blocks) == 1:
     best_block = containing_blocks[0]
@@ -281,9 +278,11 @@ def _interpolate_coord(coord, left_block, right_block):
   if left_block['strand'] != right_block['strand']:
     # the coordinate is closer to the left block than the right block
     if coord - left_block['end'] < right_block['begin'] - coord:
-      new_coord = left_block['end'] * left_block['strand'] + left_block['offset']
+      new_coord = (left_block['end'] * left_block['strand'] +
+                   left_block['offset'])
     else:
-      new_coord = right_block['end'] * right_block['strand'] + right_block['offset']
+      new_coord = (right_block['end'] * right_block['strand'] +
+                   right_block['offset'])
   # Normal case: both blocks are present and in the same orientation
   else:
     loffset = left_block['offset']
@@ -291,7 +290,8 @@ def _interpolate_coord(coord, left_block, right_block):
     lend = left_block['end']
     rend = right_block['begin']
     # calculate an intermediate offset between those of the two blocks
-    offset = loffset + int(round((roffset - loffset) * ((coord - lend)/(rend - lend))))
+    offset = loffset + int(round((roffset - loffset) *
+                                 ((coord - lend)/(rend - lend))))
     new_coord = coord * left_block['strand'] + offset
   return (new_coord, new_chrom)
 
