@@ -154,13 +154,14 @@ def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
   for (alignment, name) in zip((alignment1, alignment2), ('seq1', 'seq2')):
     fastapath = os.path.join(tmpdir, name+'.fa')
     overlap_on_query = convert_with_alignment(overlap, alignment)
+    sys.stderr.write("{} -> {}\n".format(overlap, overlap_on_query))
     sequence = asm_merge.extract(*overlap_on_query)
     with open(fastapath, 'w') as fastafile:
       fastafile.write(fasta_format(sequence, name))
     # Perform LASTZ alignment
     lavpath = os.path.join(tmpdir, name+'.lav')
     with open(lavpath, 'w') as lavfile:
-      sys.stderr.write("$ "+" ".join(['lastz', fastapath, asm_raw_file])+"\n")
+      # sys.stderr.write("$ "+" ".join(['lastz', fastapath, asm_raw_file])+"\n")
       subprocess.call(['lastz', fastapath, asm_raw_file], stdout=lavfile)
     lav = lavreader.LavReader(lavpath)
     # Get the top-scoring alignment
@@ -197,8 +198,8 @@ def convert_with_alignment(interval, alignment):
   table = lavintervals.alignments_to_conv_table([alignment],
     query_to_subject=False)
   try:
-    begin = lavintervals.convert(table, interval[0], fail='throw')
-    end = lavintervals.convert(table, interval[1], fail='throw')
+    begin = lavintervals.convert(table, interval[0], fail='throw')[0]
+    end = lavintervals.convert(table, interval[1], fail='throw')[0]
   except Exception as e:
     if len(e.args) > 1 and e.args[1] == 'fail':
       raise AssertionError('Interval must be contained in alignment.')
