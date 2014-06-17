@@ -3,6 +3,7 @@ from __future__ import division
 import os
 import sys
 import random
+import shutil
 import argparse
 import subprocess
 import lavintervals
@@ -14,11 +15,11 @@ USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 EPILOG = """"""
 FASTA_WIDTH = 70
+TMP_DIR_BASE = 'cleaning'
 
 def main():
 
-  parser = argparse.ArgumentParser(
-    description=DESCRIPTION, usage=USAGE, epilog=EPILOG)
+  parser = argparse.ArgumentParser(description=DESCRIPTION, epilog=EPILOG)
   parser.set_defaults(**OPT_DEFAULTS)
 
   parser.add_argument('lav', metavar='align.lav',
@@ -31,8 +32,6 @@ def main():
   parser.add_argument('asm_raw', metavar='raw-assembly.fa',
     help='The FASTA file of the original assembly, before curating, merging, '
       'etc.')
-  parser.add_argument('-b', '--bool', action='store_true',
-    help='(stores False by default if not given)')
 
   args = parser.parse_args()
 
@@ -41,7 +40,12 @@ def main():
   lav = lavreader.LavReader(args.lav)
   if len(lav) > 1:
     fail('Error: Found more than 1 subject and/or query sequence in alignment.')
-  tmpdir = get_tmp_path()
+  tmpdir = get_tmp_path(TMP_DIR_BASE)
+  try:
+    os.makedirs(tmpdir)
+  except OSError:
+    fail('Error: temporary directory "'+tmpdir+'" exists.')
+
 
   # Compute info that will be needed on the intervals:
   # convert alignments to a set of intervals and map back to lav objects
@@ -73,7 +77,7 @@ def main():
   final_sequence = ''
   while len(intervals) > 0:
     # Pop the next interval, peek the one after it (if it exists)
-    #TODO: add new intervals intelligently, to preserve order & avoid sorting
+    #TODO 3: add new intervals intelligently, to preserve order & avoid sorting
     intervals.sort(key=lambda interval: interval[0]) # sort by start coord
     interval = intervals[0]
     if len(intervals) > 1:
@@ -81,7 +85,7 @@ def main():
     else:
       next_interval = None
     del(intervals[0])
-    assert interval[0] <= next_interval[0]
+    assert next_interval is None or interval[0] <= next_interval[0]
     # Is this interval unique (no overlap between this interval and the next)?
     if next_interval is None or interval[1] < next_interval[0]:
       # Add query sequence of the interval to the output sequence
@@ -90,7 +94,8 @@ def main():
       final_sequence += asm_merge.extract(*interval_on_query)
       # Is there a gap between this interval and the next?
       if next_interval is not None and interval[1] - next_interval[0] > 1:
-        #TODO: add N's? create a new sequence?
+        #TODO 2: add N's (goal is to keep reference coordinates)
+        #        not necessary for R33S10 (those gaps are in redundant seq)
         raise NotImplementedError('There must be no gaps between contigs.')
     # or do the intervals overlap?
     else:
@@ -113,13 +118,17 @@ def main():
       else:
         (winner, loser) = (next_interval, rest)
       assert winner[0] == loser[0]
-      intervals.remove(loser)
+      # Make sure the list contains the winning interval and not the losing one.
+      if loser in intervals:
+        intervals.remove(loser)
       if winner not in intervals:
         intervals.append(winner)
         if winner == next_interval:
           interval_to_aln[winner] = interval_to_aln[next_interval]
         else:
           interval_to_aln[winner] = interval_to_aln[interval]
+      # If the losing interval is the larger one, split it and keep the part
+      # after the overlap.
       if length(loser) > length(winner):
         loser_rest = (winner[1]+1, loser[1])
         intervals.append(loser_rest)
@@ -127,8 +136,9 @@ def main():
           interval_to_aln[loser_rest] = interval_to_aln[next_interval]
         else:
           interval_to_aln[loser_rest] = interval_to_aln[interval]
-  print '>Cleaned'
-  print wrap_fasta(final_sequence, FASTA_WIDTH)
+  print fasta_format(final_sequence, 'Cleaned', FASTA_WIDTH)
+
+  shutil.rmtree(tmpdir)
 
 
 def length(interval):
@@ -140,18 +150,20 @@ def length(interval):
 def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
                     tmpdir):
   """Returns True if the first sequence is best, False otherwise."""
-  #TODO: TEST!
   top_scores = []
   for (alignment, name) in zip((alignment1, alignment2), ('seq1', 'seq2')):
     fastapath = os.path.join(tmpdir, name+'.fa')
-    overlap_on_query = convert_with_alignment(alignment, overlap)
+    overlap_on_query = convert_with_alignment(overlap, alignment)
     sequence = asm_merge.extract(*overlap_on_query)
     with open(fastapath, 'w') as fastafile:
       fastafile.write(fasta_format(sequence, name))
+    # Perform LASTZ alignment
     lavpath = os.path.join(tmpdir, name+'.lav')
-    with open(lavpath, 'w') as lavfile
-      subprocess.call(['lastz', asm_raw_file, fastapath], stdout=lavfile)
+    with open(lavpath, 'w') as lavfile:
+      sys.stderr.write("$ "+" ".join(['lastz', fastapath, asm_raw_file])+"\n")
+      subprocess.call(['lastz', fastapath, asm_raw_file], stdout=lavfile)
     lav = lavreader.LavReader(lavpath)
+    # Get the top-scoring alignment
     top_score = 0
     for hit in lav:
       for alignment in hit:
@@ -175,11 +187,13 @@ def fasta_format(sequence, name, width=FASTA_WIDTH):
   return output
 
 
-def convert_with_alignment(alignment, interval):
+def convert_with_alignment(interval, alignment):
   """One-off interval conversion, using a pre-chosen alignment.
   Converts the interval's start/end coordinates from subject to query
   coordinates using the given alignment.
   Assumes the interval is actually contained in the alignment."""
+  #TODO 1: What happens when a coordinate is in a small gap between blocks?
+  #        Make sure the resulting sequence doesn't include 1bp duplications.
   table = lavintervals.alignments_to_conv_table([alignment],
     query_to_subject=False)
   try:
