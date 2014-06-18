@@ -161,7 +161,7 @@ def length(interval):
 def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
                     tmpdir):
   """Returns True if the first sequence is best, False otherwise."""
-  top_scores = []
+  best_hits = []
   logfile.write("processing {}:\n".format(overlap))
   for (alignment, name) in zip((alignment1, alignment2), ('seq1', 'seq2')):
     fastapath = os.path.join(tmpdir, name+'.fa')
@@ -177,27 +177,17 @@ def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
     lav = lavreader.LavReader(lavpath)
     # Get the top-scoring alignment
     logfile.write("  scores for {}:\n".format(overlap_on_query))
-    top_score = score_lav(lav, method='length')
-    top_scores.append(top_score)
-  if top_scores[0] > top_scores[1]:
-    return True
+    (top_length, top_score) = lav_top_length(lav)
+    best_hits.append({'length':top_length, 'score':top_score})
+  # If both match the same contig the best, choose the highest alignment score
+  # (if length is equal, use alignment score as a tiebreaker).
+  if best_hits[0]['length'] == best_hits[1]['length']:
+    return best_hits[0]['score'] > best_hits[1]['score']
   else:
-    return False
+    return best_hits[0]['length'] > best_hits[1]['length']
 
 
-def score_lav(lav, method='score'):
-  """"""
-  if method == 'score':
-    return score_lav_score(lav)
-  elif method == 'id':
-    return score_lav_id(lav)
-  elif method == 'length':
-    return score_lav_length(lav)
-  else:
-    raise AssertionError('Invalid "method" value.')
-
-
-def score_lav_score(lav):
+def lav_top_score(lav):
   """Score an LAV by the top score of all alignments."""
   top_score = 0
   for hit in lav:
@@ -208,7 +198,7 @@ def score_lav_score(lav):
   return top_score
 
 
-def score_lav_id(lav):
+def lav_top_id(lav):
   """Score an LAV by the top % identity of all alignments.
   % identity of an alignment is computed by an average of all the % identities
   of its blocks, weighted by block length."""
@@ -228,19 +218,21 @@ def score_lav_id(lav):
   return top_id
 
 
-def score_lav_length(lav):
+def lav_top_length(lav):
   """Score an LAV by the length of query sequence of the best hit.
   The best hit is determined by its top alignment score."""
   length_of_best = 0
   top_score = 0
   for hit in lav:
-    logfile.write("    {}\n".format(hit.query['length']))
+    logfile.write("    len: {}\tscores: ".format(hit.query['length']))
     for alignment in hit:
+      logfile.write("{} ".format(alignment.score))
       if alignment.score > top_score:
         top_score = alignment.score
         length_of_best = hit.query['length']
+    logfile.write("\n")
   logfile.write("    best: {}\n".format(length_of_best))
-  return length_of_best
+  return (length_of_best, top_score)
 
 
 def fasta_format(sequence, name, width=FASTA_WIDTH):
