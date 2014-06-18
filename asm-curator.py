@@ -14,7 +14,7 @@ import lavintervals
 import distutils.spawn
 
 EXPECTED_VERSIONS = {
-  'lavreader':'0.7', 'fastareader':'0.7', 'lavintervals':'0.7'
+  'lavreader':'0.71', 'fastareader':'0.7', 'lavintervals':'0.8'
 }
 
 OPT_DEFAULTS = {'lav':'', 'asm':'', 'ref':'', 'report':'', 'fragmented':500,

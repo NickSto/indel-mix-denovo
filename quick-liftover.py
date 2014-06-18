@@ -8,7 +8,7 @@ import argparse
 import lavreader
 import lavintervals
 
-EXPECTED_VERSIONS = {'lavreader':'0.7', 'lavintervals':'0.8'}
+EXPECTED_VERSIONS = {'lavreader':'0.71', 'lavintervals':'0.8'}
 
 OPT_DEFAULTS = {'tsv':True, 'slop':20}
 USAGE = "%(prog)s [options] align.lav (sites.tsv|-s chr:coord)"
