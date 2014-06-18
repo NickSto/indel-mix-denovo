@@ -32,8 +32,19 @@ def main():
   parser.add_argument('asm_raw', metavar='raw-assembly.fa',
     help='The FASTA file of the original assembly, before curating, merging, '
       'etc.')
+  parser.add_argument('-l', '--log', metavar='logfile.txt',
+    help='A log file to use for writing details of the process.')
 
   args = parser.parse_args()
+
+  #TODO 3: system for closing logfile and rm tmpdir on error
+  global logfile
+  if args.log == '-':
+    logfile = sys.stderr
+  elif args.log:
+    logfile = open(args.log, 'w')
+  else:
+    logfile = open('/dev/null', 'w')
 
   # open LAV and FASTA files, make temporary directory
   asm_merge = fastareader.FastaLineGenerator(args.asm_merge)
@@ -151,10 +162,10 @@ def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
                     tmpdir):
   """Returns True if the first sequence is best, False otherwise."""
   top_scores = []
+  logfile.write("processing {}:\n".format(overlap))
   for (alignment, name) in zip((alignment1, alignment2), ('seq1', 'seq2')):
     fastapath = os.path.join(tmpdir, name+'.fa')
     overlap_on_query = convert_with_alignment(overlap, alignment)
-    sys.stderr.write("{} -> {}\n".format(overlap, overlap_on_query))
     sequence = asm_merge.extract(*overlap_on_query)
     with open(fastapath, 'w') as fastafile:
       fastafile.write(fasta_format(sequence, name))
@@ -165,16 +176,71 @@ def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
       subprocess.call(['lastz', fastapath, asm_raw_file], stdout=lavfile)
     lav = lavreader.LavReader(lavpath)
     # Get the top-scoring alignment
-    top_score = 0
-    for hit in lav:
-      for alignment in hit:
-        if alignment.score > top_score:
-          top_score = alignment.score
+    logfile.write("  scores for {}:\n".format(overlap_on_query))
+    top_score = score_lav(lav, method='length')
     top_scores.append(top_score)
   if top_scores[0] > top_scores[1]:
     return True
   else:
     return False
+
+
+def score_lav(lav, method='score'):
+  """"""
+  if method == 'score':
+    return score_lav_score(lav)
+  elif method == 'id':
+    return score_lav_id(lav)
+  elif method == 'length':
+    return score_lav_length(lav)
+  else:
+    raise AssertionError('Invalid "method" value.')
+
+
+def score_lav_score(lav):
+  """Score an LAV by the top score of all alignments."""
+  top_score = 0
+  for hit in lav:
+    for alignment in hit:
+      logfile.write("    {}\n".format(alignment.score))
+      if alignment.score > top_score:
+        top_score = alignment.score
+  return top_score
+
+
+def score_lav_id(lav):
+  """Score an LAV by the top % identity of all alignments.
+  % identity of an alignment is computed by an average of all the % identities
+  of its blocks, weighted by block length."""
+  top_id = 0
+  for hit in lav:
+    for alignment in hit:
+      total_id = 0
+      total_length = 0
+      for block in alignment:
+        length = block.query['length']
+        total_length += length
+        total_id += length * block.identity
+      id_pct = total_id / total_length
+      logfile.write("    {}\n".format(round(id_pct, 2)))
+      if id_pct > top_id:
+        top_id = id_pct
+  return top_id
+
+
+def score_lav_length(lav):
+  """Score an LAV by the length of query sequence of the best hit.
+  The best hit is determined by its top alignment score."""
+  length_of_best = 0
+  top_score = 0
+  for hit in lav:
+    logfile.write("    {}\n".format(hit.query['length']))
+    for alignment in hit:
+      if alignment.score > top_score:
+        top_score = alignment.score
+        length_of_best = hit.query['length']
+  logfile.write("    best: {}\n".format(length_of_best))
+  return length_of_best
 
 
 def fasta_format(sequence, name, width=FASTA_WIDTH):
