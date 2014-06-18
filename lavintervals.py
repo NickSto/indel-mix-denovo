@@ -3,7 +3,7 @@ from __future__ import division
 import random
 import quicksect
 """Methods useful for manipulating intervals in an LAV file."""
-__version__ = '0.8'
+__version__ = '0.81'
 
 SLOP_DEFAULT = 20
 
@@ -217,7 +217,7 @@ def _choose_block(blocks, choose):
       if block['score'] > best_block['score']:
         best_block = block
     elif choose == 'length':
-      if block['end'] - block['begin'] > best_block['end'] - best_block['begin']:
+      if block['length'] > best_block['length']:
         best_block = block
     else:
       raise AssertionError('"choose" must be "id", "score", or "length"')
