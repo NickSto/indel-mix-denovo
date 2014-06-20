@@ -1,0 +1,37 @@
+#:lav
+d {
+  "lastz.v1.02.00 /home/me/bx/data/chrM-rCRS.fa R31S4/merge/contig_assembly.fa 
+     A    C    G    T
+    91 -114  -31 -123
+  -114  100 -125  -31
+   -31 -125  100 -114
+  -123  -31 -114   91
+  O = 400, E = 30, K = 3000, L = 3000, M = 0"
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "R31S4/merge/contig_assembly.fa" 1 16696 0 1
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">Consensus"
+}
+a {
+  s 247306
+  b 1 14082
+  e 2614 16696
+  l 1 14082 315 14396 99
+  l 316 14398 2614 16696 100
+}
+a {
+  s 1334561
+  b 2488 1
+  e 16569 14081
+  l 2488 1 3106 619 100
+  l 3108 620 16569 14081 100
+}
+m {
+  n 0
+}
+#:eof
