@@ -10,11 +10,10 @@ import lavintervals
 import fastareader
 import lavreader
 
-OPT_DEFAULTS = {'str':'string', 'int':0}
+OPT_DEFAULTS = {'fasta_width':70}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 EPILOG = """"""
-FASTA_WIDTH = 70
 TMP_DIR_BASE = 'cleaning'
 
 def main():
@@ -34,6 +33,8 @@ def main():
       'etc.')
   parser.add_argument('-l', '--log', metavar='logfile.txt',
     help='A log file to use for writing details of the process.')
+  parser.add_argument('-W', '--fasta-width', metavar='CHARACTERS', type=int,
+    help='Line width of the output FASTA file. Default: %(default)s.')
 
   args = parser.parse_args()
 
@@ -145,7 +146,7 @@ def main():
           interval_to_aln[loser_rest] = interval_to_aln[next_interval]
         else:
           interval_to_aln[loser_rest] = interval_to_aln[interval]
-  print fasta_format(final_sequence, 'Cleaned', FASTA_WIDTH)
+  print fasta_format(final_sequence, 'Cleaned', args.fasta_width)
 
   shutil.rmtree(tmpdir)
 
@@ -234,7 +235,7 @@ def lav_top_length(lav):
   return (length_of_best, top_score)
 
 
-def fasta_format(sequence, name, width=FASTA_WIDTH):
+def fasta_format(sequence, name, width=70):
   """Turn a sequence and name into a FASTA-formatted string."""
   output = '>'+name+'\n'
   for start in range(0, len(sequence), width):
