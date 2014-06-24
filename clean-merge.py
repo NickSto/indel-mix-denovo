@@ -26,9 +26,9 @@ def main():
     help='Input LAV file aligning a single query sequence to a single '
       'reference (subject) sequence. E.g. from a command like "$ lastz chrM.fa '
       'assembly.fa > align.lav".')
-  parser.add_argument('asm_merge', metavar='assembly.fa',
+  parser.add_argument('asm_merge', metavar='merged-assembly.fa',
     help='The FASTA file of the assembly to be cleaned (the query in the LAV '
-      'alignment).')
+      'alignment). This should be the output of V-FAT\'s contigMerger.pl.')
   parser.add_argument('asm_raw', metavar='raw-assembly.fa',
     help='The FASTA file of the original assembly, before curating, merging, '
       'etc.')
@@ -58,13 +58,10 @@ def main():
     fail('Error: temporary directory "'+tmpdir+'" exists.')
 
 
-  # Compute info that will be needed on the intervals:
-  # convert alignments to a set of intervals and map back to lav objects
+  # convert alignments to a set of intervals and map each to its alignment
   interval_to_aln = lavintervals.alignments_to_intervals(lav)
   # extract the intervals into a simple list
   intervals = interval_to_aln.keys()
-  # build a table to convert subject coordinates to query coordinates
-  conversion_table = lavintervals.hits_to_conv_table(lav, query_to_subject=False)
 
   # Construct a final, non-redundant sequence out of the original, by walking
   # along the reference, adding sequence from the assembly.
@@ -101,7 +98,8 @@ def main():
     if next_interval is None or interval[1] < next_interval[0]:
       # Add query sequence of the interval to the output sequence
       interval_on_query = convert_with_alignment(interval,
-                                                 interval_to_aln[interval])
+                                                 interval_to_aln[interval],
+                                                 fail='tryharder')
       final_sequence += asm_merge.extract(*interval_on_query)
       # Is there a gap between this interval and the next?
       if next_interval is not None and interval[1] - next_interval[0] > 1:
@@ -165,7 +163,8 @@ def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
   logfile.write("processing {}:\n".format(overlap))
   for (alignment, name) in zip((alignment1, alignment2), ('seq1', 'seq2')):
     fastapath = os.path.join(tmpdir, name+'.fa')
-    overlap_on_query = convert_with_alignment(overlap, alignment)
+    overlap_on_query = convert_with_alignment(overlap, alignment,
+                                              fail='tryharder')
     sequence = asm_merge.extract(*overlap_on_query)
     with open(fastapath, 'w') as fastafile:
       fastafile.write(fasta_format(sequence, name))
@@ -246,7 +245,7 @@ def fasta_format(sequence, name, width=FASTA_WIDTH):
   return output
 
 
-def convert_with_alignment(interval, alignment):
+def convert_with_alignment(interval, alignment, fail='throw'):
   """One-off interval conversion, using a pre-chosen alignment.
   Converts the interval's start/end coordinates from subject to query
   coordinates using the given alignment.
@@ -256,8 +255,8 @@ def convert_with_alignment(interval, alignment):
   table = lavintervals.alignments_to_conv_table([alignment],
     query_to_subject=False)
   try:
-    begin = lavintervals.convert(table, interval[0], fail='throw')[0]
-    end = lavintervals.convert(table, interval[1], fail='throw')[0]
+    begin = lavintervals.convert(table, interval[0], fail=fail)[0]
+    end = lavintervals.convert(table, interval[1], fail=fail)[0]
   except Exception as e:
     if len(e.args) > 1 and e.args[1] == 'fail':
       raise AssertionError('Interval must be contained in alignment.')
