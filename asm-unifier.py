@@ -40,7 +40,6 @@ def main():
 
   args = parser.parse_args()
 
-  #TODO 3: system for closing logfile and rm tmpdir on error
   global logfile
   if args.log == '-':
     logfile = sys.stderr
@@ -55,6 +54,12 @@ def main():
     os.makedirs(tmpdir)
   except OSError:
     fail('Error: temporary directory "'+tmpdir+'" exists.')
+
+  # on any exception, first close the logfile and remove the temp directory
+  def cleanup_excepthook(exceptype, value, traceback):
+    cleanup(logfile, tmpdir)
+    sys.__excepthook__(exceptype, value, traceback)
+  sys.excepthook = cleanup_excepthook
 
   # Run LASTZ to align the assembly to the reference
   lavpath = os.path.join(tmpdir, args.asm+'.lav')
@@ -162,7 +167,7 @@ def main():
           interval_to_aln[loser_rest] = interval_to_aln[interval]
   print fasta_format(final_sequence, 'Cleaned', args.fasta_width)
 
-  shutil.rmtree(tmpdir)
+  cleanup(logfile, tmpdir)
 
 
 def length(interval):
@@ -299,6 +304,12 @@ def get_tmp_path(base):
     if attempts > 20:
       fail('Error: cannot find an unoccupied temporary directory name.')
   return candidate
+
+
+def cleanup(logfile, tmpdir):
+  if logfile is not sys.stderr:
+    logfile.close()
+  shutil.rmtree(tmpdir)
 
 
 def fail(message):
