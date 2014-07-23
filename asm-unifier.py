@@ -10,7 +10,7 @@ import lavintervals
 import fastareader
 import lavreader
 
-OPT_DEFAULTS = {'fasta_width':70}
+OPT_DEFAULTS = {'score_by':'length', 'fasta_width':70}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 EPILOG = """"""
@@ -21,18 +21,20 @@ def main():
   parser = argparse.ArgumentParser(description=DESCRIPTION, epilog=EPILOG)
   parser.set_defaults(**OPT_DEFAULTS)
 
-  parser.add_argument('lav', metavar='align.lav',
-    help='Input LAV file aligning a single query sequence to a single '
-      'reference (subject) sequence. E.g. from a command like "$ lastz chrM.fa '
-      'assembly.fa > align.lav".')
-  parser.add_argument('asm_merge', metavar='merged-assembly.fa',
-    help='The FASTA file of the assembly to be cleaned (the query in the LAV '
-      'alignment). This should be the output of V-FAT\'s contigMerger.pl.')
-  parser.add_argument('asm_raw', metavar='raw-assembly.fa',
-    help='The FASTA file of the original assembly, before curating, merging, '
-      'etc.')
+  parser.add_argument('asm', metavar='assembly.fa',
+    help='The FASTA file of the raw assembly.')
+  parser.add_argument('ref', metavar='reference.fa',
+    help='The FASTA file of the reference. N.B.: Must contain only one '
+      'sequence. If the full reference contains multiple chromosomes, you will '
+      'have to break it into multiple files and run this once per chromsome.')
+  parser.add_argument('-s', '--score-by', choices=['length', 'id', 'support'],
+    help='The method used to determine which of two overlapping contigs to use '
+      'in constructing the final sequence. Default: %(default)s.')
+  parser.add_argument('-O', '--orient', action='store_true',
+    help='Only orient the contigs, but do not alter them otherwise.')
   parser.add_argument('-l', '--log', metavar='logfile.txt',
-    help='A log file to use for writing details of the process.')
+    help='A log file to use for writing details of the process, if one is '
+      'desired.')
   parser.add_argument('-W', '--fasta-width', metavar='CHARACTERS', type=int,
     help='Line width of the output FASTA file. Default: %(default)s.')
 
@@ -48,15 +50,27 @@ def main():
     logfile = open('/dev/null', 'w')
 
   # open LAV and FASTA files, make temporary directory
-  asm_merge = fastareader.FastaLineGenerator(args.asm_merge)
-  lav = lavreader.LavReader(args.lav)
-  if len(lav) > 1:
-    fail('Error: Found more than 1 subject and/or query sequence in alignment.')
   tmpdir = get_tmp_path(TMP_DIR_BASE)
   try:
     os.makedirs(tmpdir)
   except OSError:
     fail('Error: temporary directory "'+tmpdir+'" exists.')
+
+  # Run LASTZ to align the assembly to the reference
+  lavpath = os.path.join(tmpdir, args.asm+'.lav')
+  with open(lavpath, 'w') as lavfile:
+    logfile.write("$ "+" ".join(['lastz', args.ref, args.asm])+"\n")
+    subprocess.call(['lastz', args.ref, args.asm], stdout=lavfile)
+  lav = lavreader.LavReader(lavpath)
+
+  # Orient all contigs in forward direction
+  #TODO 1: Implement orient()
+  asm_fasta_path = orient(args.asm, lav)
+  if args.orient:
+    with open(asm_fasta_path) as asm_fasta:
+      for line in asm_fasta:
+        sys.stdout.write(line)
+    sys.exit(0)
 
 
   # convert alignments to a set of intervals and map each to its alignment
@@ -155,6 +169,14 @@ def length(interval):
   """Get length of interval.
   1-based: length((10, 10)) == 1"""
   return interval[1] - interval[0] + 1
+
+
+def orient(in_fasta_path, lav):
+  out_fasta_path = in_fasta_path
+  for hit in lav:
+    if hit.query['revcomp']:
+      raise NotImplementedError('Cannot handle reverse orientation contigs yet.')
+  return out_fasta_path
 
 
 def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
