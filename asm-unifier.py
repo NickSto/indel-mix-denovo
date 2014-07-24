@@ -22,12 +22,12 @@ def main():
   parser = argparse.ArgumentParser(description=DESCRIPTION, epilog=EPILOG)
   parser.set_defaults(**OPT_DEFAULTS)
 
-  parser.add_argument('asm', metavar='assembly.fa',
-    help='The FASTA file of the raw assembly.')
   parser.add_argument('ref', metavar='reference.fa',
     help='The FASTA file of the reference. N.B.: Must contain only one '
       'sequence. If the full reference contains multiple chromosomes, you will '
       'have to break it into multiple files and run this once per chromsome.')
+  parser.add_argument('asm', metavar='assembly.fa',
+    help='The FASTA file of the raw assembly.')
   parser.add_argument('-s', '--score-by', choices=['length', 'id', 'support'],
     help='The method used to determine which of two overlapping contigs to use '
       'in constructing the final sequence. Default: %(default)s.')
@@ -45,7 +45,7 @@ def main():
 
   if args.output:
     raise NotImplementedError('--output option not implemented yet.')
-  elif args.score_by != 'length':
+  elif args.score_by not in ('length'):
     raise NotImplementedError('--score-by option not implemented yet.')
 
   global logfile
