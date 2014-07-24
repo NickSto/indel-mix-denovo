@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import division
+import re
 import os
 import sys
 import random
@@ -16,6 +17,7 @@ USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 EPILOG = """"""
 TMP_DIR_BASE = 'cleaning'
+SPADES_NAME_PATTERN = r'^(NODE_\d+)_length_\d+_cov_\d+\.\d+_ID_\d+$'
 
 def main():
 
@@ -195,6 +197,7 @@ def align(ref_path, asm_path, tmpdir):
   with open(lav_path, 'w') as lavfile:
     logfile.write("$ "+" ".join(['lastz', ref_path, asm_path])+"\n")
     subprocess.call(['lastz', ref_path, asm_path], stdout=lavfile)
+    #TODO 3: Check exit code for success or failure
   return lavreader.LavReader(lav_path)
 
 
@@ -256,7 +259,17 @@ def choose_sequence(alignment1, alignment2, overlap, tmpdir, lav, args):
 
 
 def choose_sequence_length(alignment1, alignment2):
-  return alignment1.parent.query['length'] >= alignment2.parent.query['length']
+  id1 = spades_id(alignment1.parent.query['id'])
+  id2 = spades_id(alignment2.parent.query['id'])
+  logfile.write("choosing between {} and {}:\n".format(id1, id2))
+  length1 = alignment1.parent.query['length']
+  length2 = alignment2.parent.query['length']
+  if length1 >= length2:
+    logfile.write('  winner: {} ({} >= {})\n'.format(id1, length1, length2))
+    return True
+  else:
+    logfile.write('  winner: {} ({} < {})\n'.format(id2, length1, length2))
+    return False
 
 def choose_sequence_id(alignment1, alignment2, lav):
   raise NotImplementedError
@@ -399,6 +412,14 @@ def get_tmp_path(base, max_tries=20):
     if attempts > 20:
       raise Exception('Error: cannot find an unoccupied temp directory name.')
   return candidate
+
+
+def spades_id(raw_name):
+  match = re.search(SPADES_NAME_PATTERN, raw_name)
+  if match:
+    return match.group(1)
+  else:
+    return raw_name
 
 
 def cleanup(logfile, tmpdir):
