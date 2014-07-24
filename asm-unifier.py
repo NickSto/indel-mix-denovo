@@ -33,13 +33,20 @@ def main():
       'in constructing the final sequence. Default: %(default)s.')
   parser.add_argument('-O', '--orient', action='store_true',
     help='Only orient the contigs, but do not alter them otherwise.')
+  parser.add_argument('-o', '--output', metavar='assembly-unified.fa',
+    help='Write the processed assembly FASTA to this file instead of stdout.')
   parser.add_argument('-l', '--log', metavar='logfile.txt',
     help='A log file to use for writing details of the process, if one is '
       'desired.')
-  parser.add_argument('-W', '--fasta-width', metavar='CHARACTERS', type=int,
+  parser.add_argument('-W', '--fasta-width', metavar='characters', type=int,
     help='Line width of the output FASTA file. Default: %(default)s.')
 
   args = parser.parse_args()
+
+  if args.output:
+    raise NotImplementedError('--output option not implemented yet.')
+  elif args.score_by != OPT_DEFAULTS['score_by']:
+    raise NotImplementedError('--score-by option not implemented yet.')
 
   global logfile
   if args.log == '-':
