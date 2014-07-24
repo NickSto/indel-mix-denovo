@@ -45,7 +45,7 @@ def main():
 
   if args.output:
     raise NotImplementedError('--output option not implemented yet.')
-  elif args.score_by != OPT_DEFAULTS['score_by']:
+  elif args.score_by != 'length':
     raise NotImplementedError('--score-by option not implemented yet.')
 
   global logfile
@@ -137,7 +137,7 @@ def main():
         #        not necessary for R33S10 (those gaps are in redundant seq)
         raise NotImplementedError('There must be no gaps between contigs.')
 
-    # or do the intervals overlap?
+    # ..or do the intervals overlap?
     else:
       # The overlapping region
       overlap = (next_interval[0], min(interval[1], next_interval[1]))
@@ -152,8 +152,7 @@ def main():
       # Determine which sequence to use in the overlap section
       alignment1 = interval_to_aln[interval]
       alignment2 = interval_to_aln[next_interval]
-      if choose_sequence(alignment1, alignment2, overlap, asm_merge,
-                         args.asm_raw, tmpdir):
+      if choose_sequence(alignment1, alignment2, overlap, tmpdir, lav, args):
         (winner, loser) = (rest, next_interval)
       else:
         (winner, loser) = (next_interval, rest)
@@ -176,8 +175,8 @@ def main():
           interval_to_aln[loser_rest] = interval_to_aln[next_interval]
         else:
           interval_to_aln[loser_rest] = interval_to_aln[interval]
-  print fasta_format(final_sequence, 'Cleaned', args.fasta_width)
 
+  print fasta_format(final_sequence, 'Cleaned', args.fasta_width)
   cleanup(logfile, tmpdir)
 
 
@@ -240,9 +239,34 @@ def orient(in_fasta_path, lav, tmpdir, fasta_width):
   return out_fasta_path
 
 
-def choose_sequence(alignment1, alignment2, overlap, asm_merge, asm_raw_file,
-                    tmpdir):
-  """Returns True if the first sequence is best, False otherwise."""
+def choose_sequence(alignment1, alignment2, overlap, tmpdir, lav, args):
+  """Returns True if the first sequence is best, False otherwise.
+  Decides based on the criteria specified in args.score_by:
+    "length":  Chooses the longer contig.
+    "id":      Chooses the contig with the highest % identity compared to the
+               reference.
+    "support": Chooses the contig with the highest coverage in supporting reads.
+    """
+  if args.score_by == 'length':
+    return choose_sequence_length(alignment1, alignment2)
+  elif args.score_by == 'id':
+    return choose_sequence_id(alignment1, alignment2, lav)
+  elif args.score_by == 'support':
+    return choose_sequence_support(alignment1, alignment2, tmpdir, args)
+
+
+def choose_sequence_length(alignment1, alignment2):
+  return alignment1.parent.query['length'] >= alignment2.parent.query['length']
+
+def choose_sequence_id(alignment1, alignment2, lav):
+  raise NotImplementedError
+
+
+def choose_sequence_support(alignment1, alignment2, tmpdir, args):
+  raise NotImplementedError
+
+
+def choose_sequence_old(alignment1, alignment2, overlap, tmpdir, asm_raw_file):
   best_hits = []
   logfile.write("processing {}:\n".format(overlap))
   for (alignment, name) in zip((alignment1, alignment2), ('seq1', 'seq2')):
