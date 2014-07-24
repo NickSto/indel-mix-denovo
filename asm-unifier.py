@@ -4,6 +4,7 @@ import os
 import sys
 import random
 import shutil
+import string
 import argparse
 import subprocess
 import lavintervals
@@ -70,7 +71,7 @@ def main():
 
   # Orient all contigs in forward direction
   #TODO 1: Implement orient()
-  asm_fasta_path = orient(args.asm, lav)
+  asm_fasta_path = orient(args.asm, lav, tmpdir, args.fasta_width)
   if args.orient:
     with open(asm_fasta_path) as asm_fasta:
       for line in asm_fasta:
@@ -79,6 +80,9 @@ def main():
 
 
   # convert alignments to a set of intervals and map each to its alignment
+  #TODO 3: System to avoid collisions of intervals with identical start/ends
+  #        Maybe include an identifier of the origin alignment in the tuple?
+  #        (A simple third field of "query name" helps but won't be sufficient.)
   interval_to_aln = lavintervals.alignments_to_intervals(lav)
   # extract the intervals into a simple list
   intervals = interval_to_aln.keys()
@@ -176,11 +180,43 @@ def length(interval):
   return interval[1] - interval[0] + 1
 
 
-def orient(in_fasta_path, lav):
-  out_fasta_path = in_fasta_path
+def orient(in_fasta_path, lav, tmpdir, fasta_width):
+  basename = os.path.splitext(os.path.split(in_fasta_path)[1])[0]
+  out_fasta_path = os.path.join(tmpdir, basename, '.oriented.fa')
+
+  # Read the LAV alignment to determine the orientation of each sequence
+  orientations = {}
   for hit in lav:
-    if hit.query['revcomp']:
-      raise NotImplementedError('Cannot handle reverse orientation contigs yet.')
+    name = hit.query['name']
+    #TODO 2: Double-check that the same sequence can't have two hits in
+    #        opposite orientations.
+    if name in orientations:
+      raise Exception('Error: Found the same sequence twice: "'+name+'"')
+    orientations[name] = hit.query['revcomp']
+
+  # Read through the input FASTA, printing to each sequence in the correct
+  # orientation to the output FASTA.
+  in_fasta = fastareader.FastaLineGenerator(in_fasta_path)
+  name = None
+  seqbuffer = ''
+  with open(out_fasta_path, 'w') as out_fasta:
+    for line in in_fasta:
+      # Started a new sequence; finish up the last one and print header.
+      if in_fasta.name != name:
+        if revcomp:
+          revcomp_seq = get_revcomp(seqbuffer)
+          out_fasta.write(fasta_format(revcomp_seq, name, width=fasta_width,
+                                       header=False))
+        out_fasta.write(">"+in_fasta.name+"\n")
+        name = in_fasta.name
+        revcomp = orientations[name]
+        seqbuffer = ''
+      # If it's reversed, save up the whole sequence so it can be revcomp'd as
+      # a whole at the end.
+      if revcomp:
+        seqbuffer += line
+      else:
+        out_fasta.write(line+"\n")
   return out_fasta_path
 
 
@@ -262,15 +298,23 @@ def lav_top_length(lav):
   return (length_of_best, top_score)
 
 
-def fasta_format(sequence, name, width=70):
+def fasta_format(sequence, name, width=70, header=True):
   """Turn a sequence and name into a FASTA-formatted string."""
-  output = '>'+name+'\n'
+  if header:
+    output = '>'+name+'\n'
   for start in range(0, len(sequence), width):
     end = start + width
     if end > len(sequence):
       end = len(sequence)
     output += sequence[start:end]+'\n'
   return output
+
+
+def get_revcomp(sequence):
+  delete_chars = '\r\n '
+  table = string.maketrans('acgtrymkbdhvACGTRYMKBDHV',
+                           'tgcayrkmvhdbTGCAYRKMVHDB')
+  return sequence.translate(table, delete_chars)[::-1]
 
 
 def convert_with_alignment(interval, alignment, fail='throw'):
@@ -295,14 +339,19 @@ def convert_with_alignment(interval, alignment, fail='throw'):
   return (begin, end)
 
 
-def get_tmp_path(base):
-  attempts = 1
+def get_tmp_path(base, max_tries=20):
+  """Return an unoccupied path based on the supplied one.
+  The returned path will be the argument plus ".tmp", or if that's taken, with a
+  number up to max_tries, like ".3.tmp". Once max_tries has been reached, it
+  will throw an exception.
+  N.B.: It will be a relative path if the input is."""
+  attempts = 0
   candidate = base + '.tmp'
   while os.path.exists(candidate):
-    candidate = "{}.{}.{}".format(base, random.randint(0,1000), 'tmp')
+    candidate = "{}.{}.{}".format(base, attempts, 'tmp')
     attempts+=1
     if attempts > 20:
-      fail('Error: cannot find an unoccupied temporary directory name.')
+      raise Exception('Error: cannot find an unoccupied temp directory name.')
   return candidate
 
 
