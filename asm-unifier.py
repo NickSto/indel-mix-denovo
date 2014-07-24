@@ -73,7 +73,6 @@ def main():
   lav = align(args.ref, args.asm, tmpdir)
 
   # Orient all contigs in forward direction
-  #TODO 1: Implement orient()
   asm_fasta_path = orient(args.asm, lav, tmpdir, args.fasta_width)
   if args.orient:
     with open(asm_fasta_path) as asm_fasta:
@@ -81,6 +80,7 @@ def main():
         sys.stdout.write(line)
     cleanup(logfile, tmpdir)
     sys.exit(0)
+  asm_fasta = fastareader.FastaLineGenerator(asm_fasta_path)
 
 
   # convert alignments to a set of intervals and map each to its alignment
@@ -122,18 +122,21 @@ def main():
       next_interval = None
     del(intervals[0])
     assert next_interval is None or interval[0] <= next_interval[0]
+
     # Is this interval unique (no overlap between this interval and the next)?
     if next_interval is None or interval[1] < next_interval[0]:
       # Add query sequence of the interval to the output sequence
+      seq_name = interval_to_aln[interval].parent.query['name']
       interval_on_query = convert_with_alignment(interval,
                                                  interval_to_aln[interval],
                                                  fail='tryharder')
-      final_sequence += asm_merge.extract(*interval_on_query)
+      final_sequence += asm_fasta.extract(*interval_on_query, chrom=seq_name)
       # Is there a gap between this interval and the next?
       if next_interval is not None and interval[1] - next_interval[0] > 1:
         #TODO 2: add N's (goal is to keep reference coordinates)
         #        not necessary for R33S10 (those gaps are in redundant seq)
         raise NotImplementedError('There must be no gaps between contigs.')
+
     # or do the intervals overlap?
     else:
       # The overlapping region
@@ -344,7 +347,7 @@ def convert_with_alignment(interval, alignment, fail='throw'):
   #TODO 1: What happens when a coordinate is in a small gap between blocks?
   #        Make sure the resulting sequence doesn't include 1bp duplications.
   table = lavintervals.alignments_to_conv_table([alignment],
-    query_to_subject=False)
+                                                query_to_subject=False)
   try:
     begin = lavintervals.convert(table, interval[0], fail=fail)[0]
     end = lavintervals.convert(table, interval[1], fail=fail)[0]
