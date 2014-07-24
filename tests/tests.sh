@@ -33,6 +33,9 @@ for sample in R19S11 R20S1 R31S4 R33S10; do
   rm $dirname/clean-merge/$sample.tmp.fa
 done
 
+echo -e "\tasm-unifier.py ::: R33S10.fa ::: --orient:"
+$dirname/../asm-unifier.py -O $dirname/chrM-rCRS.fa $dirname/asm-unifier/R33S10.fa | diff -s - $dirname/asm-unifier/R33S10-oriented.fa.out
+
 echo -e "\tgroup-filter.py ::: R20S9.tsv/R24S8.tsv/R35S11.tsv/R35S2.tsv:"
 $dirname/../group-filter.py -e test -s 1 -m 1 $dirname/tsv-vars/R20S9.tsv $dirname/tsv-vars/R24S8.tsv $dirname/tsv-vars/R35S11.tsv $dirname/tsv-vars/R35S2.tsv
 diff -s $dirname/tsv-vars/R20S9-test.tsv $dirname/tsv-vars/R20S9.tsv.out
