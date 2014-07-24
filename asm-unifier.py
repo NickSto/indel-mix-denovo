@@ -231,7 +231,7 @@ def orient(in_fasta_path, lav, tmpdir, fasta_width):
                                        header=False))
         out_fasta.write(">"+in_fasta.name+"\n")
         name = in_fasta.name
-        revcomp = orientations[name]
+        revcomp = orientations.get(name, False)
         seqbuffer = ''
       # If it's reversed, save up the whole sequence so it can be revcomp'd as
       # a whole at the end.
