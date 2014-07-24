@@ -70,11 +70,7 @@ def main():
   sys.excepthook = cleanup_excepthook
 
   # Run LASTZ to align the assembly to the reference
-  lavpath = os.path.join(tmpdir, args.asm+'.lav')
-  with open(lavpath, 'w') as lavfile:
-    logfile.write("$ "+" ".join(['lastz', args.ref, args.asm])+"\n")
-    subprocess.call(['lastz', args.ref, args.asm], stdout=lavfile)
-  lav = lavreader.LavReader(lavpath)
+  lav = align(args.ref, args.asm, tmpdir)
 
   # Orient all contigs in forward direction
   #TODO 1: Implement orient()
@@ -83,6 +79,7 @@ def main():
     with open(asm_fasta_path) as asm_fasta:
       for line in asm_fasta:
         sys.stdout.write(line)
+    cleanup(logfile, tmpdir)
     sys.exit(0)
 
 
@@ -187,9 +184,21 @@ def length(interval):
   return interval[1] - interval[0] + 1
 
 
+def align(ref_path, asm_path, tmpdir):
+  """LASTZ align two FASTA files and return an LavReader of the result.
+  Executes "$ lastz ref_path asm_path" and writes the output to an LAV file in
+  "tmpdir"."""
+  basename = os.path.splitext(os.path.split(asm_path)[1])[0]
+  lav_path = os.path.join(tmpdir, basename+'.lav')
+  with open(lav_path, 'w') as lavfile:
+    logfile.write("$ "+" ".join(['lastz', ref_path, asm_path])+"\n")
+    subprocess.call(['lastz', ref_path, asm_path], stdout=lavfile)
+  return lavreader.LavReader(lav_path)
+
+
 def orient(in_fasta_path, lav, tmpdir, fasta_width):
   basename = os.path.splitext(os.path.split(in_fasta_path)[1])[0]
-  out_fasta_path = os.path.join(tmpdir, basename, '.oriented.fa')
+  out_fasta_path = os.path.join(tmpdir, basename+'.oriented.fa')
 
   # Read the LAV alignment to determine the orientation of each sequence
   orientations = {}
@@ -205,6 +214,7 @@ def orient(in_fasta_path, lav, tmpdir, fasta_width):
   # orientation to the output FASTA.
   in_fasta = fastareader.FastaLineGenerator(in_fasta_path)
   name = None
+  revcomp = None
   seqbuffer = ''
   with open(out_fasta_path, 'w') as out_fasta:
     for line in in_fasta:
@@ -309,6 +319,8 @@ def fasta_format(sequence, name, width=70, header=True):
   """Turn a sequence and name into a FASTA-formatted string."""
   if header:
     output = '>'+name+'\n'
+  else:
+    output = ''
   for start in range(0, len(sequence), width):
     end = start + width
     if end > len(sequence):
