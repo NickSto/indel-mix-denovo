@@ -6,6 +6,7 @@ import sys
 import random
 import shutil
 import string
+import logging
 import argparse
 import subprocess
 import lavintervals
@@ -18,6 +19,7 @@ DESCRIPTION = """"""
 EPILOG = """"""
 TMP_DIR_BASE = 'cleaning'
 SPADES_NAME_PATTERN = r'^(NODE_\d+)_length_\d+_cov_\d+\.?\d+_ID_\d+$'
+
 
 def main():
 
@@ -40,6 +42,11 @@ def main():
   parser.add_argument('-l', '--log', metavar='logfile.txt',
     help='A log file to use for writing details of the process, if one is '
       'desired.')
+  parser.add_argument('-v', '--verbosity', type=int, metavar='level',
+    help='How verbose the log file printing should be. If -v is given but -l '
+      'is not, log printing will be turned on, to stderr. Give a number from 0 '
+      '(silent) to 3 (most verbose). Default: 2 when printing to a file, '
+      '1 when printing to stderr (-l -).')
   parser.add_argument('-W', '--fasta-width', metavar='characters', type=int,
     help='Line width of the output FASTA file. Default: %(default)s.')
 
@@ -53,13 +60,33 @@ def main():
   else:
     outfile = sys.stdout
 
-  global logfile
-  if args.log == '-':
-    logfile = sys.stderr
-  elif args.log:
-    logfile = open(args.log, 'w')
+  # Set up logger
+  # logging level
+  if args.verbosity == 0:
+    loglevel = logging.WARNING
+  elif args.verbosity == 1:
+    loglevel = logging.INFO
+  elif args.verbosity == 2:
+    loglevel = logging.DEBUG
+  elif args.verbosity >= 3:
+    loglevel = logging.NOTSET
+  elif args.verbosity is None:
+    # default loglevel when printing to screen
+    if args.log == '-':
+      loglevel = logging.INFO
+    # default loglevel when printing to file
+    else:
+      loglevel = logging.DEBUG
   else:
-    logfile = open('/dev/null', 'w')
+    fail('Error: Invalid verbosity "'+str(args.verbosity)+'"')
+  # open logger, set to correct output destination
+  if args.log == '-' or args.verbosity is not None:
+    logging.basicConfig(stream=sys.stderr, level=loglevel, format='%(message)s')
+  elif args.log:
+    logging.basicConfig(filename=args.log, filemode='w', level=loglevel,
+      format='%(message)s')
+  else:
+    logging.disable(logging.CRITICAL)
 
   # open LAV and FASTA files, make temporary directory
   tmpdir = get_tmp_path(TMP_DIR_BASE)
@@ -68,9 +95,9 @@ def main():
   except OSError:
     fail('Error: temporary directory "'+tmpdir+'" exists.')
 
-  # on any exception, first close the logfile and remove the temp directory
+  # on any exception, first close the outfile and remove the temp directory
   def cleanup_excepthook(exceptype, value, traceback):
-    cleanup(outfile, logfile, tmpdir)
+    cleanup(outfile, tmpdir)
     sys.__excepthook__(exceptype, value, traceback)
   sys.excepthook = cleanup_excepthook
 
@@ -81,7 +108,7 @@ def main():
     with open(asm_fasta_path) as asm_fasta:
       for line in asm_fasta:
         sys.stdout.write(line)
-    cleanup(outfile, logfile, tmpdir)
+    cleanup(outfile, tmpdir)
     sys.exit(0)
   asm_fasta = fastareader.FastaLineGenerator(asm_fasta_path)
 
@@ -182,7 +209,7 @@ def main():
           interval_to_aln[loser_rest] = interval_to_aln[interval]
 
   outfile.write(fasta_format(final_sequence, 'Cleaned', args.fasta_width))
-  cleanup(outfile, logfile, tmpdir)
+  cleanup(outfile, tmpdir)
 
 
 def length(interval):
@@ -198,7 +225,7 @@ def align(ref_path, asm_path, tmpdir):
   basename = os.path.splitext(os.path.split(asm_path)[1])[0]
   lav_path = os.path.join(tmpdir, basename+'.lav')
   with open(lav_path, 'w') as lavfile:
-    logfile.write("$ "+" ".join(['lastz', ref_path, asm_path])+"\n")
+    logging.info("$ "+" ".join(['lastz', ref_path, asm_path]))
     subprocess.call(['lastz', ref_path, asm_path], stdout=lavfile)
     #TODO 3: Check exit code for success or failure
   return lavreader.LavReader(lav_path)
@@ -274,14 +301,14 @@ def choose_sequence(alignment1, alignment2, overlap, tmpdir, lav, args):
 def choose_sequence_length(alignment1, alignment2):
   id1 = nickname(alignment1.parent.query['id'])
   id2 = nickname(alignment2.parent.query['id'])
-  logfile.write("choosing between {} and {}:\n".format(id1, id2))
+  logging.debug("choosing between {} and {}:".format(id1, id2))
   length1 = alignment1.parent.query['length']
   length2 = alignment2.parent.query['length']
   if length1 >= length2:
-    logfile.write('  winner: {} ({} >= {})\n'.format(id1, length1, length2))
+    logging.debug('  winner: {} ({} >= {})'.format(id1, length1, length2))
     return True
   else:
-    logfile.write('  winner: {} ({} < {})\n'.format(id2, length1, length2))
+    logging.debug('  winner: {} ({} < {})'.format(id2, length1, length2))
     return False
 
 def choose_sequence_id(alignment1, alignment2, lav):
@@ -294,7 +321,7 @@ def choose_sequence_support(alignment1, alignment2, tmpdir, args):
 
 def choose_sequence_old(alignment1, alignment2, overlap, tmpdir, asm_raw_file):
   best_hits = []
-  logfile.write("processing {}:\n".format(overlap))
+  logging.debug("processing {}:".format(overlap))
   for (alignment, name) in zip((alignment1, alignment2), ('seq1', 'seq2')):
     fastapath = os.path.join(tmpdir, name+'.fa')
     overlap_on_query = convert_with_alignment(overlap, alignment,
@@ -309,7 +336,7 @@ def choose_sequence_old(alignment1, alignment2, overlap, tmpdir, asm_raw_file):
       subprocess.call(['lastz', fastapath, asm_raw_file], stdout=lavfile)
     lav = lavreader.LavReader(lavpath)
     # Get the top-scoring alignment
-    logfile.write("  scores for {}:\n".format(overlap_on_query))
+    logging.debug("  scores for {}:".format(overlap_on_query))
     (top_length, top_score) = lav_top_length(lav)
     best_hits.append({'length':top_length, 'score':top_score})
   # If both match the same contig the best, choose the highest alignment score
@@ -325,7 +352,7 @@ def lav_top_score(lav):
   top_score = 0
   for hit in lav:
     for alignment in hit:
-      logfile.write("    {}\n".format(alignment.score))
+      logging.debug("    {}".format(alignment.score))
       if alignment.score > top_score:
         top_score = alignment.score
   return top_score
@@ -345,7 +372,7 @@ def lav_top_id(lav):
         total_length += length
         total_id += length * block.identity
       id_pct = total_id / total_length
-      logfile.write("    {}\n".format(round(id_pct, 2)))
+      logging.debug("    {}".format(round(id_pct, 2)))
       if id_pct > top_id:
         top_id = id_pct
   return top_id
@@ -357,14 +384,14 @@ def lav_top_length(lav):
   length_of_best = 0
   top_score = 0
   for hit in lav:
-    logfile.write("    len: {}\tscores: ".format(hit.query['length']))
+    log_msg = "    len: {}\tscores: ".format(hit.query['length'])
     for alignment in hit:
-      logfile.write("{} ".format(alignment.score))
+      log_msg += "{} ".format(alignment.score)
       if alignment.score > top_score:
         top_score = alignment.score
         length_of_best = hit.query['length']
-    logfile.write("\n")
-  logfile.write("    best: {}\n".format(length_of_best))
+    logging.debug(log_msg)
+  logging.debug("    best: {}".format(length_of_best))
   return (length_of_best, top_score)
 
 
@@ -437,11 +464,10 @@ def nickname(raw_name):
   return new_name
 
 
-def cleanup(outfile, logfile, tmpdir):
+def cleanup(outfile, tmpdir):
+  logging.shutdown()
   if outfile is not sys.stdout:
     outfile.close()
-  if logfile is not sys.stderr:
-    logfile.close()
   shutil.rmtree(tmpdir)
 
 
