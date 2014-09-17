@@ -17,7 +17,7 @@ USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 EPILOG = """"""
 TMP_DIR_BASE = 'cleaning'
-SPADES_NAME_PATTERN = r'^(NODE_\d+)_length_\d+_cov_\d+\.\d+_ID_\d+$'
+SPADES_NAME_PATTERN = r'^(NODE_\d+)_length_\d+_cov_\d+\.?\d+_ID_\d+$'
 
 def main():
 
@@ -272,8 +272,8 @@ def choose_sequence(alignment1, alignment2, overlap, tmpdir, lav, args):
 
 
 def choose_sequence_length(alignment1, alignment2):
-  id1 = spades_id(alignment1.parent.query['id'])
-  id2 = spades_id(alignment2.parent.query['id'])
+  id1 = nickname(alignment1.parent.query['id'])
+  id2 = nickname(alignment2.parent.query['id'])
   logfile.write("choosing between {} and {}:\n".format(id1, id2))
   length1 = alignment1.parent.query['length']
   length2 = alignment2.parent.query['length']
@@ -427,12 +427,14 @@ def get_tmp_path(base, max_tries=20):
   return candidate
 
 
-def spades_id(raw_name):
+# Turn some types of verbose contig names into more concise ones
+def nickname(raw_name):
+  # SPAdes
+  new_name = raw_name
   match = re.search(SPADES_NAME_PATTERN, raw_name)
   if match:
-    return match.group(1)
-  else:
-    return raw_name
+    new_name = match.group(1)
+  return new_name
 
 
 def cleanup(outfile, logfile, tmpdir):
