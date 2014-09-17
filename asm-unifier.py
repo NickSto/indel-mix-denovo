@@ -45,10 +45,13 @@ def main():
 
   args = parser.parse_args()
 
-  if args.output:
-    raise NotImplementedError('--output option not implemented yet.')
-  elif args.score_by not in ('length'):
+  if args.score_by not in ('length'):
     raise NotImplementedError('--score-by option not implemented yet.')
+
+  if args.output:
+    outfile = open(args.output, 'w')
+  else:
+    outfile = sys.stdout
 
   global logfile
   if args.log == '-':
@@ -67,7 +70,7 @@ def main():
 
   # on any exception, first close the logfile and remove the temp directory
   def cleanup_excepthook(exceptype, value, traceback):
-    cleanup(logfile, tmpdir)
+    cleanup(outfile, logfile, tmpdir)
     sys.__excepthook__(exceptype, value, traceback)
   sys.excepthook = cleanup_excepthook
 
@@ -78,7 +81,7 @@ def main():
     with open(asm_fasta_path) as asm_fasta:
       for line in asm_fasta:
         sys.stdout.write(line)
-    cleanup(logfile, tmpdir)
+    cleanup(outfile, logfile, tmpdir)
     sys.exit(0)
   asm_fasta = fastareader.FastaLineGenerator(asm_fasta_path)
 
@@ -178,8 +181,8 @@ def main():
         else:
           interval_to_aln[loser_rest] = interval_to_aln[interval]
 
-  print fasta_format(final_sequence, 'Cleaned', args.fasta_width)
-  cleanup(logfile, tmpdir)
+  outfile.write(fasta_format(final_sequence, 'Cleaned', args.fasta_width))
+  cleanup(outfile, logfile, tmpdir)
 
 
 def length(interval):
@@ -210,7 +213,6 @@ def orient(in_fasta_path, lav, tmpdir, fasta_width):
   # alignment scores for each.
   orientations = {}
   scores = {}
-  orient_str = {True: '-', False: '+'}
   for hit in lav:
     name = hit.query['name']
     #TODO 2: Check that summing alignment scores is a reasonable way of
@@ -433,7 +435,9 @@ def spades_id(raw_name):
     return raw_name
 
 
-def cleanup(logfile, tmpdir):
+def cleanup(outfile, logfile, tmpdir):
+  if outfile is not sys.stdout:
+    outfile.close()
   if logfile is not sys.stderr:
     logfile.close()
   shutil.rmtree(tmpdir)
