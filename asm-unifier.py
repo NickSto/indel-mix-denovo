@@ -71,11 +71,9 @@ def main():
     sys.__excepthook__(exceptype, value, traceback)
   sys.excepthook = cleanup_excepthook
 
-  # Run LASTZ to align the assembly to the reference
-  lav = align(args.ref, args.asm, tmpdir)
-
   # Orient all contigs in forward direction
-  asm_fasta_path = orient(args.asm, lav, tmpdir, args.fasta_width)
+  pre_lav = align(args.ref, args.asm, tmpdir) # LASTZ align asm to ref
+  asm_fasta_path = orient(args.asm, pre_lav, tmpdir, args.fasta_width)
   if args.orient:
     with open(asm_fasta_path) as asm_fasta:
       for line in asm_fasta:
@@ -84,6 +82,8 @@ def main():
     sys.exit(0)
   asm_fasta = fastareader.FastaLineGenerator(asm_fasta_path)
 
+  # Now align the oriented assembly to the reference
+  lav = align(args.ref, asm_fasta_path, tmpdir)
 
   # convert alignments to a set of intervals and map each to its alignment
   #TODO 3: System to avoid collisions of intervals with identical start/ends
