@@ -205,15 +205,22 @@ def orient(in_fasta_path, lav, tmpdir, fasta_width):
   basename = os.path.splitext(os.path.split(in_fasta_path)[1])[0]
   out_fasta_path = os.path.join(tmpdir, basename+'.oriented.fa')
 
-  # Read the LAV alignment to determine the orientation of each sequence
+  # Read the LAV alignment to determine the orientation of each sequence.
+  # If there are hits to both orientations, decide based on the sum of the
+  # alignment scores for each.
   orientations = {}
+  scores = {}
+  orient_str = {True: '-', False: '+'}
   for hit in lav:
     name = hit.query['name']
-    #TODO 2: Double-check that the same sequence can't have two hits in
-    #        opposite orientations.
-    if name in orientations:
-      raise Exception('Error: Found the same sequence twice: "'+name+'"')
-    orientations[name] = hit.query['revcomp']
+    #TODO 2: Check that summing alignment scores is a reasonable way of
+    #        scoring a hit.
+    score = 0
+    for alignment in hit:
+      score += alignment.score
+    if score > scores.get(name, -1):
+      scores[name] = score
+      orientations[name] = hit.query['revcomp']
 
   # Read through the input FASTA, printing to each sequence in the correct
   # orientation to the output FASTA.
@@ -239,6 +246,10 @@ def orient(in_fasta_path, lav, tmpdir, fasta_width):
         seqbuffer += line
       else:
         out_fasta.write(line+"\n")
+    if revcomp:
+      revcomp_seq = get_revcomp(seqbuffer)
+      out_fasta.write(fasta_format(revcomp_seq, name, width=fasta_width,
+                                   header=False))
   return out_fasta_path
 
 
@@ -410,7 +421,7 @@ def get_tmp_path(base, max_tries=20):
     candidate = "{}.{}.{}".format(base, attempts, 'tmp')
     attempts+=1
     if attempts > 20:
-      raise Exception('Error: cannot find an unoccupied temp directory name.')
+      raise Exception('Cannot find an unoccupied temp directory name.')
   return candidate
 
 
