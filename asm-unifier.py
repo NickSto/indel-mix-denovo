@@ -13,7 +13,7 @@ import lavintervals
 import fastareader
 import lavreader
 
-OPT_DEFAULTS = {'score_by':'length', 'fasta_width':70}
+OPT_DEFAULTS = {'output_name':'Cleaned', 'score_by':'length', 'fasta_width':70}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 EPILOG = """"""
@@ -39,6 +39,9 @@ def main():
     help='Only orient the contigs, but do not alter them otherwise.')
   parser.add_argument('-o', '--output', metavar='assembly-unified.fa',
     help='Write the processed assembly FASTA to this file instead of stdout.')
+  parser.add_argument('-n', '--output-name', metavar='SeqName',
+    help='Use this name for the output sequence in the FASTA header line. '
+      'Default: "%(default)s".')
   parser.add_argument('-l', '--log', metavar='logfile.txt',
     help='A log file to use for writing details of the process, if one is '
       'desired.')
@@ -162,6 +165,9 @@ def main():
       interval_on_query = convert_with_alignment(interval,
                                                  interval_to_aln[interval],
                                                  fail='tryharder')
+      logging.debug('Using {} for {:>5} to {:>5}'.format(nickname(seq_name),
+                                                         interval[0],
+                                                         interval[1]))
       final_sequence += asm_fasta.extract(*interval_on_query, chrom=seq_name)
       # Is there a gap between this interval and the next?
       if next_interval is not None and interval[1] - next_interval[0] > 1:
@@ -208,7 +214,7 @@ def main():
         else:
           interval_to_aln[loser_rest] = interval_to_aln[interval]
 
-  outfile.write(fasta_format(final_sequence, 'Cleaned', args.fasta_width))
+  outfile.write(fasta_format(final_sequence, args.output_name, args.fasta_width))
   cleanup(outfile, tmpdir)
 
 
