@@ -15,8 +15,11 @@ import lavreader
 
 OPT_DEFAULTS = {'output_name':'Cleaned', 'score_by':'length', 'fasta_width':70}
 USAGE = "%(prog)s [options]"
-DESCRIPTION = """"""
-EPILOG = """"""
+DESCRIPTION = """This tool will simplify an assembly using a reference sequence.
+It merges overlapping and adjacent contigs and discards redundant ones."""
+EPILOG = """Notes: This is currently under active development and should be
+considered in alpha status. At the moment it requires contigs that all overlap
+or are adjacent (along the reference), with no gaps between."""
 TMP_DIR_BASE = 'cleaning'
 SPADES_NAME_PATTERN = r'^(NODE_\d+)_length_\d+_cov_\d+\.?\d+_ID_\d+$'
 
@@ -49,7 +52,7 @@ def main():
     help='How verbose the log file printing should be. If -v is given but -l '
       'is not, log printing will be turned on, to stderr. Give a number from 0 '
       '(silent) to 3 (most verbose). Default: 2 when printing to a file, '
-      '1 when printing to stderr (-l -).')
+      '1 when printing to stderr ("-l -").')
   parser.add_argument('-W', '--fasta-width', metavar='characters', type=int,
     help='Line width of the output FASTA file. Default: %(default)s.')
 
@@ -119,8 +122,8 @@ def main():
   lav = align(args.ref, asm_fasta_path, tmpdir)
 
   # convert alignments to a set of intervals and map each to its alignment
-  #TODO 3: System to avoid collisions of intervals with identical start/ends
-  #        Maybe include an identifier of the origin alignment in the tuple?
+  #TODO 3: Way to avoid rare collisions of intervals with identical start/ends
+  #        Maybe include an identifier of the origin alignment in the tuple.
   #        (A simple third field of "query name" helps but won't be sufficient.)
   interval_to_aln = lavintervals.alignments_to_intervals(lav)
   # extract the intervals into a simple list
@@ -148,7 +151,8 @@ def main():
   final_sequence = ''
   while len(intervals) > 0:
     # Pop the next interval, peek the one after it (if it exists)
-    #TODO 3: add new intervals intelligently, to preserve order & avoid sorting
+    #TODO 3: Check how much of a performance bottleneck the sorting is.
+    #        Adds at most a few seconds for 4,000 contigs.
     intervals.sort(key=lambda interval: interval[0]) # sort by start coord
     interval = intervals[0]
     if len(intervals) > 1:
@@ -171,8 +175,7 @@ def main():
       final_sequence += asm_fasta.extract(*interval_on_query, chrom=seq_name)
       # Is there a gap between this interval and the next?
       if next_interval is not None and interval[1] - next_interval[0] > 1:
-        #TODO 2: add N's (goal is to keep reference coordinates)
-        #        not necessary for R33S10 (those gaps are in redundant seq)
+        #TODO 2: Fill gaps with N's
         raise NotImplementedError('There must be no gaps between contigs.')
 
     # ..or do the intervals overlap?
