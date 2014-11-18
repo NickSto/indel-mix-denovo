@@ -1,21 +1,27 @@
 #!/usr/bin/env bash
 set -ue
 
+CHROM_DEFAULT="chrM"
+BOUNDS_DEFAULT="600 16000"
+# must be in PATH
+REQUIRED_COMMANDS="awk bwa samtools"
+# must be in same directory as this script
+REQUIRED_SCRIPTS="pre-process-mt.sh"
+PLATFORM=${PLATFORM:="ILLUMINA"}
+DEBUG=${DEBUG:=}
+
 USAGE="Usage: \$ $(basename $0) [options] ref.fa reads_1.fq reads_2.fq
 Options:
 -s sample:  Give the sample name, instead of inferring it from the first fastq
             filename.
 -d dirname: The output directory to put the results (and intermediate files).
-            The directory must already exist, and be empty."
-DEBUG=${DEBUG:=}
-# must be in PATH
-REQUIRED_COMMANDS="awk bwa samtools naive_variant_caller.py allele-counts.py"
-# must be in same directory as this script
-REQUIRED_SCRIPTS="pre-process-mt.sh"
-PLATFORM=${PLATFORM:="ILLUMINA"}
+            The directory must already exist, and be empty.
+-c chrom:   A chromosome to target the analysis to. Default: $CHROM_DEFAULT.
+-B \"upper lower\": Bounds to hand to rm_chim_in_pair.py. Necessary, if using -c.
+            Default: $BOUNDS_DEFAULT"
+
 #TODO: find actual location of script, resolving links
 scriptdir=$(dirname $0)
-
 
 function main {
 
@@ -34,10 +40,14 @@ function main {
   # get options
   dir=''
   sample=''
-  while getopts ":s:d:h" opt; do
+  chrom="$CHROM_DEFAULT"
+  chim_bounds="$BOUNDS_DEFAULT"
+  while getopts ":s:d:c:B:h" opt; do
     case "$opt" in
       s) sample="$OPTARG";;
       d) dir="$OPTARG";;
+      c) chrom="$OPTARG";;
+      B) chim_bounds="$OPTARG";;
       h) fail "$USAGE";;
     esac
   done
@@ -108,7 +118,7 @@ sample:  $sample"
   map $fastq1 $fastq2 $ref $raw $sample
 
   # Filter alignment
-  exho "bash $scriptdir/pre-process-mt.sh -r $ref $raw $filt"
+  exho "bash $scriptdir/pre-process-mt.sh -r $ref -c $chrom -B \"$chim_bounds\" $raw $filt"
 
   echo -e "end\t$(date +%s)\t$(date)" > $status
 
