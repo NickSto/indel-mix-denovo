@@ -96,7 +96,7 @@ function main {
       fail "Error: \"$dir\" is either not a directory or not empty."
     fi
   else
-    exho "mkdir $dir"
+    exho "mkdir -p $dir"
   fi
 
   # determine filenames
@@ -118,7 +118,7 @@ sample:  $sample"
   map $fastq1 $fastq2 $ref $raw $sample
 
   # Filter alignment
-  exho "bash $scriptdir/pre-process-mt.sh -r $ref -c $chrom -B \"$chim_bounds\" $raw $filt"
+  exho "bash $scriptdir/pre-process-mt.sh -r $ref -s chimrlen -c $chrom -B \"$chim_bounds\" $raw $filt"
 
   echo -e "end\t$(date +%s)\t$(date)" > $status
 
