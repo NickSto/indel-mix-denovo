@@ -1,19 +1,26 @@
 #!/usr/bin/env bash
 set -ue
 
-USAGE="Usage: \$ $(basename $0) [-s step] [-r reference.fa] input.bam [output-name.bam [tmp_dir_name]]
-N.B.: If you give a temporary directory name, it will not be deleted at the end.
--s: Give a processing step to stop at, and return that result file instead.
-    Step names:
-      filter1
-      chimrlen
-      realign"
-REGEX="[a-zA-Z0-9]+:[0-9]+:[a-zA-Z0-9-]+:[0-9]+:([0-9]+):([0-9]+):([0-9]+).*."
 # note: the reference does not have to be indexed; bamleftalign will do that.
 REF_DEFAULT="$HOME/bx/data/chrM-rCRS.fa"
+CHROM_DEFAULT="chrM"
+BOUNDS_DEFAULT="600 16000"
 REQUIRED_SCRIPTS="rm_chim_in_pair.py nm-ratio.select.py get_major_from_bam.py"
 REQUIRED_COMMANDS="java bamtools samtools bamleftalign"
 PICARD_DIR=${PICARD_DIR:-~/src/picard-tools-1.100}
+REGEX="[a-zA-Z0-9]+:[0-9]+:[a-zA-Z0-9-]+:[0-9]+:([0-9]+):([0-9]+):([0-9]+).*."
+USAGE="Usage: \$ $(basename $0) [-r reference.fa] input.bam [output-name.bam [tmp_dir_name]]
+N.B.: If you give a temporary directory name, it will not be deleted at the end.
+-r: The reference sequence. Default: $REF_DEFAULT
+-s: A processing step to stop at. Will return that result file instead.
+    Step names:
+      filter1
+      chimrlen
+      realign
+-c: A chromosome to target the analysis to. Default: $CHROM_DEFAULT.
+    N.B.: Not fully implemented yet! Only works up through chimrlen!
+-B: Bounds to hand to rm_chim_in_pair.py. Necessary, if using -c. Default:
+    $BOUNDS_DEFAULT"
 
 #TODO: find actual location of script, resolving links
 scriptdir=$(dirname $0)
@@ -25,11 +32,15 @@ function fail {
 
 # read in arguments
 ref="$REF_DEFAULT"
+chrom="$CHROM_DEFAULT"
+chim_bounds="$BOUNDS_DEFAULT"
 stopat=''
-while getopts ":r:s:h" opt; do
+while getopts ":r:s:c:B:h" opt; do
   case "$opt" in
     r) ref="$OPTARG";;
     s) stopat="$OPTARG";;
+    c) chrom="$OPTARG";;
+    B) chim_bounds="$OPTARG";;
     h) echo "$USAGE" >&2
        exit 1;;
   esac
@@ -144,7 +155,7 @@ echo "--- Selection of proper started ---"
 input="dupmarked.bam"
 output="filtered1.bam"
 bamtools filter            \
-  -region chrM             \
+  -region $chrom           \
   -isPaired true           \
   -isProperPair true       \
   -isMateMapped true       \
@@ -167,8 +178,8 @@ java -jar $PICARD_DIR/SortSam.jar \
 # Remove chimeric reads and reads < 100bp
 echo "--- dechim and rlen started ---"
 input="sorted2.bam"
-output="dechim.rlen.sorted2.bam"  # this script gives a hardcoded output name
-python "$scriptdir/rm_chim_in_pair.py" "$tmpdir/$input"
+output="dechim.rlen.bam"  # this script gives a hardcoded output name
+python "$scriptdir/rm_chim_in_pair.py" -r $chrom -b $chim_bounds "$tmpdir/$input" "$tmpdir/$output"
 
 if [[ $stopat == 'chimrlen' ]]; then
   finish "$tmpdir/$output"
@@ -176,7 +187,7 @@ fi
 
 # bamleftalign
 echo "--- realignment started ---"
-input="dechim.rlen.sorted2.bam"
+input="dechim.rlen.bam"
 output="realigned.bam"
 samtools view -b "$tmpdir/$input" \
   | bamleftalign -f "$ref"        \

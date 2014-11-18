@@ -2,10 +2,35 @@
 import os
 import sys
 import pysam
+import argparse
 
-infile = sys.argv[1]
-(dirname, filename) = os.path.split(infile)
-outfile = os.path.join(dirname, 'dechim.rlen.'+filename)
+OPT_DEFAULTS = {'length':100, 'region':'chrM', 'bounds':(600,16000)}
+DESCRIPTION = """Remove chimeric reads, and reads under a minimum length from an
+an alignment. Preserves read pairs by removing either both or neither."""
+USAGE = """%(prog)s [-r region] input.bam [output.bam]"""
+
+parser = argparse.ArgumentParser(description=DESCRIPTION)
+parser.set_defaults(**OPT_DEFAULTS)
+parser.add_argument('input', metavar='input.bam',
+  help='The input alignment.')
+parser.add_argument('output', metavar='output.bam', nargs='?',
+  help='The output alignment (optional). If not given, the output filename '
+    'will be the input filename prepended with "dechim.rlen.".')
+parser.add_argument('-l', '--length', metavar='length', type=int,
+  help='Minimum read length. Default: %(default)s.')
+parser.add_argument('-r', '--region', metavar='chrom',
+  help='The name of the target sequence (chromosome). Default: %(default)s.')
+parser.add_argument('-b', '--bounds', metavar='coord', type=int, nargs=2,
+  help='The bounds of the chimera-free region of the target. Reads whose '
+    'chimeric partner is located outside this region will still pass the '
+    'filter. Intended for circular genomes and plasmids where reads will map '
+    'partially to the start and end at the same time. Default: %(default)s.')
+args = parser.parse_args()
+
+if not args.output:
+  dirpath, filename = os.path.split(args.input)
+  args.output = os.path.join(dirpath, 'dechim.rlen.'+filename)
+
 
 def check_chim(read):
   tags = dict(read.tags)
@@ -13,7 +38,8 @@ def check_chim(read):
     sa = tags['SA'].split(';')[:-1]
     if len(sa) == 1:
       (chrom, pos, strand, cigar, mapq, nm) = sa[0].split(',')
-      if chrom == 'chrM' and (int(pos) >= 16000 or int(pos) <= 600):
+      if (chrom == args.region and
+          (int(pos) <= args.bounds[0] or int(pos) >= args.bounds[1])):
         return read
       else:
         pass
@@ -22,14 +48,14 @@ def check_chim(read):
   else:
     return read
 
-sam = pysam.Samfile(infile, 'rb')
-out = pysam.Samfile(outfile, 'wb', template=sam)
+sam = pysam.Samfile(args.input, 'rb')
+out = pysam.Samfile(args.output, 'wb', template=sam)
 for read in sam:
   try:
     read1 = read
     read2 = sam.next()
     if (check_chim(read1) and check_chim(read2) and
-        read1.rlen >= 100 and read2.rlen >= 100):
+        read1.rlen >= args.length and read2.rlen >= args.length):
       out.write(read1)
       out.write(read2)
     else:
