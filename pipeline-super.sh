@@ -11,7 +11,7 @@ DEBUG=${DEBUG:=}
 # must be in PATH
 REQUIRED_COMMANDS="awk bwa samtools naive_variant_caller.py allele-counts.py"
 # must be in same directory as this script
-REQUIRED_SCRIPTS="pre-process-mt.sh pipeline-nvc-cvg.sh filter.awk edge_effect.py"
+REQUIRED_SCRIPTS="pre-process-mt.sh"
 PLATFORM=${PLATFORM:="ILLUMINA"}
 #TODO: find actual location of script, resolving links
 scriptdir=$(dirname $0)
@@ -70,15 +70,6 @@ function main {
     sample=$(echo "$sample" | sed -E 's/_S[0-9]+_L001_R[12]_001//')
   fi
 
-  if [[ $dir ]]; then
-    if [[ ! -d $dir ]] || [[ $(ls $dir) ]]; then
-      fail "Error: \"$dir\" must be an existing, empty directory."
-    fi
-  else
-    dir=$(dirname $fastq1)/$sample
-    exho "mkdir $dir"
-  fi
-
   # Check that input files exist
   #TODO: Check that reference is indexed (avoid unclear BWA error message).
   for file in $ref $fastq1 $fastq2; do
@@ -86,6 +77,17 @@ function main {
       fail "Error: \"$file\" nonexistent, inaccessible, or empty."
     fi
   done
+
+  if [[ ! $dir ]]; then
+    dir=$(dirname $fastq1)/$sample
+  fi
+  if [[ -e $dir ]]; then
+    if [[ ! -d $dir ]] || [[ $(ls $dir) ]]; then
+      fail "Error: \"$dir\" is either not a directory or not empty."
+    fi
+  else
+    exho "mkdir $dir"
+  fi
 
   # determine filenames
   status="$dir/status.txt"
