@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+if [ ! $BASH_VERSINFO ] || [ $BASH_VERSINFO -lt 4 ]; then
+  echo "Error: Must use bash version 4+." >&2
+  exit 1
+fi
 set -ue
 
 CHROM_DEFAULT="chrM"
@@ -7,10 +11,16 @@ BOUNDS_DEFAULT="600 16000"
 REQUIRED_COMMANDS="awk bwa samtools"
 # must be in same directory as this script
 REQUIRED_SCRIPTS="pre-process-mt.sh"
+PICARD_DIR=${PICARD_DIR:-~/src/picard-tools-1.100}
 PLATFORM=${PLATFORM:="ILLUMINA"}
 DEBUG=${DEBUG:=}
 
 USAGE="Usage: \$ $(basename $0) [options] ref.fa reads_1.fq reads_2.fq
+Run the tasks required to produce the datasets the indel pipeline can run on.
+This will filter, assemble, map, and filter the data from one sample. Then,
+pipeline.sh will run the indel pipeline on the assembly-aligned data.
+pipeline-meta.sh can be used to run this on a set of related samples, merge them
+into a single BAM marked by read groups, then run the indel pipeline on it.
 Options:
 -s sample:  Give the sample name, instead of inferring it from the first fastq
             filename.
@@ -36,6 +46,9 @@ function main {
       fail "Error: Required script $script missing from local directory."
     fi
   done
+  if [[ ! -d $PICARD_DIR ]] || [[ -z $(ls $PICARD_DIR) ]]; then
+    fail "Picard directory $PICARD_DIR missing or empty."
+  fi
 
   # get options
   dir=''
@@ -99,11 +112,6 @@ function main {
     exho "mkdir -p $dir"
   fi
 
-  # determine filenames
-  status="$dir/status.txt"
-  raw="$dir/raw.bam"
-  filt="$dir/filt.bam"
-
   echo "\
 scripts: $scriptdir
 outdir:  $dir
@@ -112,15 +120,54 @@ fastq1:  $fastq1
 fastq2:  $fastq2
 sample:  $sample"
 
+  # determine filenames
+  status="$dir/status.txt"
+  ref_align_raw="$dir/ref_raw.bam"
+  ref_align_filt="$dir/ref_filt.bam"
+  asm_align_raw="$dir/asm_raw.bam"
+  asm_align_filt="$dir/asm_filt.bam"
+  asm_dir="$dir/asm"
+
   echo -e "start\t$(date +%s)\t$(date)" > $status
 
   # Align to reference
-  map $fastq1 $fastq2 $ref $raw $sample
+  map $fastq1 $fastq2 $ref $ref_align_raw $sample
 
   # Filter alignment
-  exho "bash $scriptdir/pre-process-mt.sh -r $ref -s chimrlen -c $chrom -B \"$chim_bounds\" $raw $filt"
+  exho "bash $scriptdir/pre-process-mt.sh -r $ref -s chimrlen -c $chrom \
+    -B \"$chim_bounds\" $ref_align_raw $ref_align_filt"
 
-  echo -e "end\t$(date +%s)\t$(date)" > $status
+  # Extract reads
+  # exho "java -jar $PICARD_DIR/SamToFastq.jar INPUT=$ref_align_filt \
+  #   FASTQ=$fastq1_filt SECOND_END_FASTQ=$fastq2_filt \
+  #   VALIDATION_STRINGENCY=SILENT"
+
+  # Assemble
+  # exho "spades.py -k 21,33,55,77,99,127 --careful -1 $fastq1_filt \
+  #   -2 $fastq2_filt -o $asm_dir"
+
+  # Clean up assembly
+  # exho "asm-unifier.py -n $sample $ref $asm_dir/ -o $asm"
+
+  # Map to assembly
+  # map $fastq1_filt $fastq2_filt $asm $asm_align_raw $sample
+
+  # Filter assembly alignment
+  # exho "pre-process-mt.sh -r $ref -s realign -c $chrom -B \"$chim_bounds\" \
+  #   $asm_align_raw $asm_align_filt"
+
+  #TODO: After this, I need to merge multiple individuals into a family.bam,
+  #      then run the actual indel pipeline on that.
+
+  # Process BAM with NVC
+  # exho "naive_variant_caller.py -q 30 -m 20 --ploidy 2 --use_strand \
+  #   --coverage_dtype uint32 --allow_out_of_bounds_positions -r $ref \
+  #   --region $chrom --bam $asm_align_filt --index $asm_align_filt.bai -o $vcf"
+
+  # Process NVC output with Variant Annotator, filter for $chrom
+  # exho "nvc-filter.py -r S -c 1000 -f 0.75 -n -i $vcf | awk '$AWK_FILT' > $vars"
+
+  echo -e "end\t$(date +%s)\t$(date)" >> $status
 
 }
 
