@@ -124,9 +124,12 @@ sample:  $sample"
   status="$dir/status.txt"
   ref_align_raw="$dir/ref_raw.bam"
   ref_align_filt="$dir/ref_filt.bam"
+  fastq1_filt="$dir/filt_1.fq"
+  fastq2_filt="$dir/filt_2.fq"
+  asm_dir="$dir/asm"
+  asm="$dir/asm.fa"
   asm_align_raw="$dir/asm_raw.bam"
   asm_align_filt="$dir/asm_filt.bam"
-  asm_dir="$dir/asm"
 
   echo -e "start\t$(date +%s)\t$(date)" > $status
 
@@ -138,23 +141,23 @@ sample:  $sample"
     -B \"$chim_bounds\" $ref_align_raw $ref_align_filt"
 
   # Extract reads
-  # exho "java -jar $PICARD_DIR/SamToFastq.jar INPUT=$ref_align_filt \
-  #   FASTQ=$fastq1_filt SECOND_END_FASTQ=$fastq2_filt \
-  #   VALIDATION_STRINGENCY=SILENT"
+  exho "java -jar $PICARD_DIR/SamToFastq.jar INPUT=$ref_align_filt \
+    FASTQ=$fastq1_filt SECOND_END_FASTQ=$fastq2_filt \
+    VALIDATION_STRINGENCY=SILENT"
 
   # Assemble
-  # exho "spades.py -k 21,33,55,77,99,127 --careful -1 $fastq1_filt \
-  #   -2 $fastq2_filt -o $asm_dir"
+  exho "spades.py -k 21,33,55,77,99,127 --careful -1 $fastq1_filt \
+    -2 $fastq2_filt -o $asm_dir"
 
   # Clean up assembly
-  # exho "asm-unifier.py -n $sample $ref $asm_dir/ -o $asm"
+  exho "asm-unifier.py -n $sample $ref $asm_dir/contigs.fasta -o $asm"
 
   # Map to assembly
-  # map $fastq1_filt $fastq2_filt $asm $asm_align_raw $sample
+  map $fastq1_filt $fastq2_filt $asm $asm_align_raw $sample
 
   # Filter assembly alignment
-  # exho "pre-process-mt.sh -r $ref -s realign -c $chrom -B \"$chim_bounds\" \
-  #   $asm_align_raw $asm_align_filt"
+  exho "pre-process-mt.sh -r $ref -s realign -c $chrom -B \"$chim_bounds\" \
+    $asm_align_raw $asm_align_filt"
 
   #TODO: After this, I need to merge multiple individuals into a family.bam,
   #      then run the actual indel pipeline on that.
