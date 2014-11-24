@@ -3,7 +3,6 @@ from __future__ import division
 import re
 import os
 import sys
-import random
 import shutil
 import string
 import logging
@@ -12,6 +11,8 @@ import subprocess
 import lavintervals
 import fastareader
 import lavreader
+import distutils.spawn
+
 
 OPT_DEFAULTS = {'output_name':'Cleaned', 'score_by':'length', 'fasta_width':70}
 USAGE = "%(prog)s [options]"
@@ -66,6 +67,9 @@ def main():
   else:
     outfile = sys.stdout
 
+  if not distutils.spawn.find_executable('lastz'):
+    fail('Error: "lastz" command not found in PATH.')
+
   # Set up logger
   # logging level
   if args.verbosity == 0:
@@ -90,7 +94,7 @@ def main():
     logging.basicConfig(stream=sys.stderr, level=loglevel, format='%(message)s')
   elif args.log:
     logging.basicConfig(filename=args.log, filemode='w', level=loglevel,
-      format='%(message)s')
+                        format='%(message)s')
   else:
     logging.disable(logging.CRITICAL)
 
@@ -108,7 +112,7 @@ def main():
   sys.excepthook = cleanup_excepthook
 
   # Orient all contigs in forward direction
-  pre_lav = align(args.ref, args.asm, tmpdir) # LASTZ align asm to ref
+  pre_lav = align(args.ref, args.asm, tmpdir)  # LASTZ align asm to ref
   asm_fasta_path = orient(args.asm, pre_lav, tmpdir, args.fasta_width)
   if args.orient:
     with open(asm_fasta_path) as asm_fasta:
@@ -153,7 +157,8 @@ def main():
     # Pop the next interval, peek the one after it (if it exists)
     #TODO 3: Check how much of a performance bottleneck the sorting is.
     #        Adds at most a few seconds for 4,000 contigs.
-    intervals.sort(key=lambda interval: interval[0]) # sort by start coord
+    #        See: bisect module.
+    intervals.sort(key=lambda interval: interval[0])  # sort by start coord
     interval = intervals[0]
     if len(intervals) > 1:
       next_interval = intervals[1]
@@ -319,6 +324,7 @@ def choose_sequence_length(alignment1, alignment2):
   else:
     logging.debug('  winner: {} ({} < {})'.format(id2, length1, length2))
     return False
+
 
 def choose_sequence_id(alignment1, alignment2, lav):
   raise NotImplementedError

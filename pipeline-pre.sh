@@ -8,7 +8,7 @@ set -ue
 CHROM_DEFAULT="chrM"
 BOUNDS_DEFAULT="600 16000"
 # must be in PATH
-REQUIRED_COMMANDS="awk bwa samtools java spades.py"
+REQUIRED_COMMANDS="awk java samtools bwa lastz spades.py"
 # must be in same directory as this script
 REQUIRED_SCRIPTS="pre-process-mt.sh asm-unifier.py"
 PICARD_DIR=${PICARD_DIR:-~/src/picard-tools-1.100}
