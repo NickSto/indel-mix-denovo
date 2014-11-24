@@ -109,7 +109,7 @@ sample:  $sample"
     -2 $fastq2_filt -o $asm_dir"
 
   # Clean up assembly
-  exho "python $scriptdir/asm-unifier.py -n $sample $ref \
+  exho "python $scriptdir/asm-unifier.py -n $chrom $ref \
     $asm_dir/contigs.fasta -o $asm"
 
   # Map to assembly
