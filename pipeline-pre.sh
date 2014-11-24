@@ -35,6 +35,7 @@ Options:
             filename.
 -d dirname: The output directory to put the results (and intermediate files).
             If the directory already exists, it must be empty.
+-o out.bam: Where to put/name the final, assembly-aligned BAM.
 -c chrom:   A chromosome id to target the analysis to. Reads will be filtered
             to those which align to this chromosome instead of the rest of the
             filter-ref.fa. Default: $CHROM_DEFAULT.
@@ -52,7 +53,8 @@ function main {
   check_required "$scriptdir"
 
   # Parse command line arguments.
-  read ref filter_ref fastq1 fastq2 dir sample chrom bound1 bound2 <<< $(getmyopts "$@")
+  read ref filter_ref fastq1 fastq2 dir sample outpath chrom bound1 bound2 <<< \
+    $(getmyopts "$@")
   if [[ ! $ref ]]; then
     exit 1
   fi
@@ -66,6 +68,7 @@ function main {
   echo "\
 scripts: $scriptdir
 outdir:  $dir
+outpath: $outpath
 ref:     $ref
 fastq1:  $fastq1
 fastq2:  $fastq2
@@ -113,8 +116,12 @@ sample:  $sample"
   map $fastq1_filt $fastq2_filt $asm $asm_align_raw $sample
 
   # Filter assembly alignment
-  exho "bash $scriptdir/pre-process-mt.sh -r $filter_ref -s realign -c $chrom \
+  exho "bash $scriptdir/pre-process-mt.sh -r $asm -s realign -c $chrom \
     -B \"$bound1 $bound2\" $asm_align_raw $asm_align_filt"
+
+  if [[ $outpath != '__NONE__' ]]; then
+    mv "$asm_align_filt" "$outpath"
+  fi
 
   echo -e "end\t$(date +%s)\t$(date)" >> $status
 
@@ -126,6 +133,14 @@ function map {
   read fastq1 fastq2 ref bam sample <<< "$@"
   dir=$(dirname $bam)
   base=$(basename $bam .bam)
+  if [[ ! -s $ref.amb ]] || [[ ! -s $ref.ann ]] || [[ ! -s $ref.bwt ]] || \
+      [[ ! -s $ref.sa ]] || [[ ! -s $ref.pac ]]; then
+    algo="bwtsw"
+    if [[ $(du -sb $ref | awk '{print $1}') -lt 2000000000 ]]; then
+      algo="is"
+    fi
+    exho "bwa index -a $algo $ref"
+  fi
   exho "bwa mem -M -t 16 -R '@RG\tID:$sample\tSM:$sample\tPL:$PLATFORM' $ref $fastq1 $fastq2 > $dir/$base.sam"
   exho "samtools view -Sb $dir/$base.sam > $dir/$base.tmp.bam"
   exho "samtools sort $dir/$base.tmp.bam $dir/$base"
@@ -141,12 +156,14 @@ function getmyopts {
   ## output of this function.
   dir='__NONE__'
   sample='__NONE__'
+  outpath='__NONE__'
   chrom="$CHROM_DEFAULT"
   chim_bounds="$BOUNDS_DEFAULT"
-  while getopts ":s:d:c:B:h" opt; do
+  while getopts ":s:d:o:c:B:h" opt; do
     case "$opt" in
       s) sample="$OPTARG";;
       d) dir="$OPTARG";;
+      o) outpath="$OPTARG";;
       c) chrom="$OPTARG";;
       B) chim_bounds="$OPTARG";;
       h) fail "$USAGE";;
@@ -170,7 +187,8 @@ function getmyopts {
   filter_ref="${@:$OPTIND+1:1}"
   fastq1="${@:$OPTIND+2:1}"
   fastq2="${@:$OPTIND+3:1}"
-  echo "$ref" "$filter_ref" "$fastq1" "$fastq2" "$dir" "$sample" "$chrom" "$bound1" "$bound2"
+  echo "$ref" "$filter_ref" "$fastq1" "$fastq2" "$dir" "$sample" "$outpath" \
+    "$chrom" "$bound1" "$bound2"
 }
 
 
