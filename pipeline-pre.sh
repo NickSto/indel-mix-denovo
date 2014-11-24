@@ -15,31 +15,47 @@ PICARD_DIR=${PICARD_DIR:-~/src/picard-tools-1.100}
 PLATFORM=${PLATFORM:="ILLUMINA"}
 DEBUG=${DEBUG:=}
 
-USAGE="Usage: \$ $(basename $0) [options] ref.fa reads_1.fq reads_2.fq
+USAGE="Usage: \$ $(basename $0) [options] ref.fa filter-ref.fa reads_1.fq reads_2.fq
 Run the tasks required to produce the datasets the indel pipeline can run on.
 This will filter, assemble, map, and filter the data from one sample. Then,
 pipeline.sh will run the indel pipeline on the assembly-aligned data.
 pipeline-meta.sh can be used to run this on a set of related samples, merge them
 into a single BAM marked by read groups, then run the indel pipeline on it.
+Positional Arguments:
+ref.fa:     The target reference sequence. This will be used to guide cleanup of
+            the de novo assembly.
+filter-ref.fa: A reference, composed of the target sequence, plus all other
+               sequences present in the sample which could potentially be a
+               source of reads. This will be the mapping target for reads in the
+               filtering step.
+reads_1.fq: Input reads, mate 1, in fastq format.
+reads_2.fq: Ditto, mate 2.
 Options:
 -s sample:  Give the sample name, instead of inferring it from the first fastq
             filename.
 -d dirname: The output directory to put the results (and intermediate files).
             If the directory already exists, it must be empty.
--c chrom:   A chromosome to target the analysis to. Default: $CHROM_DEFAULT.
+-c chrom:   A chromosome id to target the analysis to. Reads will be filtered
+            to those which align to this chromosome instead of the rest of the
+            filter-ref.fa. Default: $CHROM_DEFAULT.
 -B \"upper lower\": Bounds to hand to rm_chim_in_pair.py. Necessary, if using -c.
-            Default: $BOUNDS_DEFAULT"
+                  Default: $BOUNDS_DEFAULT"
 
 #TODO: find actual location of script, resolving links
 scriptdir=$(dirname $0)
 
 function main {
 
+  #################### SETUP ####################
+
   # Check for required commands and scripts.
   check_required "$scriptdir"
 
   # Parse command line arguments.
-  read ref fastq1 fastq2 dir sample chrom bound1 bound2 <<< $(getmyopts "$@")
+  read ref filter_ref fastq1 fastq2 dir sample chrom bound1 bound2 <<< $(getmyopts "$@")
+  if [[ ! $ref ]]; then
+    exit 1
+  fi
 
   # Try to determine sample name, if none given.
   sample=$(get_sample "$sample" "$fastq1")
@@ -56,7 +72,7 @@ fastq2:  $fastq2
 sample:  $sample"
 
   # determine filenames
-  status="$dir/status.txt"
+  status="$dir/status-pre.txt"
   ref_align_raw="$dir/ref_raw.bam"
   ref_align_filt="$dir/ref_filt.bam"
   fastq1_filt="$dir/filt_1.fq"
@@ -72,10 +88,10 @@ sample:  $sample"
   echo -e "start\t$(date +%s)\t$(date)" > $status
 
   # Align to reference
-  map $fastq1 $fastq2 $ref $ref_align_raw $sample
+  map $fastq1 $fastq2 $filter_ref $ref_align_raw $sample
 
   # Filter alignment
-  exho "bash $scriptdir/pre-process-mt.sh -r $ref -s chimrlen -c $chrom \
+  exho "bash $scriptdir/pre-process-mt.sh -r $filter_ref -s chimrlen -c $chrom \
     -B \"$bound1 $bound2\" $ref_align_raw $ref_align_filt"
 
   # Extract reads
@@ -97,19 +113,8 @@ sample:  $sample"
   map $fastq1_filt $fastq2_filt $asm $asm_align_raw $sample
 
   # Filter assembly alignment
-  exho "bash $scriptdir/pre-process-mt.sh -r $ref -s realign -c $chrom \
+  exho "bash $scriptdir/pre-process-mt.sh -r $filter_ref -s realign -c $chrom \
     -B \"$bound1 $bound2\" $asm_align_raw $asm_align_filt"
-
-  #TODO: After this, I need to merge multiple individuals into a family.bam,
-  #      then run the actual indel pipeline on that.
-
-  # Process BAM with NVC
-  # exho "naive_variant_caller.py -q 30 -m 20 --ploidy 2 --use_strand \
-  #   --coverage_dtype uint32 --allow_out_of_bounds_positions -r $ref \
-  #   --region $chrom --bam $asm_align_filt --index $asm_align_filt.bai -o $vcf"
-
-  # Process NVC output with Variant Annotator, filter for $chrom
-  # exho "nvc-filter.py -r S -c 1000 -f 0.75 -n -i $vcf | awk '$AWK_FILT' > $vars"
 
   echo -e "end\t$(date +%s)\t$(date)" >> $status
 
@@ -162,9 +167,10 @@ function getmyopts {
     fail "$USAGE"
   fi
   ref="${@:$OPTIND:1}"
-  fastq1="${@:$OPTIND+1:1}"
-  fastq2="${@:$OPTIND+2:1}"
-  echo "$ref" "$fastq1" "$fastq2" "$dir" "$sample" "$chrom" "$bound1" "$bound2"
+  filter_ref="${@:$OPTIND+1:1}"
+  fastq1="${@:$OPTIND+2:1}"
+  fastq2="${@:$OPTIND+3:1}"
+  echo "$ref" "$filter_ref" "$fastq1" "$fastq2" "$dir" "$sample" "$chrom" "$bound1" "$bound2"
 }
 
 
