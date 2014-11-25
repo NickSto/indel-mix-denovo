@@ -21,26 +21,27 @@ This will filter, assemble, map, and filter the data from one sample. Then,
 pipeline.sh will run the indel pipeline on the assembly-aligned data.
 pipeline-meta.sh can be used to run this on a set of related samples, merge them
 into a single BAM marked by read groups, then run the indel pipeline on it.
-Positional Arguments:
-ref.fa:     The target reference sequence. This will be used to guide cleanup of
-            the de novo assembly.
-filter-ref.fa: A reference, composed of the target sequence, plus all other
-               sequences present in the sample which could potentially be a
-               source of reads. This will be the mapping target for reads in the
-               filtering step.
-reads_1.fq: Input reads, mate 1, in fastq format.
-reads_2.fq: Ditto, mate 2.
-Options:
--s sample:  Give the sample name, instead of inferring it from the first fastq
-            filename.
--d dirname: The output directory to put the results (and intermediate files).
-            If the directory already exists, it must be empty.
--o out.bam: Where to put/name the final, assembly-aligned BAM.
--c chrom:   A chromosome id to target the analysis to. Reads will be filtered
-            to those which align to this chromosome instead of the rest of the
-            filter-ref.fa. Default: $CHROM_DEFAULT.
+  Positional Arguments:
+ref.fa:           The target reference sequence. This will be used to guide
+                  cleanup of the de novo assembly.
+filter-ref.fa:    A reference, composed of the target sequence, plus all other
+                  sequences present in the sample which could potentially be a
+                  source of reads. This will be the mapping target for reads in
+                  the filtering step.
+reads_1.fq:       Input reads, mate 1, in fastq format.
+reads_2.fq:       Ditto, mate 2.
+  Options:
+-s sample:        Give the sample name, instead of inferring it from the first
+                  fastq filename.
+-d dirname:       The output directory to put the results (and intermediate
+                  files). If the directory already exists, it must be empty.
+-o out.bam:       Where to put/name the final, assembly-aligned BAM.
+-c chrom:         A chromosome id to target the analysis to. Reads will be
+                  filtered to those which align to this chromosome instead of
+                  the rest of the filter-ref.fa. Default: $CHROM_DEFAULT.
 -B \"upper lower\": Bounds to hand to rm_chim_in_pair.py. Necessary, if using -c.
-                  Default: $BOUNDS_DEFAULT"
+                  Default: $BOUNDS_DEFAULT
+N.B.: None of the arguments (except -B) can contain spaces."
 
 #TODO: find actual location of script, resolving links
 scriptdir=$(dirname $0)
@@ -53,17 +54,17 @@ function main {
   check_required "$scriptdir"
 
   # Parse command line arguments.
-  read ref filter_ref fastq1 fastq2 dir sample outpath chrom bound1 bound2 <<< \
-    $(getmyopts "$@")
+  read ref filter_ref fastq1 fastq2 dir sample outpath chrom bound1 bound2 \
+    <<< $(getmyopts "$@")
   if [[ ! $ref ]]; then
     exit 1
   fi
 
   # Try to determine sample name, if none given.
-  sample=$(get_sample "$sample" "$fastq1")
+  sample=$(get_sample $sample $fastq1)
 
   # Make sure that input files and output directories exist.
-  dir=$(check_paths "$ref" "$fastq1" "$fastq2" "$dir")
+  dir=$(check_paths $ref $fastq1 $fastq2 $dir $sample)
 
   echo "\
 scripts: $scriptdir
@@ -74,56 +75,45 @@ fastq1:  $fastq1
 fastq2:  $fastq2
 sample:  $sample"
 
-  # determine filenames
-  status="$dir/status-pre.txt"
-  ref_align_raw="$dir/ref_raw.bam"
-  ref_align_filt="$dir/ref_filt.bam"
-  fastq1_filt="$dir/filt_1.fq"
-  fastq2_filt="$dir/filt_2.fq"
-  asm_dir="$dir/asm"
-  asm="$dir/asm.fa"
-  asm_align_raw="$dir/asm_raw.bam"
-  asm_align_filt="$dir/asm_filt.bam"
-
 
   #################### PIPELINE ####################
 
-  echo -e "start\t$(date +%s)\t$(date)" > $status
+  echo -e "start\t$(date +%s)\t$(date)" > $dir/status-pre.txt
 
   # Align to reference
-  map $fastq1 $fastq2 $filter_ref $ref_align_raw $sample
+  map $fastq1 $fastq2 $filter_ref $dir/ref_raw.bam $sample
 
   # Filter alignment
   exho "bash $scriptdir/pre-process-mt.sh -r $filter_ref -s chimrlen -c $chrom \
-    -B \"$bound1 $bound2\" $ref_align_raw $ref_align_filt"
+    -B \"$bound1 $bound2\" $dir/ref_raw.bam $dir/ref_filt.bam"
 
   # Extract reads
   set +e  # Picard exits with spurious errors
-  exho "java -jar $PICARD_DIR/SamToFastq.jar INPUT=$ref_align_filt \
-    FASTQ=$fastq1_filt SECOND_END_FASTQ=$fastq2_filt \
+  exho "java -jar $PICARD_DIR/SamToFastq.jar INPUT=$dir/ref_filt.bam \
+    FASTQ=$dir/filt_1.fq SECOND_END_FASTQ=$dir/filt_2.fq \
     VALIDATION_STRINGENCY=SILENT"
   set -e
 
   # Assemble
-  exho "spades.py -k 21,33,55,77,99,127 --careful -1 $fastq1_filt \
-    -2 $fastq2_filt -o $asm_dir"
+  exho "spades.py -k 21,33,55,77,99,127 --careful -1 $dir/filt_1.fq \
+    -2 $dir/filt_2.fq -o $dir/asm"
 
   # Clean up assembly
   exho "python $scriptdir/asm-unifier.py -n $chrom $ref \
-    $asm_dir/contigs.fasta -o $asm"
+    $dir/asm/contigs.fasta -o $dir/asm.fa"
 
   # Map to assembly
-  map $fastq1_filt $fastq2_filt $asm $asm_align_raw $sample
+  map $dir/filt_1.fq $dir/filt_2.fq $dir/asm.fa $dir/asm_raw.bam $sample
 
   # Filter assembly alignment
-  exho "bash $scriptdir/pre-process-mt.sh -r $asm -s realign -c $chrom \
-    -B \"$bound1 $bound2\" $asm_align_raw $asm_align_filt"
+  exho "bash $scriptdir/pre-process-mt.sh -r $dir/asm.fa -s realign -c $chrom \
+    -B \"$bound1 $bound2\" $dir/asm_raw.bam $dir/asm_filt.bam"
 
   if [[ $outpath != '__NONE__' ]]; then
-    mv "$asm_align_filt" "$outpath"
+    mv $dir/asm_filt.bam $outpath
   fi
 
-  echo -e "end\t$(date +%s)\t$(date)" >> $status
+  echo -e "end\t$(date +%s)\t$(date)" >> $dir/status-pre.txt
 
 }
 
@@ -187,8 +177,24 @@ function getmyopts {
   filter_ref="${@:$OPTIND+1:1}"
   fastq1="${@:$OPTIND+2:1}"
   fastq2="${@:$OPTIND+3:1}"
-  echo "$ref" "$filter_ref" "$fastq1" "$fastq2" "$dir" "$sample" "$outpath" \
-    "$chrom" "$bound1" "$bound2"
+  # Catch arguments with spaces
+  if spaces "$ref" || spaces "$filter_ref" || spaces "$fastq1" \
+      || spaces "$fastq2" || spaces "$dir" || spaces "$sample" \
+      || spaces "$outpath" || spaces "$chrom"; then
+    fail "Error: Arguments must not contain spaces"
+  fi
+  echo $ref $filter_ref $fastq1 $fastq2 $dir $sample $outpath $chrom $bound1 $bound2
+}
+
+
+# Does the first argument contain whitespace?
+function spaces {
+  value="$1"
+  if [[ "$value" == "$(echo "$value" | tr -d ' \n\r\t')" ]]; then
+    false
+  else
+    true
+  fi
 }
 
 
@@ -221,15 +227,15 @@ function get_sample {
     sample=$(basename $sample .fastq)
     sample=$(basename $sample _1)
     sample=$(basename $sample _2)
-    sample=$(echo "$sample" | sed -E 's/_S[0-9]+_L001_R[12]_001//')
+    sample=$(echo $sample | sed -E 's/_S[0-9]+_L001_R[12]_001//')
   fi
-  echo "$sample"
+  echo $sample
 }
 
 
 # Make sure that input files and output directories exist.
 function check_paths {
-  read ref fastq1 fastq2 dir <<< "$@"
+  read ref fastq1 fastq2 dir sample <<< "$@"
   #TODO: Check that reference is indexed (avoid unclear BWA error message).
   # Check for existence of input files.
   for file in $ref $fastq1 $fastq2; do
@@ -250,7 +256,7 @@ function check_paths {
   else
     exho "mkdir -p $dir" >&2
   fi
-  echo "$dir"
+  echo $dir
 }
 
 
