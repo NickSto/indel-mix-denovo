@@ -321,7 +321,7 @@ def summarize_stats(sample, variant, stats):
   output['coord']       = variant.get('coord')
   output['type']        = variant.get('type')
   output['alt']         = variant.get('alt')
-  output['coverage']    = output['supporting'] + stats['opposing']
+  output['coverage']    = stats['supporting'] + stats['opposing']
   output['supporting']  = stats['supporting']
   # no valid freq if no reads at all
   try:

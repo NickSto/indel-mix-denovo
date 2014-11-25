@@ -26,7 +26,9 @@ def main():
   parser.set_defaults(**OPT_DEFAULTS)
 
   parser.add_argument('lavpath', metavar='align.lav',
-    help='The LASTZ alignment, in LAV format.')
+    help='The LASTZ alignment, in LAV format. Should be produced with the '
+      'command "$ lastz reference.fa assembly.fa". This was developed for '
+      'LASTZ version 1.02.00.')
   parser.add_argument('sites_file', metavar='sites.txt', nargs='?',
     help='A file containing the sites to convert. By default, should be in '
       'a tsv returned by inspect-reads.py. Can be omitted, if sites are given '
@@ -36,6 +38,9 @@ def main():
       '(default mode).')
   parser.add_argument('-v', '--vcf', action='store_true',
     help='Input sites file is a VCF.')
+  parser.add_argument('--string', action='store_true',
+    help='Output the lifted-over sites in UCSC format (see --sites for format '
+      'details).')
   parser.add_argument('-s', '--sites', nargs='*', metavar='SITE',
     help='The sites to convert, given as a series of UCSC-format coordinates. '
       'Allows giving the sites directly as command-line arguments, instead of '
