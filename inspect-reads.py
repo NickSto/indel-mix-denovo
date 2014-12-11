@@ -361,8 +361,8 @@ def summarize_stats(sample, variant, stats):
     output['mate_bias']   = None
   else:
     output['mate_bias']   = round(stats['mate_bias'], 4)
-  output['flags']         = ','.join(map(str, flags))
-  output['var_pos_dist']  = format_var_pos_dist(stats['var_pos_dist'])
+  output['flags']         = to_csv(flags)
+  output['var_pos_dist']  = to_csv(bin_var_pos(stats['var_pos_dist']))
   if stats['context'] is None:
     output['context']     = '.'
   else:
@@ -458,10 +458,38 @@ def format_var_pos_dist(raw_dist):
   new_dist = []
   for pos in raw_dist:
     new_dist.extend([pos]*raw_dist[pos])
-    new_dist = raw_dist.keys()
+    # new_dist = raw_dist.keys()
   new_dist.sort()
   dist_str = ','.join(map(str, new_dist))
   return dist_str
+
+
+def bin_var_pos(var_pos, bin_size=10):
+  """Bin the counts of reads showing the indel at each position in the read.
+  Input: A dict mapping coordinates to counts. The coordinates refer to the
+  position in the read where the indel occurs, starting at 1 for the first base.
+  The counts refer to how many reads have the indel at that position."""
+  # If there are reads at position 0, lump them in with position 1
+  if 0 in var_pos:
+    var_pos[1] = var_pos.get(1, 0) + var_pos[0]
+    del(var_pos[0])
+  # Create the a binned list of the correct length
+  max_pos = max(var_pos.keys())
+  max_bin = (max_pos-1)//bin_size
+  binned = [0] * (max_bin+1)
+  # Tally the counts into the bins
+  for (pos, count) in var_pos.items():
+    bin = (pos-1)//bin_size
+    # Prevent negative bin numbers
+    if bin < 0:
+      continue
+    else:
+      binned[bin] += count
+  return binned
+
+
+def to_csv(values):
+  return ','.join(map(str, values))
 
 
 def version_check(expected):
