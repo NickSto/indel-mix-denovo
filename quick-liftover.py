@@ -2,7 +2,6 @@
 #TODO: Warn when site spans the edge of an alignment block
 #TODO: Reverse complement sequence
 from __future__ import division
-import os
 import sys
 import argparse
 import lavreader
@@ -140,9 +139,8 @@ def read_sites(args):
     fail("Error: Unable to determine input filetype.")
 
 
-def parse_sites_string(sites_str):
-  sites = sites_str.split(',')
-  for site_str in sites:
+def parse_sites_string(sites_strs):
+  for site_str in sites_strs:
     try:
       (chrom, coord) = site_str.split(':')
       yield [chrom, int(coord), None, site_str]
@@ -196,7 +194,7 @@ def edit_line(site, args, strand=1):
     'vcf' - VCF (not yet implemented)
   Output is the final line, ready for printing (includes newline).
   """
-  if args.string:
+  if args.string or args.sites:
     return edit_site_string(site, strand=strand)
   elif args.vcf:
     return edit_vcfline(site, strand=strand)
@@ -210,7 +208,7 @@ def edit_tsvline(site, strand=1):
   """See edit_line() for interface."""
   chrom = site[0]
   begin = site[1]
-  end = site[2]
+  # end = site[2]
   raw_line = site[3]
   # do not alter empty/header lines
   if begin is None:
