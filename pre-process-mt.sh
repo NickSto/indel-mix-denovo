@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
+if [ x$BASH = x ] || [ ! $BASH_VERSINFO ] || [ $BASH_VERSINFO -lt 4 ]; then
+  echo "Error: Must use bash version 4+." >&2
+  exit 1
+fi
 set -ue
 
 # note: the reference does not have to be indexed; bamleftalign will do that.
 REF_DEFAULT="$HOME/bx/data/chrM-rCRS.fa"
 CHROM_DEFAULT="chrM"
+CHROM_LEN_DEFAULT=""
+MARGIN_DEFAULT=""
 BOUNDS_DEFAULT="600 16000"
 REQUIRED_SCRIPTS="rm_chim_in_pair.py nm-ratio.select.py get_major_from_bam.py"
 REQUIRED_COMMANDS="java bamtools samtools bamleftalign"
@@ -17,30 +23,53 @@ N.B.: If you give a temporary directory name, it will not be deleted at the end.
       filter1
       chimrlen
       realign
--c: A chromosome to target the analysis to. Default: $CHROM_DEFAULT.
+-c: A chromosome to target the analysis to. Default: $CHROM_DEFAULT. If you change this, you'll
+    probably need to provide either -B or -m since the default -B ($BOUNDS_DEFAULT) will probably
+    no longer be valid.
     N.B.: Not fully implemented yet! Only works up through chimrlen!
--B: Bounds to hand to rm_chim_in_pair.py. Necessary, if using -c. Default:
-    $BOUNDS_DEFAULT"
-
-#TODO: find actual location of script, resolving links
-scriptdir=$(dirname $0)
+-m: The length of the ends of the chromosome that should be exempt from the requirement that reads
+    be non-chimeric. This is to allow for circular chromosomes, so that reads that span the start
+    and end aren't mistakenly discarded as chimeric.
+-B: Bounds to hand to rm_chim_in_pair.py. Default: $BOUNDS_DEFAULT
+-L: The length of the target chromosome. Should not be necessary, as the script should be able to
+    determine this using the reference file and the target chromosome name (-c)."
 
 function fail {
   echo "Error: $1" >&2
   exit 1
 }
 
+# Get this script's actual directory, resolving links.
+function real_dir {
+  if readlink -f dummy >/dev/null 2>/dev/null; then
+    dirname $(readlink -f $0)
+  else
+    # readlink -f doesn't work on BSD
+    cd $(dirname $0)
+    script=$(basename $0)
+    link=$(ls -l $script | awk '{print $NF}')
+    cd $(dirname $link)
+    pwd
+  fi
+}
+
+scriptdir=$(real_dir)
+
 # read in arguments
 ref="$REF_DEFAULT"
 chrom="$CHROM_DEFAULT"
+margin="$MARGIN_DEFAULT"
+chrom_len="$CHROM_LEN_DEFAULT"
 chim_bounds="$BOUNDS_DEFAULT"
 stopat=''
-while getopts ":r:s:c:B:h" opt; do
+while getopts ":r:s:c:B:m:L:h" opt; do
   case "$opt" in
     r) ref="$OPTARG";;
     s) stopat="$OPTARG";;
     c) chrom="$OPTARG";;
     B) chim_bounds="$OPTARG";;
+    m) margin="$OPTARG";;
+    L) chrom_len="$OPTARG";;
     h) echo "$USAGE" >&2
        exit 1;;
   esac
@@ -58,6 +87,13 @@ bamdir=$(dirname "$inpath")
 name=$(basename "$inpath" .bam)
 if [[ ! $outfile ]]; then
   outfile="$bamdir/$name.filt.bam"
+fi
+# If -m was given but not -L, need to use either bioawk or seqlen.awk to
+# determine target sequence length.
+if [[ $margin ]] && ! [[ $chrom_len ]]; then
+  if ! which bioawk >/dev/null 2>/dev/null; then
+    REQUIRED_SCRIPTS="$REQUIRED_SCRIPTS seqlen.awk"
+  fi
 fi
 
 # check for required commands, scripts, and files
@@ -104,6 +140,14 @@ else
 fi
 mkdir "$tmpdir"
 
+# If -m but not -L was given, use bioawk or seqlen.awk to determine target chromosome length.
+if [[ $margin ]] && ! [[ $chrom_len ]]; then
+  if which bioawk >/dev/null 2>/dev/null; then
+    chrom_len=$(bioawk -c fastx '$name == "'$chrom'" { print length($seq) }' $ref | head -n 1)
+  else
+    chrom_len=$(awk -f $scriptdir/seqlen.awk -v target=$chrom $ref | cut -f 2 | head -n 1)
+  fi
+fi
 
 # Save the given output file, remove the tmp dir, and exit.
 # The first argument is the full path to the final output file (in the tmp dir).
@@ -178,8 +222,12 @@ java -jar $PICARD_DIR/SortSam.jar \
 # Remove chimeric reads and reads < 100bp
 echo "--- dechim and rlen started ---"
 input="sorted2.bam"
-output="dechim.rlen.bam"  # this script gives a hardcoded output name
-python "$scriptdir/rm_chim_in_pair.py" -r $chrom -b $chim_bounds "$tmpdir/$input" "$tmpdir/$output"
+output="dechim.rlen.bam"
+if [[ $chrom_len ]] && [[ $margin ]]; then
+  python "$scriptdir/rm_chim_in_pair.py" -r $chrom -m $margin -L $chrom_len "$tmpdir/$input" "$tmpdir/$output"
+else
+  python "$scriptdir/rm_chim_in_pair.py" -r $chrom -b $chim_bounds "$tmpdir/$input" "$tmpdir/$output"
+fi
 
 if [[ $stopat == 'chimrlen' ]]; then
   finish "$tmpdir/$output"
