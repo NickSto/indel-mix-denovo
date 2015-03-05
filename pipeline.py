@@ -10,6 +10,7 @@ PLATFORM = 'ILLUMINA'
 OPT_DEFAULTS = {}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
+FILENAMES = ('bam1raw.bam', 'bam1filt.bam')
 
 
 def main(argv):
@@ -41,17 +42,34 @@ def main(argv):
   runner = Runner()
   runner.simulate = args.simulate
 
+  # Create paths to files
+  cmd_args = {}
+  for filename in FILENAMES:
+    base = os.path.splitext(filename)[0]
+    cmd_args[base] = os.path.join(args.outdir, filename)
+  cmd_args['ref'] = args.ref
+  # Set general arguments for commands
+  cmd_args['sample'] = args.sample
+
   # Map reads to reference.
-  bam = os.path.join(args.outdir, args.sample+'.bam')
-  align(args.fastq1, args.fastq2, args.ref, bam, args.sample, runner=runner)
+  align(args.fastq1, args.fastq2, args.ref, cmd_args['bam1raw'], args.sample, runner=runner)
+
+  # Filter alignment
+  #TODO: only use -s realign when necessary
+  # Example command:
+  # $ pre-process-mt.sh -r $root/asm/clean/G3825.1a.fa -c G3825.1a -B '0 18834' -s realign \
+  #     $root/aln/raw/G3825.1a.bam $root/aln/filt/G3825.1a.bam $root/aln/tmp/G3825.1a &
+  cmd_args['margin'] = 600
+  runner.run('pre-process-mt.sh -c {sample} -m {margin} -s realign -r {ref} {bam1raw} {bam1filt}'
+             .format(**cmd_args))
 
 
 class Runner(object):
+  """An object that will execute commands according to previously arranged settings."""
   def __init__(self):
     self.quiet = False
     self.simulate = False
     self.prepend = ''
-
   def run(self, command):
     if not self.quiet:
       print '+ '+command
