@@ -33,6 +33,8 @@ def main(argv):
     help='Id of reference sequence. Reads will be filtered for those that map to this sequence.')
   parser.add_argument('-N', '--simulate', action='store_true',
     help='Only simulate execution. Print commands, but do not execute them.')
+  parser.add_argument('-b', '--to-script',
+    help='Instead of executing commands, write them to a bash script with this name.')
 
   args = parser.parse_args(argv[1:])
 
@@ -41,6 +43,8 @@ def main(argv):
 
   runner = Runner()
   runner.simulate = args.simulate
+  if args.to_script:
+    runner.to_script(args.to_script)
 
   # Create paths to files
   cmd_args = {}
@@ -92,17 +96,23 @@ def align(fastq1, fastq2, ref, outbam, sample, runner):
 
 class Runner(object):
   """An object that will execute commands according to previously arranged settings."""
-  #TODO: Allow printing to file instead, plus a shortcut that sets it up to print the commands
-  #      as a bash script.
   def __init__(self):
     self.quiet = False
     self.simulate = False
     self.prepend = '+ '
+    self._output = sys.stdout
   def run(self, command):
     if not self.quiet:
-      print self.prepend+command
+      self._output.write(self.prepend+command+'\n')
     if not self.simulate:
       subprocess.check_call(self.prepend+command)
+  def to_script(self, path):
+    """Print the commands to a ready-to-run bash script instead of executing them."""
+    self.quiet = False
+    self.simulate = True
+    self.prepend = ''
+    self._output = open(path, 'w')
+  #TODO: close filehandle on exit or when done
 
 
 def fail(message):
