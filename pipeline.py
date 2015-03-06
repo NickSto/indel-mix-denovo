@@ -67,6 +67,41 @@ def main(argv):
   runner.run('pre-process-mt.sh -c {sample} -m {margin} -s realign -r {ref} {bam1raw} {bam1filt}'
              .format(**cmd_args))
 
+  # Remove duplicates
+  #   samtools
+
+  # Extract reads
+  #   Picard SamToFastq
+
+  # Assemble
+  #   SPAdes
+
+  # Clean assembly
+  #   asm-unifier.py
+
+  # Align assembly to reference
+  #   LASTZ
+
+  # Align to assembly
+  #   BWA-MEM
+
+  # Filter alignment
+  #   pre-process-mt.sh
+
+  # Remove duplicates
+  #   samtools
+
+  # Naive Variant Caller
+
+  # nvc-filter.py
+
+  # inspect-reads.py
+
+  # quick-liftover.py
+
+  # Final indel filtering
+  #   awk
+
 
 def align(fastq1, fastq2, ref, outbam, sample, runner):
   """Map the reads in "fastq1" and "fastq2" to reference "ref", output to "outbam". "sample" will be
