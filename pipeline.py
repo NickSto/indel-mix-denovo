@@ -52,7 +52,7 @@ def main(argv):
   cmd_args['sample'] = args.sample
 
   # Map reads to reference.
-  align(args.fastq1, args.fastq2, args.ref, cmd_args['bam1raw'], args.sample, runner=runner)
+  align(args.fastq1, args.fastq2, args.ref, cmd_args['bam1raw'], args.sample, runner)
 
   # Filter alignment
   #TODO: only use -s realign when necessary
@@ -64,22 +64,11 @@ def main(argv):
              .format(**cmd_args))
 
 
-class Runner(object):
-  """An object that will execute commands according to previously arranged settings."""
-  def __init__(self):
-    self.quiet = False
-    self.simulate = False
-    self.prepend = ''
-  def run(self, command):
-    if not self.quiet:
-      print '+ '+command
-    if not self.simulate:
-      subprocess.check_call(self.prepend+command)
-
-
-def align(fastq1, fastq2, ref, outbam, sample, runner=Runner()):
+def align(fastq1, fastq2, ref, outbam, sample, runner):
   """Map the reads in "fastq1" and "fastq2" to reference "ref", output to "outbam". "sample" will be
   used to label read groups."""
+  if runner is None:
+    runner = Runner()
   (base, ext) = os.path.splitext(outbam)
   if ext != '.bam':
     base = base+ext
@@ -99,6 +88,21 @@ def align(fastq1, fastq2, ref, outbam, sample, runner=Runner()):
   runner.run('samtools index {bam}'.format(**paths))
   runner.run('rm {sam} {bamtmp}'.format(**paths))
   return outbam
+
+
+class Runner(object):
+  """An object that will execute commands according to previously arranged settings."""
+  #TODO: Allow printing to file instead, plus a shortcut that sets it up to print the commands
+  #      as a bash script.
+  def __init__(self):
+    self.quiet = False
+    self.simulate = False
+    self.prepend = '+ '
+  def run(self, command):
+    if not self.quiet:
+      print self.prepend+command
+    if not self.simulate:
+      subprocess.check_call(self.prepend+command)
 
 
 def fail(message):
