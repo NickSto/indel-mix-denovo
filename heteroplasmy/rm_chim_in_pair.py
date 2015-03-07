@@ -24,7 +24,18 @@ parser.add_argument('-b', '--bounds', metavar='coord', type=int, nargs=2,
     'chimeric partner is located outside this region will still pass the '
     'filter. Intended for circular genomes and plasmids where reads will map '
     'partially to the start and end at the same time. Default: %(default)s.')
+parser.add_argument('-m', '--margin', type=int,
+  help='The size of the chimera-free regions at each end of the target. Using '
+    'this and --chr-length is an alternative to using --bounds.')
+parser.add_argument('-L', '--chr-length', type=int,
+  help='The length of the target sequence.')
 args = parser.parse_args()
+
+bounds = args.bounds
+if args.margin and args.chr_length:
+  bounds = (args.margin, args.chr_length-args.margin)
+elif args.margin or args.chr_length:
+  raise Exception('--margin and --chr-length must be used together.')
 
 if not args.output:
   dirpath, filename = os.path.split(args.input)
@@ -38,7 +49,7 @@ def check_chim(read):
     if len(sa) == 1:
       (chrom, pos, strand, cigar, mapq, nm) = sa[0].split(',')
       if (chrom == args.region and
-          (int(pos) <= args.bounds[0] or int(pos) >= args.bounds[1])):
+          (int(pos) <= bounds[0] or int(pos) >= bounds[1])):
         return read
       else:
         pass

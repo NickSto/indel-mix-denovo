@@ -47,6 +47,7 @@ def main(argv):
     runner.to_script(args.to_script)
 
   # Create paths to files and directories
+  #TODO: Use a tmp directory for intermediate files
   cmd_args = {}
   for filename in FILENAMES:
     base = os.path.splitext(filename)[0]
@@ -55,17 +56,19 @@ def main(argv):
   cmd_args['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
   # Set general arguments for commands
   cmd_args['sample'] = args.sample
+  cmd_args['refname'] = args.refname
 
   # Map reads to reference.
   align(args.fastq1, args.fastq2, args.ref, cmd_args['bam1raw'], args.sample, runner)
 
   # Filter alignment
   #TODO: only use -s realign when necessary
+  #TODO: allow setting margin
   # Example command:
   # $ pre-process-mt.sh -r $root/asm/clean/G3825.1a.fa -c G3825.1a -B '0 18834' -s realign \
   #     $root/aln/raw/G3825.1a.bam $root/aln/filt/G3825.1a.bam $root/aln/tmp/G3825.1a &
   cmd_args['margin'] = 600
-  runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {sample} -m {margin} -s realign '
+  runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} -s realign '
              '-r {ref} {bam1raw} {bam1filt}'.format(**cmd_args))
 
   # Remove duplicates
