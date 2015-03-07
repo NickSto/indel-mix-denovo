@@ -141,7 +141,7 @@ class Runner(object):
     if not self.quiet:
       self._output.write(self.prepend+command+'\n')
     if not self.simulate:
-      subprocess.check_call(self.prepend+command)
+      subprocess.check_call(command, shell=True)
   def to_script(self, path):
     """Print the commands to a ready-to-run bash script instead of executing them."""
     self.quiet = False
