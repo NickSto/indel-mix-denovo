@@ -46,12 +46,13 @@ def main(argv):
   if args.to_script:
     runner.to_script(args.to_script)
 
-  # Create paths to files
+  # Create paths to files and directories
   cmd_args = {}
   for filename in FILENAMES:
     base = os.path.splitext(filename)[0]
     cmd_args[base] = os.path.join(args.outdir, filename)
   cmd_args['ref'] = args.ref
+  cmd_args['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
   # Set general arguments for commands
   cmd_args['sample'] = args.sample
 
@@ -64,8 +65,8 @@ def main(argv):
   # $ pre-process-mt.sh -r $root/asm/clean/G3825.1a.fa -c G3825.1a -B '0 18834' -s realign \
   #     $root/aln/raw/G3825.1a.bam $root/aln/filt/G3825.1a.bam $root/aln/tmp/G3825.1a &
   cmd_args['margin'] = 600
-  runner.run('pre-process-mt.sh -c {sample} -m {margin} -s realign -r {ref} {bam1raw} {bam1filt}'
-             .format(**cmd_args))
+  runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {sample} -m {margin} -s realign '
+             '-r {ref} {bam1raw} {bam1filt}'.format(**cmd_args))
 
   # Remove duplicates
   #   samtools
