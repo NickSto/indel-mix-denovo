@@ -6,11 +6,13 @@ import argparse
 import subprocess
 
 PLATFORM = 'ILLUMINA'
+PICARDIR = 'src/picard-tools-1.100'
 
 OPT_DEFAULTS = {'steps':15}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
-FILENAMES = ('bam1raw.bam', 'bam1filt.bam')
+FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
+             'asmdir')
 
 
 def main(argv):
@@ -63,6 +65,7 @@ def main(argv):
     cmd_args[base] = os.path.join(args.outdir, filename)
   cmd_args['ref'] = args.ref
   cmd_args['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
+  cmd_args['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR)
   # Set general arguments for commands
   cmd_args['sample'] = args.sample
   cmd_args['refname'] = args.refname
@@ -76,9 +79,9 @@ def main(argv):
   # Filter alignment
   #TODO: only use -s realign when necessary
   #TODO: allow setting margin
-  # Example command:
-  # $ pre-process-mt.sh -r $root/asm/clean/G3825.1a.fa -c G3825.1a -B '0 18834' -s realign \
-  #     $root/aln/raw/G3825.1a.bam $root/aln/filt/G3825.1a.bam $root/aln/tmp/G3825.1a &
+  # Example command: $ pre-process-mt.sh -r $root/asm/clean/G3825.1a.fa -c G3825.1a -B '0 18834' \
+  #                    -s realign $root/aln/raw/G3825.1a.bam $root/aln/filt/G3825.1a.bam \
+  #                    $root/aln/tmp/G3825.1a
   cmd_args['margin'] = 600
   runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} -s realign '
              '-r {ref} {bam1raw} {bam1filt}'.format(**cmd_args))
@@ -88,16 +91,28 @@ def main(argv):
 
   # Remove duplicates
   #   samtools
-  dedup(cmd_args['bam1filt'], runner)
+  dedup(cmd_args['bam1filt'], cmd_args['bam1dedup'], runner)
   if args.steps <= 3:
     print "Stopping after step 3."
     return
 
   # Extract reads
   #   Picard SamToFastq
+  runner.run('java -jar {picardir}/SamToFastq.jar VALIDATION_STRINGENCY=SILENT INPUT={bam1dedup} '
+             'FASTQ={cleanfq1} SECOND_END_FASTQ={cleanfq2}'.format(**cmd_args), ignore_err=True)
+  if args.steps <= 4:
+    print "Stopping after step 4."
+    return
 
   # Assemble
   #   SPAdes
+  # Example: $ spades.py --careful -k 21,33,55,77 -1 $FASTQ_DIR/${sample}_1.fastq \
+  #            -2 $FASTQ_DIR/${sample}_2.fastq -o $ROOT/asm/orig/$sample
+  runner.run('spades.py --careful -k 21,33,55,77 -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}'
+             .format(**cmd_args))
+  if args.steps <= 5:
+    print "Stopping after step 5."
+    return
 
   # Clean assembly
   #   asm-unifier.py
@@ -151,10 +166,10 @@ def align(fastq1, fastq2, ref, outbam, sample, runner):
   return outbam
 
 
-def dedup(bam, runner):
-  (base, ext) = os.path.splitext(bam)
-  paths = {'bam':bam, 'base':base}
-  runner.run('samtools view -b -F 1024 {bam} > {base}.tmp.bam'.format(**paths))
+def dedup(inbam, outbam, runner):
+  (base, ext) = os.path.splitext(outbam)
+  paths = {'inbam':inbam, 'base':base}
+  runner.run('samtools view -b -F 1024 {inbam} > {base}.tmp.bam'.format(**paths))
   runner.run('samtools sort {base}.tmp.bam {base}'.format(**paths))
   runner.run('samtools index {base}.bam'.format(**paths))
   runner.run('rm {base}.tmp.bam'.format(**paths))
@@ -167,11 +182,17 @@ class Runner(object):
     self.simulate = False
     self.prepend = '+ '
     self._output = sys.stdout
-  def run(self, command):
+  def run(self, command, ignore_err=False):
     if not self.quiet:
       self._output.write(self.prepend+command+'\n')
     if not self.simulate:
-      subprocess.check_call(command, shell=True)
+      try:
+        subprocess.check_call(command, shell=True)
+      except subprocess.CalledProcessError:
+        if not ignore_err:
+          raise
+        else:
+          sys.stderr.write('non-zero exit status on command\n$ '+command+'\n')
   def to_script(self, path):
     """Print the commands to a ready-to-run bash script instead of executing them."""
     self.quiet = False
