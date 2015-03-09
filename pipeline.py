@@ -74,21 +74,21 @@ def main(argv):
 
   # Create paths to files and directories
   #TODO: Use a tmp directory for intermediate files
-  cmd_args = {}
+  paths = {}
   for filename in FILENAMES:
     base = os.path.splitext(filename)[0]
-    cmd_args[base] = os.path.join(args.outdir, filename)
-  cmd_args['ref'] = args.ref
-  cmd_args['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
-  cmd_args['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR)
+    paths[base] = os.path.join(args.outdir, filename)
+  paths['ref'] = args.ref
+  paths['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
+  paths['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR)
   # Set general arguments for commands
-  cmd_args['sample'] = args.sample
-  cmd_args['refname'] = args.refname
+  paths['sample'] = args.sample
+  paths['refname'] = args.refname
 
   # Map reads to reference.
   #   BWA MEM
   if args.begin <= 1 and args.end >= 1:
-    align(args.fastq1, args.fastq2, args.ref, cmd_args['bam1raw'], args.sample, runner)
+    align(args.fastq1, args.fastq2, args.ref, paths['bam1raw'], args.sample, runner)
   else:
     print 'Skipping step 1.'
 
@@ -99,17 +99,17 @@ def main(argv):
   # Example command: $ pre-process-mt.sh -r $root/asm/clean/G3825.1a.fa -c G3825.1a -B '0 18834' \
   #                    -s realign $root/aln/raw/G3825.1a.bam $root/aln/filt/G3825.1a.bam \
   #                    $root/aln/tmp/G3825.1a
-  cmd_args['margin'] = 600
+  paths['margin'] = 600
   if args.begin <= 2 and args.end >= 2:
     runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} '
-               '-s realign -r {ref} {bam1raw} {bam1filt}'.format(**cmd_args))
+               '-s realign -r {ref} {bam1raw} {bam1filt}'.format(**paths))
   else:
     print 'Skipping step 2.'
 
   # Remove duplicates
   #   samtools
   if args.begin <= 3 and args.end >= 3:
-    dedup(cmd_args['bam1filt'], cmd_args['bam1dedup'], runner)
+    dedup(paths['bam1filt'], paths['bam1dedup'], runner)
   else:
     print 'Skipping step 3.'
 
@@ -117,7 +117,7 @@ def main(argv):
   #   Picard SamToFastq
   if args.begin <= 4 and args.end >= 4:
     runner.run('java -jar {picardir}/SamToFastq.jar VALIDATION_STRINGENCY=SILENT INPUT={bam1dedup} '
-               'FASTQ={cleanfq1} SECOND_END_FASTQ={cleanfq2}'.format(**cmd_args), ignore_err=True)
+               'FASTQ={cleanfq1} SECOND_END_FASTQ={cleanfq2}'.format(**paths), ignore_err=True)
   else:
     print 'Skipping step 4.'
 
@@ -129,7 +129,7 @@ def main(argv):
   #            -2 $FASTQ_DIR/${sample}_2.fastq -o $ROOT/asm/orig/$sample
   if args.begin <= 5 and args.end >= 5:
     runner.run('spades.py --careful -k 21,33,55,77 -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}'
-               .format(**cmd_args))
+               .format(**paths))
   else:
     print 'Skipping step 5.'
 
@@ -137,21 +137,21 @@ def main(argv):
   #   asm-unifier.py
   if args.begin <= 6 and args.end >= 6:
     runner.run('asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta -o {asm} -l {asmlog}'
-               .format(**cmd_args))
+               .format(**paths))
   else:
     print 'Skipping step 6.'
 
   # Align assembly to reference
   #   LASTZ
   if args.begin <= 7 and args.end >= 7:
-    runner.run('lastz {ref} {asm} > {lav}'.format(**cmd_args))
+    runner.run('lastz {ref} {asm} > {lav}'.format(**paths))
   else:
     print 'Skipping step 7.'
 
   # Align to assembly
   #   BWA-MEM
   if args.begin <= 8 and args.end >= 8:
-    align(cmd_args['cleanfq1'], cmd_args['cleanfq2'], cmd_args['asm'], cmd_args['bam2raw'], args.sample, runner)
+    align(paths['cleanfq1'], paths['cleanfq2'], paths['asm'], paths['bam2raw'], args.sample, runner)
   else:
     print 'Skipping step 8.'
 
@@ -161,14 +161,14 @@ def main(argv):
   # In this second time around, might want to omit -s realign (do NM-edits filtering too).
   if args.begin <= 9 and args.end >= 9:
     runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {sample} -m {margin} '
-               '-s realign -r {asm} {bam2raw} {bam2filt}'.format(**cmd_args))
+               '-s realign -r {asm} {bam2raw} {bam2filt}'.format(**paths))
   else:
     print 'Skipping step 9.'
 
   # Remove duplicates
   #   samtools
   if args.begin <= 10 and args.end >= 10:
-    dedup(cmd_args['bam2filt'], cmd_args['bam2dedup'], runner)
+    dedup(paths['bam2filt'], paths['bam2dedup'], runner)
   else:
     print 'Skipping step 10.'
 
