@@ -42,7 +42,7 @@ function pipeline {
 function pipeline2 {
   echo -e "\tpipeline.py steps 1 and 2 ::: R39-M249-reduced.bam:"
   mkdir "$dirname/pipeline/tmp" || return
-  python "$dirname/../pipeline.py" -E 2 -s M249 -R chrM "$dirname/chrM-rCRS.fa" \
+  python "$dirname/../pipeline.py" -E 2 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
     "$dirname/pipeline/tmp" 2>/dev/null
   #TODO: edit diff.sh to allow different paths in @PG command line.
@@ -56,7 +56,7 @@ function pipeline3 {
   echo -e "\tpipeline.py step 3 ::: R39-M249-reduced.bam:"
   mkdir "$dirname/pipeline/tmp" || return
   cp "$dirname/pipeline/out2.R39-M249-reduced.bam" "$dirname/pipeline/tmp/bam1filt.bam"
-  python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 -R chrM "$dirname/chrM-rCRS.fa" \
+  python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
     "$dirname/pipeline/tmp" 2>/dev/null
   #TODO: edit diff.sh to allow different paths in @PG command line.
@@ -69,7 +69,7 @@ function pipeline3 {
 function pipefull {
   echo -e "\tpipeline.py steps 1-11 ::: R39-M249-reduced.bam:"
   mkdir "$dirname/pipeline/tmp" || return
-  python "$dirname/../pipeline.py" -E 11 -s M249 -R chrM "$dirname/chrM-rCRS.fa" \
+  python "$dirname/../pipeline.py" -E 11 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
     "$dirname/pipeline/tmp"
   if diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$dirname/pipeline/tmp/nvc.vcf" >/dev/null; then

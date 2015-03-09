@@ -8,7 +8,7 @@ import subprocess
 PLATFORM = 'ILLUMINA'
 PICARDIR = 'src/picard-tools-1.100'
 
-OPT_DEFAULTS = {'begin':0, 'end':15}
+OPT_DEFAULTS = {'begin':0, 'end':15, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1, 'margin':600}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
@@ -30,20 +30,37 @@ def main(argv):
     help='Input reads, mate 2.')
   parser.add_argument('outdir', metavar='output/directory/path',
     help='Destination directory to place the output.')
-  parser.add_argument('-s', '--sample', required=True,
+  parser.add_argument('-s', '--sample', metavar='id', required=True,
     help='The sample id.')
-  parser.add_argument('-R', '--refname', required=True,
+  parser.add_argument('-r', '--refname', metavar='chrName', required=True,
     help='Id of reference sequence. Reads will be filtered for those that map to this sequence.')
   parser.add_argument('-N', '--simulate', action='store_true',
     help='Only simulate execution. Print commands, but do not execute them.')
-  parser.add_argument('-b', '--to-script',
+  parser.add_argument('-b', '--to-script', metavar='path/to/script.sh',
     help='Instead of executing commands, write them to a bash script with this name.')
-  parser.add_argument('-B', '--begin', type=int,
+  parser.add_argument('-B', '--begin', metavar='step', type=int,
     help='Start at this step. The input files are the normal intermediate files generated if the '
          'full pipeline were run with the same arguments. WARNING: Any existing intermediate files '
          'in the output directory from later steps will be overwritten.')
-  parser.add_argument('-E', '--end', type=int,
+  parser.add_argument('-E', '--end', metavar='step', type=int,
     help='Stop after this many pipeline steps.')
+  param = parser.add_argument_group('Analysis Parameters')
+  param.add_argument('-f', '--freq-thres', dest='freq', type=float,
+    help='Minor allele frequency threshold for indel calling. Give in percent, not decimal ("10" '
+         'for 10%%, not "0.1"). Used in step 12 (nvc-filter.py). Default: "%(default)s"')
+  param.add_argument('-c', '--cvg-thres', dest='cvg', type=int,
+    help='Read depth of coverage threshold for indel calling. If the read depth at the indel is '
+         'below this value, it will not be reported. Used in step 12 (nvc-filter.py). Default: '
+         '"%(default)s"')
+  param.add_argument('-S', '--strand-bias', dest='strand', type=float,
+    help='Strand bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"')
+  param.add_argument('-M', '--mate-bias', dest='mate', type=float,
+    help='Mate bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"')
+  param.add_argument('-m', '--margin', type=int,
+    help='Size of the regions at either end of the reference where chimeric reads are allowed. '
+         'Used for circular chromosomes where reads spanning the start coordinate appear as '
+         'chimeric but aren\'t. Give a size in nucleotides. Both margins, at the start and end, '
+         'will be this size. Set to 0 for no margins. Default: "%(default)s"')
 
   args = parser.parse_args(argv[1:])
 
@@ -77,13 +94,16 @@ def main(argv):
   paths = {}
   for filename in FILENAMES:
     base = os.path.splitext(filename)[0]
+    assert base not in paths, '{} in paths. value: {}'.format(base, paths[base])
     paths[base] = os.path.join(args.outdir, filename)
-  paths['ref'] = args.ref
   paths['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
   paths['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR)
-  # Set general arguments for commands
-  paths['sample'] = args.sample
-  paths['refname'] = args.refname
+  # Add parameters from command line.
+  for arg in dir(args):
+    if arg.startswith('_'):
+      continue
+    assert arg not in paths, '{} in paths. value: {}'.format(arg, paths[arg])
+    paths[arg] = getattr(args, arg)
 
   # Map reads to reference.
   #   BWA MEM
@@ -95,11 +115,9 @@ def main(argv):
   # Filter alignment
   #   pre-process-mt.sh
   #TODO: only use -s realign when necessary
-  #TODO: allow setting margin
   # Example command: $ pre-process-mt.sh -r $root/asm/clean/G3825.1a.fa -c G3825.1a -B '0 18834' \
   #                    -s realign $root/aln/raw/G3825.1a.bam $root/aln/filt/G3825.1a.bam \
   #                    $root/aln/tmp/G3825.1a
-  paths['margin'] = 600
   if args.begin <= 2 and args.end >= 2:
     runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} '
                '-s realign -r {ref} {bam1raw} {bam1filt}'.format(**paths))
@@ -182,10 +200,7 @@ def main(argv):
     print 'Skipping step 11.'
 
   # nvc-filter.py
-  #TODO: Allow changing coverage and frequency threshold.
   #TODO: Allow for samples with no indels (empty {nvc}).
-  paths['cvg'] = 1000
-  paths['freq'] = 1
   if args.begin <= 12 and args.end >= 12:
     runner.run('nvc-filter.py -r S -c {cvg} -f {freq} {nvc} > {nvcfilt}'.format(**paths))
   else:
@@ -194,9 +209,6 @@ def main(argv):
   # inspect-reads.py
   # Note: -S overwrites read group names with the given sample name. Don't use in multi-sample
   # analysis.
-  #TODO: Allow changing strand and mate bias thresholds.
-  paths['strand'] = 1
-  paths['mate'] = 1
   if args.begin <= 13 and args.end >= 13:
     runner.run('inspect-reads.py -tl -s {strand} -m {mate} -S {sample} {bam2dedup} -V {nvcfilt} '
                '-r {asm} > {vars1asm}'.format(**paths))
