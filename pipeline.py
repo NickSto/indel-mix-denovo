@@ -12,7 +12,8 @@ OPT_DEFAULTS = {'begin':0, 'end':15}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
-             'asmdir', 'asm.fa', 'asmlog.log')
+             'asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bam2raw.bam', 'bam2filt.bam',
+             'bam2dedup.bam')
 
 
 def main(argv):
@@ -69,6 +70,8 @@ def main(argv):
   if args.to_script:
     runner.to_script(args.to_script)
 
+  #TODO: Check for required commands.
+
   # Create paths to files and directories
   #TODO: Use a tmp directory for intermediate files
   cmd_args = {}
@@ -83,12 +86,14 @@ def main(argv):
   cmd_args['refname'] = args.refname
 
   # Map reads to reference.
+  #   BWA MEM
   if args.begin <= 1 and args.end >= 1:
     align(args.fastq1, args.fastq2, args.ref, cmd_args['bam1raw'], args.sample, runner)
   else:
     print 'Skipping step 1.'
 
   # Filter alignment
+  #   pre-process-mt.sh
   #TODO: only use -s realign when necessary
   #TODO: allow setting margin
   # Example command: $ pre-process-mt.sh -r $root/asm/clean/G3825.1a.fa -c G3825.1a -B '0 18834' \
@@ -138,15 +143,34 @@ def main(argv):
 
   # Align assembly to reference
   #   LASTZ
+  if args.begin <= 7 and args.end >= 7:
+    runner.run('lastz {ref} {asm} > {lav}'.format(**cmd_args))
+  else:
+    print 'Skipping step 7.'
 
   # Align to assembly
   #   BWA-MEM
+  if args.begin <= 8 and args.end >= 8:
+    align(cmd_args['cleanfq1'], cmd_args['cleanfq2'], cmd_args['asm'], cmd_args['bam2raw'], args.sample, runner)
+  else:
+    print 'Skipping step 8.'
 
   # Filter alignment
   #   pre-process-mt.sh
+  # See notes for step 2.
+  # In this second time around, might want to omit -s realign (do NM-edits filtering too).
+  if args.begin <= 9 and args.end >= 9:
+    runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {sample} -m {margin} '
+               '-s realign -r {asm} {bam2raw} {bam2filt}'.format(**cmd_args))
+  else:
+    print 'Skipping step 9.'
 
   # Remove duplicates
   #   samtools
+  if args.begin <= 10 and args.end >= 10:
+    dedup(cmd_args['bam2filt'], cmd_args['bam2dedup'], runner)
+  else:
+    print 'Skipping step 10.'
 
   # Naive Variant Caller
 
