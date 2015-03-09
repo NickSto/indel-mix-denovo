@@ -12,7 +12,7 @@ OPT_DEFAULTS = {'steps':15}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
-             'asmdir')
+             'asmdir', 'asm.fa', 'asmlog.log')
 
 
 def main(argv):
@@ -106,6 +106,8 @@ def main(argv):
 
   # Assemble
   #   SPAdes
+  #TODO: Set k-mers based on read length.
+  #TODO: Check if successful (produces a contigs.fasta)
   # Example: $ spades.py --careful -k 21,33,55,77 -1 $FASTQ_DIR/${sample}_1.fastq \
   #            -2 $FASTQ_DIR/${sample}_2.fastq -o $ROOT/asm/orig/$sample
   runner.run('spades.py --careful -k 21,33,55,77 -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}'
@@ -116,6 +118,11 @@ def main(argv):
 
   # Clean assembly
   #   asm-unifier.py
+  runner.run('asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta -o {asm} -l {asmlog}'
+             .format(**cmd_args))
+  if args.steps <= 6:
+    print "Stopping after step 6."
+    return
 
   # Align assembly to reference
   #   LASTZ
