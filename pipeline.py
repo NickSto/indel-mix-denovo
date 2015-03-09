@@ -91,24 +91,24 @@ def main(argv):
 
   # Create paths to files and directories
   #TODO: Use a tmp directory for intermediate files
-  paths = {}
+  params = {}
   for filename in FILENAMES:
     base = os.path.splitext(filename)[0]
-    assert base not in paths, '{} in paths. value: {}'.format(base, paths[base])
-    paths[base] = os.path.join(args.outdir, filename)
-  paths['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
-  paths['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR)
-  # Add parameters from command line.
+    assert base not in params, '{} in params. value: {}'.format(base, params[base])
+    params[base] = os.path.join(args.outdir, filename)
+  params['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
+  params['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR)
+  # Add arguments from command line.
   for arg in dir(args):
     if arg.startswith('_'):
       continue
-    assert arg not in paths, '{} in paths. value: {}'.format(arg, paths[arg])
-    paths[arg] = getattr(args, arg)
+    assert arg not in params, '{} in params. value: {}'.format(arg, params[arg])
+    params[arg] = getattr(args, arg)
 
   # Map reads to reference.
   #   BWA MEM
   if args.begin <= 1 and args.end >= 1:
-    align(args.fastq1, args.fastq2, args.ref, paths['bam1raw'], args.sample, runner)
+    align(args.fastq1, args.fastq2, args.ref, params['bam1raw'], args.sample, runner)
   else:
     print 'Skipping step 1.'
 
@@ -120,14 +120,14 @@ def main(argv):
   #                    $root/aln/tmp/G3825.1a
   if args.begin <= 2 and args.end >= 2:
     runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} '
-               '-s realign -r {ref} {bam1raw} {bam1filt}'.format(**paths))
+               '-s realign -r {ref} {bam1raw} {bam1filt}'.format(**params))
   else:
     print 'Skipping step 2.'
 
   # Remove duplicates
   #   samtools
   if args.begin <= 3 and args.end >= 3:
-    dedup(paths['bam1filt'], paths['bam1dedup'], runner)
+    dedup(params['bam1filt'], params['bam1dedup'], runner)
   else:
     print 'Skipping step 3.'
 
@@ -135,7 +135,7 @@ def main(argv):
   #   Picard SamToFastq
   if args.begin <= 4 and args.end >= 4:
     runner.run('java -jar {picardir}/SamToFastq.jar VALIDATION_STRINGENCY=SILENT INPUT={bam1dedup} '
-               'FASTQ={cleanfq1} SECOND_END_FASTQ={cleanfq2}'.format(**paths), ignore_err=True)
+               'FASTQ={cleanfq1} SECOND_END_FASTQ={cleanfq2}'.format(**params), ignore_err=True)
   else:
     print 'Skipping step 4.'
 
@@ -147,7 +147,7 @@ def main(argv):
   #            -2 $FASTQ_DIR/${sample}_2.fastq -o $ROOT/asm/orig/$sample
   if args.begin <= 5 and args.end >= 5:
     runner.run('spades.py --careful -k 21,33,55,77 -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}'
-               .format(**paths))
+               .format(**params))
   else:
     print 'Skipping step 5.'
 
@@ -155,21 +155,22 @@ def main(argv):
   #   asm-unifier.py
   if args.begin <= 6 and args.end >= 6:
     runner.run('asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta -o {asm} -l {asmlog}'
-               .format(**paths))
+               .format(**params))
   else:
     print 'Skipping step 6.'
 
   # Align assembly to reference
   #   LASTZ
   if args.begin <= 7 and args.end >= 7:
-    runner.run('lastz {ref} {asm} > {lav}'.format(**paths))
+    runner.run('lastz {ref} {asm} > {lav}'.format(**params))
   else:
     print 'Skipping step 7.'
 
   # Align to assembly
   #   BWA-MEM
   if args.begin <= 8 and args.end >= 8:
-    align(paths['cleanfq1'], paths['cleanfq2'], paths['asm'], paths['bam2raw'], args.sample, runner)
+    align(params['cleanfq1'], params['cleanfq2'], params['asm'], params['bam2raw'], args.sample,
+          runner)
   else:
     print 'Skipping step 8.'
 
@@ -179,14 +180,14 @@ def main(argv):
   # In this second time around, might want to omit -s realign (do NM-edits filtering too).
   if args.begin <= 9 and args.end >= 9:
     runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {sample} -m {margin} '
-               '-s realign -r {asm} {bam2raw} {bam2filt}'.format(**paths))
+               '-s realign -r {asm} {bam2raw} {bam2filt}'.format(**params))
   else:
     print 'Skipping step 9.'
 
   # Remove duplicates
   #   samtools
   if args.begin <= 10 and args.end >= 10:
-    dedup(paths['bam2filt'], paths['bam2dedup'], runner)
+    dedup(params['bam2filt'], params['bam2dedup'], runner)
   else:
     print 'Skipping step 10.'
 
@@ -195,14 +196,14 @@ def main(argv):
   if args.begin <= 11 and args.end >= 11:
     runner.run('naive_variant_caller.py -q 30 -m 20 --ploidy 2 --use_strand '
                '--coverage_dtype uint32 --allow_out_of_bounds_positions --bam {bam2dedup} '
-               '--index {bam2dedup}.bai -r {asm} -o {nvc}'.format(**paths))
+               '--index {bam2dedup}.bai -r {asm} -o {nvc}'.format(**params))
   else:
     print 'Skipping step 11.'
 
   # nvc-filter.py
   #TODO: Allow for samples with no indels (empty {nvc}).
   if args.begin <= 12 and args.end >= 12:
-    runner.run('nvc-filter.py -r S -c {cvg} -f {freq} {nvc} > {nvcfilt}'.format(**paths))
+    runner.run('nvc-filter.py -r S -c {cvg} -f {freq} {nvc} > {nvcfilt}'.format(**params))
   else:
     print 'Skipping step 12.'
 
@@ -211,13 +212,13 @@ def main(argv):
   # analysis.
   if args.begin <= 13 and args.end >= 13:
     runner.run('inspect-reads.py -tl -s {strand} -m {mate} -S {sample} {bam2dedup} -V {nvcfilt} '
-               '-r {asm} > {vars1asm}'.format(**paths))
+               '-r {asm} > {vars1asm}'.format(**params))
   else:
     print 'Skipping step 13.'
 
   # quick-liftover.py
   if args.begin <= 14 and args.end >= 14:
-    runner.run('quick-liftover.py {lav} {vars1asm} > {vars1}'.format(**paths))
+    runner.run('quick-liftover.py {lav} {vars1asm} > {vars1}'.format(**params))
   else:
     print 'Skipping step 14.'
 
@@ -234,7 +235,7 @@ def align(fastq1, fastq2, ref, outbam, sample, runner):
   if ext != '.bam':
     base = base+ext
   rg_line = "'@RG\\tID:{}\\tSM:{}\\tPL:{}'".format(sample, sample, PLATFORM)
-  paths = {'rg':rg_line, 'ref':ref, 'fq1':fastq1, 'fq2':fastq2, 'outbam':outbam, 'base':base}
+  params = {'rg':rg_line, 'ref':ref, 'fq1':fastq1, 'fq2':fastq2, 'outbam':outbam, 'base':base}
   # Index reference, if needed.
   for ext in ('.amb', '.ann', '.bwt', '.sa', '.pac'):
     if not os.path.isfile(ref+ext):
@@ -242,21 +243,21 @@ def align(fastq1, fastq2, ref, outbam, sample, runner):
       algorithm = 'bwtsw'
       runner.run('bwa index -a {algo} {ref}'.format(algo=algorithm, ref=ref))
       break
-  runner.run('bwa mem -M -t 16 -R {rg} {ref} {fq1} {fq2} > {base}.sam'.format(**paths))
-  runner.run('samtools view -Sb {base}.sam > {base}.tmp.bam'.format(**paths))
-  runner.run('samtools sort {base}.tmp.bam {base}'.format(**paths))
-  runner.run('samtools index {base}.bam'.format(**paths))
-  runner.run('rm {base}.sam {base}.tmp.bam'.format(**paths))
+  runner.run('bwa mem -M -t 16 -R {rg} {ref} {fq1} {fq2} > {base}.sam'.format(**params))
+  runner.run('samtools view -Sb {base}.sam > {base}.tmp.bam'.format(**params))
+  runner.run('samtools sort {base}.tmp.bam {base}'.format(**params))
+  runner.run('samtools index {base}.bam'.format(**params))
+  runner.run('rm {base}.sam {base}.tmp.bam'.format(**params))
   return outbam
 
 
 def dedup(inbam, outbam, runner):
   (base, ext) = os.path.splitext(outbam)
-  paths = {'inbam':inbam, 'base':base}
-  runner.run('samtools view -b -F 1024 {inbam} > {base}.tmp.bam'.format(**paths))
-  runner.run('samtools sort {base}.tmp.bam {base}'.format(**paths))
-  runner.run('samtools index {base}.bam'.format(**paths))
-  runner.run('rm {base}.tmp.bam'.format(**paths))
+  params = {'inbam':inbam, 'base':base}
+  runner.run('samtools view -b -F 1024 {inbam} > {base}.tmp.bam'.format(**params))
+  runner.run('samtools sort {base}.tmp.bam {base}'.format(**params))
+  runner.run('samtools index {base}.bam'.format(**params))
+  runner.run('rm {base}.tmp.bam'.format(**params))
 
 
 class Runner(object):
