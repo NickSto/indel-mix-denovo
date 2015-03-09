@@ -13,7 +13,7 @@ USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
              'asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bam2raw.bam', 'bam2filt.bam',
-             'bam2dedup.bam', 'nvc.vcf')
+             'bam2dedup.bam', 'nvc.vcf', 'nvcfilt.vcf', 'vars1asm.tsv', 'vars1.tsv')
 
 
 def main(argv):
@@ -182,10 +182,32 @@ def main(argv):
     print 'Skipping step 11.'
 
   # nvc-filter.py
+  #TODO: Allow changing coverage and frequency threshold.
+  #TODO: Allow for samples with no indels (empty {nvc}).
+  paths['cvg'] = 1000
+  paths['freq'] = 1
+  if args.begin <= 12 and args.end >= 12:
+    runner.run('nvc-filter.py -r S -c {cvg} -f {freq} {nvc} > {nvcfilt}'.format(**paths))
+  else:
+    print 'Skipping step 12.'
 
   # inspect-reads.py
+  # Note: -S overwrites read group names with the given sample name. Don't use in multi-sample
+  # analysis.
+  #TODO: Allow changing strand and mate bias thresholds.
+  paths['strand'] = 1
+  paths['mate'] = 1
+  if args.begin <= 13 and args.end >= 13:
+    runner.run('inspect-reads.py -tl -s {strand} -m {mate} -S {sample} {bam2dedup} -V {nvcfilt} '
+               '-r {asm} > {vars1asm}'.format(**paths))
+  else:
+    print 'Skipping step 13.'
 
   # quick-liftover.py
+  if args.begin <= 14 and args.end >= 14:
+    runner.run('quick-liftover.py {lav} {vars1asm} > {vars1}'.format(**paths))
+  else:
+    print 'Skipping step 14.'
 
   # Final indel filtering
   #   awk
