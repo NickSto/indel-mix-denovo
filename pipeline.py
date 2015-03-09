@@ -13,7 +13,7 @@ USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
              'asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bam2raw.bam', 'bam2filt.bam',
-             'bam2dedup.bam')
+             'bam2dedup.bam', 'nvc.vcf')
 
 
 def main(argv):
@@ -173,6 +173,13 @@ def main(argv):
     print 'Skipping step 10.'
 
   # Naive Variant Caller
+  #TODO: Allow setting -q and -m.
+  if args.begin <= 11 and args.end >= 11:
+    runner.run('naive_variant_caller.py -q 30 -m 20 --ploidy 2 --use_strand '
+               '--coverage_dtype uint32 --allow_out_of_bounds_positions --bam {bam2dedup} '
+               '--index {bam2dedup}.bai -r {asm} -o {nvc}'.format(**paths))
+  else:
+    print 'Skipping step 11.'
 
   # nvc-filter.py
 
