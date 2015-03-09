@@ -116,8 +116,7 @@ def align(fastq1, fastq2, ref, outbam, sample, runner):
   if ext != '.bam':
     base = base+ext
   rg_line = "'@RG\\tID:{}\\tSM:{}\\tPL:{}'".format(sample, sample, PLATFORM)
-  paths = {'rg':rg_line, 'ref':ref, 'fq1':fastq1, 'fq2':fastq2, 'bam':outbam, 'base':base,
-           'sam':base+'.sam', 'bamtmp':base+'.tmp.bam'}
+  paths = {'rg':rg_line, 'ref':ref, 'fq1':fastq1, 'fq2':fastq2, 'outbam':outbam, 'base':base}
   # Index reference, if needed.
   for ext in ('.amb', '.ann', '.bwt', '.sa', '.pac'):
     if not os.path.isfile(ref+ext):
@@ -125,11 +124,11 @@ def align(fastq1, fastq2, ref, outbam, sample, runner):
       algorithm = 'bwtsw'
       runner.run('bwa index -a {algo} {ref}'.format(algo=algorithm, ref=ref))
       break
-  runner.run('bwa mem -M -t 16 -R {rg} {ref} {fq1} {fq2} > {sam}'.format(**paths))
-  runner.run('samtools view -Sb {sam} > {bamtmp}'.format(**paths))
-  runner.run('samtools sort {bamtmp} {base}'.format(**paths))
-  runner.run('samtools index {bam}'.format(**paths))
-  runner.run('rm {sam} {bamtmp}'.format(**paths))
+  runner.run('bwa mem -M -t 16 -R {rg} {ref} {fq1} {fq2} > {base}.sam'.format(**paths))
+  runner.run('samtools view -Sb {base}.sam > {base}.tmp.bam'.format(**paths))
+  runner.run('samtools sort {base}.tmp.bam {base}'.format(**paths))
+  runner.run('samtools index {base}.bam'.format(**paths))
+  runner.run('rm {base}.sam {base}.tmp.bam'.format(**paths))
   return outbam
 
 
