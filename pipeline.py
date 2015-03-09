@@ -8,12 +8,12 @@ import subprocess
 PLATFORM = 'ILLUMINA'
 PICARDIR = 'src/picard-tools-1.100'
 
-OPT_DEFAULTS = {'begin':0, 'end':15, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1, 'margin':600}
+OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1, 'margin':600}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
              'asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bam2raw.bam', 'bam2filt.bam',
-             'bam2dedup.bam', 'nvc.vcf', 'nvcfilt.vcf', 'vars1asm.tsv', 'vars1.tsv')
+             'bam2dedup.bam', 'nvc.vcf', 'nvcfilt.vcf', 'vars_asm.tsv', 'vars.tsv')
 
 
 def main(argv):
@@ -212,18 +212,18 @@ def main(argv):
   # analysis.
   if args.begin <= 13 and args.end >= 13:
     runner.run('inspect-reads.py -tl -s {strand} -m {mate} -S {sample} {bam2dedup} -V {nvcfilt} '
-               '-r {asm} > {vars1asm}'.format(**params))
+               '-r {asm} > {vars_asm}'.format(**params))
   else:
     print 'Skipping step 13.'
 
   # quick-liftover.py
   if args.begin <= 14 and args.end >= 14:
-    runner.run('quick-liftover.py {lav} {vars1asm} > {vars1}'.format(**params))
+    runner.run('quick-liftover.py {lav} {vars_asm} > {vars}'.format(**params))
   else:
     print 'Skipping step 14.'
 
-  # Final indel filtering
-  #   awk
+  if args.end >= 14:
+    print 'Finished. Final variants are in {vars}.'.format(**params)
 
 
 def align(fastq1, fastq2, ref, outbam, sample, runner):
