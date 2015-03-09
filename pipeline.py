@@ -8,7 +8,7 @@ import subprocess
 PLATFORM = 'ILLUMINA'
 PICARDIR = 'src/picard-tools-1.100'
 
-OPT_DEFAULTS = {'steps':15}
+OPT_DEFAULTS = {'begin':0, 'end':15}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
@@ -37,20 +37,32 @@ def main(argv):
     help='Only simulate execution. Print commands, but do not execute them.')
   parser.add_argument('-b', '--to-script',
     help='Instead of executing commands, write them to a bash script with this name.')
-  parser.add_argument('-S', '--steps', type=int,
+  parser.add_argument('-B', '--begin', type=int,
+    help='Start at this step. The input files are the normal intermediate files generated if the '
+         'full pipeline were run with the same arguments. WARNING: Any existing intermediate files '
+         'in the output directory from later steps will be overwritten.')
+  parser.add_argument('-E', '--end', type=int,
     help='Stop after this many pipeline steps.')
 
   args = parser.parse_args(argv[1:])
 
-  # Check if output directory exists, and make if not.
-  if os.path.exists(args.outdir):
-    if os.path.isdir(args.outdir):
-      if os.listdir(args.outdir):
-        raise Exception('Output directory "'+args.outdir+'" exists but is not empty.')
-    else:
-      raise Exception('Output directory "'+args.outdir+'" exists but is not a directory.')
+  # Check output directory.
+  if args.begin > 1:
+    # If beginning later in the pipeline, the outdir must exist and contain needed files.
+    if not os.path.isdir(args.outdir):
+      raise Exception('Output directory "'+args.outdir+'" missing. Must be present and contain '
+                      'intermediate files if using --begin.')
   else:
-    os.makedirs(args.outdir)
+    # Normally, output directory must either not exist or be empty.
+    if os.path.exists(args.outdir):
+      if os.path.isdir(args.outdir):
+        if os.listdir(args.outdir):
+          raise Exception('Output directory "'+args.outdir+'" exists but is not empty.')
+      else:
+        raise Exception('Output directory "'+args.outdir+'" exists but is not a directory.')
+    else:
+      # Make the output directory if it doesn't exist.
+      os.makedirs(args.outdir)
 
   runner = Runner()
   runner.simulate = args.simulate
@@ -71,10 +83,10 @@ def main(argv):
   cmd_args['refname'] = args.refname
 
   # Map reads to reference.
-  align(args.fastq1, args.fastq2, args.ref, cmd_args['bam1raw'], args.sample, runner)
-  if args.steps <= 1:
-    print "Stopping after step 1."
-    return
+  if args.begin <= 1 and args.end >= 1:
+    align(args.fastq1, args.fastq2, args.ref, cmd_args['bam1raw'], args.sample, runner)
+  else:
+    print 'Skipping step 1.'
 
   # Filter alignment
   #TODO: only use -s realign when necessary
@@ -83,26 +95,26 @@ def main(argv):
   #                    -s realign $root/aln/raw/G3825.1a.bam $root/aln/filt/G3825.1a.bam \
   #                    $root/aln/tmp/G3825.1a
   cmd_args['margin'] = 600
-  runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} -s realign '
-             '-r {ref} {bam1raw} {bam1filt}'.format(**cmd_args))
-  if args.steps <= 2:
-    print "Stopping after step 2."
-    return
+  if args.begin <= 2 and args.end >= 2:
+    runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} '
+               '-s realign -r {ref} {bam1raw} {bam1filt}'.format(**cmd_args))
+  else:
+    print 'Skipping step 2.'
 
   # Remove duplicates
   #   samtools
-  dedup(cmd_args['bam1filt'], cmd_args['bam1dedup'], runner)
-  if args.steps <= 3:
-    print "Stopping after step 3."
-    return
+  if args.begin <= 3 and args.end >= 3:
+    dedup(cmd_args['bam1filt'], cmd_args['bam1dedup'], runner)
+  else:
+    print 'Skipping step 3.'
 
   # Extract reads
   #   Picard SamToFastq
-  runner.run('java -jar {picardir}/SamToFastq.jar VALIDATION_STRINGENCY=SILENT INPUT={bam1dedup} '
-             'FASTQ={cleanfq1} SECOND_END_FASTQ={cleanfq2}'.format(**cmd_args), ignore_err=True)
-  if args.steps <= 4:
-    print "Stopping after step 4."
-    return
+  if args.begin <= 4 and args.end >= 4:
+    runner.run('java -jar {picardir}/SamToFastq.jar VALIDATION_STRINGENCY=SILENT INPUT={bam1dedup} '
+               'FASTQ={cleanfq1} SECOND_END_FASTQ={cleanfq2}'.format(**cmd_args), ignore_err=True)
+  else:
+    print 'Skipping step 4.'
 
   # Assemble
   #   SPAdes
@@ -110,19 +122,19 @@ def main(argv):
   #TODO: Check if successful (produces a contigs.fasta)
   # Example: $ spades.py --careful -k 21,33,55,77 -1 $FASTQ_DIR/${sample}_1.fastq \
   #            -2 $FASTQ_DIR/${sample}_2.fastq -o $ROOT/asm/orig/$sample
-  runner.run('spades.py --careful -k 21,33,55,77 -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}'
-             .format(**cmd_args))
-  if args.steps <= 5:
-    print "Stopping after step 5."
-    return
+  if args.begin <= 5 and args.end >= 5:
+    runner.run('spades.py --careful -k 21,33,55,77 -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}'
+               .format(**cmd_args))
+  else:
+    print 'Skipping step 5.'
 
   # Clean assembly
   #   asm-unifier.py
-  runner.run('asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta -o {asm} -l {asmlog}'
-             .format(**cmd_args))
-  if args.steps <= 6:
-    print "Stopping after step 6."
-    return
+  if args.begin <= 6 and args.end >= 6:
+    runner.run('asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta -o {asm} -l {asmlog}'
+               .format(**cmd_args))
+  else:
+    print 'Skipping step 6.'
 
   # Align assembly to reference
   #   LASTZ

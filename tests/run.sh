@@ -10,7 +10,6 @@ dirname=$(dirname $0)
 function main {
   if [[ $# -eq 0 ]] || [[ $1 == all ]]; then
     pipeline
-    pipeline2
     return
   fi
 
@@ -35,9 +34,9 @@ function pipeline {
 
 # Test up through step 2 of the pipeline.
 function pipeline2 {
-  echo -e "\tpipeline.py -S 2 ::: R39-M249-reduced.bam:"
+  echo -e "\tpipeline.py -E 2 ::: R39-M249-reduced.bam:"
   mkdir "$dirname/pipeline/tmp"
-  python "$dirname/../pipeline.py" -S 2 -s M249 -R chrM "$dirname/chrM-rCRS.fa" \
+  python "$dirname/../pipeline.py" -E 2 -s M249 -R chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
     "$dirname/pipeline/tmp" 2>/dev/null
   #TODO: edit diff.sh to allow different paths in @PG command line
