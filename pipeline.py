@@ -7,7 +7,7 @@ import subprocess
 
 PLATFORM = 'ILLUMINA'
 
-OPT_DEFAULTS = {}
+OPT_DEFAULTS = {'steps':15}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam')
@@ -35,6 +35,8 @@ def main(argv):
     help='Only simulate execution. Print commands, but do not execute them.')
   parser.add_argument('-b', '--to-script',
     help='Instead of executing commands, write them to a bash script with this name.')
+  parser.add_argument('-S', '--steps', type=int,
+    help='Stop after this many pipeline steps.')
 
   args = parser.parse_args(argv[1:])
 
@@ -60,6 +62,9 @@ def main(argv):
 
   # Map reads to reference.
   align(args.fastq1, args.fastq2, args.ref, cmd_args['bam1raw'], args.sample, runner)
+  if args.steps <= 1:
+    print "Stopping after step 1."
+    return
 
   # Filter alignment
   #TODO: only use -s realign when necessary
@@ -70,9 +75,16 @@ def main(argv):
   cmd_args['margin'] = 600
   runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} -s realign '
              '-r {ref} {bam1raw} {bam1filt}'.format(**cmd_args))
+  if args.steps <= 2:
+    print "Stopping after step 2."
+    return
 
   # Remove duplicates
   #   samtools
+  dedup(cmd_args['bam1filt'], runner)
+  if args.steps <= 3:
+    print "Stopping after step 3."
+    return
 
   # Extract reads
   #   Picard SamToFastq
@@ -130,6 +142,15 @@ def align(fastq1, fastq2, ref, outbam, sample, runner):
   runner.run('samtools index {base}.bam'.format(**paths))
   runner.run('rm {base}.sam {base}.tmp.bam'.format(**paths))
   return outbam
+
+
+def dedup(bam, runner):
+  (base, ext) = os.path.splitext(bam)
+  paths = {'bam':bam, 'base':base}
+  runner.run('samtools view -b -F 1024 {bam} > {base}.tmp.bam'.format(**paths))
+  runner.run('samtools sort {base}.tmp.bam {base}'.format(**paths))
+  runner.run('samtools index {base}.bam'.format(**paths))
+  runner.run('rm {base}.tmp.bam'.format(**paths))
 
 
 class Runner(object):
