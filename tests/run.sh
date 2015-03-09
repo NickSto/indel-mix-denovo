@@ -22,6 +22,8 @@ function main {
         pipeline2;;
       pipeline3)
         pipeline3;;
+      pipefull)
+        pipefull;;
     esac
   done
 }
@@ -33,6 +35,7 @@ function main {
 function pipeline {
   pipeline2
   pipeline3
+  pipefull
 }
 
 # Test up through step 2 of the pipeline.
@@ -59,6 +62,22 @@ function pipeline3 {
   #TODO: edit diff.sh to allow different paths in @PG command line.
   bash "$dirname/diff.sh" "$dirname/pipeline/out3.R39-M249-reduced.bam" \
     "$dirname/pipeline/tmp/bam1dedup.bam"
+  rm -r "$dirname/pipeline/tmp"
+}
+
+# Test the pipeline all the way through.
+function pipefull {
+  echo -e "\tpipeline.py steps 1-11 ::: R39-M249-reduced.bam:"
+  mkdir "$dirname/pipeline/tmp" || return
+  python "$dirname/../pipeline.py" -E 11 -s M249 -R chrM "$dirname/chrM-rCRS.fa" \
+    "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
+    "$dirname/pipeline/tmp"
+  if diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$dirname/pipeline/tmp/nvc.vcf" >/dev/null; then
+    echo "Output nvc.vcf and expected out11.R39-M249-reduced.vcf are identical"
+  else
+    echo "Output nvc.vcf and expected out11.R39-M249-reduced.vcf differ. Diff line count:"
+    diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$dirname/pipeline/tmp/nvc.vcf" | wc -l
+  fi
   rm -r "$dirname/pipeline/tmp"
 }
 
