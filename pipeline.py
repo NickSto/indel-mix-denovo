@@ -40,8 +40,15 @@ def main(argv):
 
   args = parser.parse_args(argv[1:])
 
-  if not os.path.isdir(args.outdir):
-    raise Exception('Output directory "'+args.outdir+'" is not accessible or not a directory.')
+  # Check if output directory exists, and make if not.
+  if os.path.exists(args.outdir):
+    if os.path.isdir(args.outdir):
+      if os.listdir(args.outdir):
+        raise Exception('Output directory "'+args.outdir+'" exists but is not empty.')
+    else:
+      raise Exception('Output directory "'+args.outdir+'" exists but is not a directory.')
+  else:
+    os.makedirs(args.outdir)
 
   runner = Runner()
   runner.simulate = args.simulate
