@@ -8,11 +8,8 @@ dirname=$(dirname $0)
 
 
 function main {
-  if [[ $# -eq 0 ]] || [[ $1 == all ]]; then
-    pipeline
-    return
-  fi
 
+  do_all=true
   verbose=''
   # Run the requested tests
   for arg in "$@"; do
@@ -23,6 +20,7 @@ function main {
     fi
     # Execute valid tests (if they're existing functions).
     if [[ $(type -t $arg) == function ]]; then
+      do_all=''
       if [[ $verbose ]]; then
         $arg
       else
@@ -32,15 +30,29 @@ function main {
       echo "Unrecognized test \"$arg\"." >&2
     fi
   done
+
+  # If no tests were specified in arguments, do all tests.
+  if [[ $do_all ]]; then
+    if [[ $verbose ]]; then
+      all
+    else
+      all 2>/dev/null
+    fi
+  fi
 }
 
 
 ########## Functional tests ##########
 
-# Do all tests of the pipeline.
+# Do all tests.
+function all {
+  pipeline
+}
+
+# Do all pipeline tests.
 function pipeline {
-  pipeline2
-  pipeline3
+  pipeline2 && echo
+  pipeline3 && echo
   pipefull
 }
 
