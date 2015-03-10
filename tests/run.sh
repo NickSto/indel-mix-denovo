@@ -6,6 +6,8 @@ fi
 # get the name of the test directory
 dirname=$(dirname $0)
 
+USAGE="Usage: \$ $(basename $0) [options] [test1 [test2]]"
+
 
 function main {
 
@@ -14,8 +16,17 @@ function main {
   # Run the requested tests
   for arg in "$@"; do
     # Check for options
-    if [[ $arg == '-v' ]]; then
-      verbose=true
+    #TODO: option to keep test data at end instead of removing it.
+    if [[ ${arg:0:1} == '-' ]]; then
+      case "$arg" in
+        -h)
+          echo "$USAGE" >&2
+          exit 1;;
+        -v)
+          verbose=true;;
+        *)
+          echo "Unrecognized option \"$arg\"." >&2;;
+      esac
       continue
     fi
     # Execute valid tests (if they're existing functions).
