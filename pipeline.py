@@ -8,7 +8,8 @@ import subprocess
 PLATFORM = 'ILLUMINA'
 PICARDIR = 'src/picard-tools-1.100'
 
-OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1, 'margin':600}
+OPT_DEFAULTS = {'begin':0, 'end':14, 'rlen':250, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1,
+                'margin':600, 'kmers':'21,33,55,77'}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
@@ -49,6 +50,8 @@ def main(argv):
   parser.add_argument('-E', '--end', metavar='step', type=int,
     help='Stop after this many pipeline steps.')
   param = parser.add_argument_group('Analysis Parameters')
+  param.add_argument('-l', '--read-length', dest='rlen', type=int,
+    help='Read length. Default: "%(default)s"')
   param.add_argument('-f', '--freq-thres', dest='freq', type=float,
     help='Minor allele frequency threshold for indel calling. Give in percent, not decimal ("10" '
          'for 10%%, not "0.1"). Used in step 12 (nvc-filter.py). Default: "%(default)s"')
@@ -60,12 +63,14 @@ def main(argv):
     help='Strand bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"')
   param.add_argument('-M', '--mate-bias', dest='mate', type=float,
     help='Mate bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"')
+  param.add_argument('-k', '--k-mers', dest='kmers',
+    help='K-mers for assembly. Comma-delimited list of ascending integers. Will be passed directly '
+         'to spades.py. Default: "%(default)s"')
   param.add_argument('-m', '--margin', type=int,
     help='Size of the regions at either end of the reference where chimeric reads are allowed. '
          'Used for circular chromosomes where reads spanning the start coordinate appear as '
          'chimeric but aren\'t. Give a size in nucleotides. Both margins, at the start and end, '
          'will be this size. Set to 0 for no margins. Default: "%(default)s"')
-
   args = parser.parse_args(argv[1:])
 
   # Check output directory.
@@ -152,7 +157,7 @@ def main(argv):
   # Example: $ spades.py --careful -k 21,33,55,77 -1 $FASTQ_DIR/${sample}_1.fastq \
   #            -2 $FASTQ_DIR/${sample}_2.fastq -o $ROOT/asm/orig/$sample
   if args.begin <= 5 and args.end >= 5:
-    runner.run('spades.py --careful -k 21,33,55,77 -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}'
+    runner.run('spades.py --careful -k {kmers} -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}'
                .format(**params))
   else:
     print 'Skipping step 5.'
