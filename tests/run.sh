@@ -21,8 +21,7 @@ function main {
     if [[ ${arg:0:1} == '-' ]]; then
       case "$arg" in
         -h)
-          echo "$USAGE" >&2
-          exit 1;;
+          fail "$USAGE";;
         -v)
           verbose=true;;
         *)
@@ -40,6 +39,7 @@ function main {
       fi
     else
       echo "Unrecognized test \"$arg\"." >&2
+      do_all=''
     fi
   done
 
@@ -75,7 +75,7 @@ function all {
 function pipeline {
   pipeline2 && echo
   pipeline3 && echo
-  pipefull
+  pipefull11
 }
 
 # Test up through step 2 of the pipeline.
@@ -85,7 +85,7 @@ function pipeline2 {
   python "$dirname/../pipeline.py" -E 2 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
   #TODO: edit diff.sh to allow different paths in @PG command line.
-  bash "$dirname/diff.sh" "$dirname/pipeline/out2.R39-M249-reduced.bam" \
+  bash "$dirname/bam-diff.sh" "$dirname/pipeline/out2.R39-M249-reduced.bam" \
     "$tmp/bam1filt.bam"
   rm -r "$tmp"
 }
@@ -98,23 +98,31 @@ function pipeline3 {
   python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
   #TODO: edit diff.sh to allow different paths in @PG command line.
-  bash "$dirname/diff.sh" "$dirname/pipeline/out3.R39-M249-reduced.bam" \
+  bash "$dirname/bam-diff.sh" "$dirname/pipeline/out3.R39-M249-reduced.bam" \
     "$tmp/bam1dedup.bam"
   rm -r "$tmp"
 }
 
-# Test the pipeline all the way through.
-function pipefull {
+# Test the pipeline from steps 1-11
+function pipefull11 {
   echo -e "\tpipeline.py steps 1-11 ::: R39-M249-reduced.bam:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   python "$dirname/../pipeline.py" -E 11 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
-  if diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$tmp/nvc.vcf" >/dev/null
-  then
-    echo "Output nvc.vcf and expected out11.R39-M249-reduced.vcf are identical"
+  # Diff the results. The date ends up in the final vcf, so omit that.
+  exceptions='^##(reference|fileDate)='
+  grep -Ev "$exceptions" "$dirname/pipeline/out11.R39-M249-reduced.vcf" \
+    | diff - <(grep -Ev "$exceptions" "$tmp/nvc.vcf") > "$tmp/diff.txt"
+  lines=$(wc -l "$tmp/diff.txt" | awk '{print $1}')
+  if [[ $lines == 0 ]]; then
+    echo "Output nvc.vcf and out11.R39-M249-reduced.vcf differ only by the expected amount."
+  elif ! [[ -e "$tmp/nvc.vcf" ]]; then
+    echo "FAIL: Output file nvc.vcf missing."
+  elif [[ $lines -le 40 ]]; then
+    cat "$tmp/diff.txt"
+    echo "FAIL: Output nvc.vcf and expected out11.R39-M249-reduced.vcf differ."
   else
-    echo "Output nvc.vcf and expected out11.R39-M249-reduced.vcf differ. Diff line count:"
-    diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$tmp/nvc.vcf" | wc -l
+    echo "FAIL: Output nvc.vcf and expected out11.R39-M249-reduced.vcf differ. Diff lines: $lines"
   fi
   rm -r "$tmp"
 }
