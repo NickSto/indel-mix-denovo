@@ -5,6 +5,7 @@ if [ x$BASH = x ] || [ ! $BASH_VERSINFO ] || [ $BASH_VERSINFO -lt 4 ]; then
 fi
 # get the name of the test directory
 dirname=$(dirname $0)
+tmp="$dirname/pipeline/test.tmp"
 
 USAGE="Usage: \$ $(basename $0) [options] [test1 [test2]]"
 
@@ -80,45 +81,42 @@ function pipeline {
 # Test up through step 2 of the pipeline.
 function pipeline2 {
   echo -e "\tpipeline.py steps 1 and 2 ::: R39-M249-reduced.bam:"
-  mkdir "$dirname/pipeline/tmp" || failout "Error: tmp dir $dirname/pipeline/tmp exists."
+  mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   python "$dirname/../pipeline.py" -E 2 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
-    "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
-    "$dirname/pipeline/tmp"
+    "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
   #TODO: edit diff.sh to allow different paths in @PG command line.
   bash "$dirname/diff.sh" "$dirname/pipeline/out2.R39-M249-reduced.bam" \
-    "$dirname/pipeline/tmp/bam1filt.bam"
-  rm -r "$dirname/pipeline/tmp"
+    "$tmp/bam1filt.bam"
+  rm -r "$tmp"
 }
 
 # Test step 3 of the pipeline.
 function pipeline3 {
   echo -e "\tpipeline.py step 3 ::: R39-M249-reduced.bam:"
-  mkdir "$dirname/pipeline/tmp" || failout "Error: tmp dir $dirname/pipeline/tmp exists."
-  cp "$dirname/pipeline/out2.R39-M249-reduced.bam" "$dirname/pipeline/tmp/bam1filt.bam"
+  mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
+  cp "$dirname/pipeline/out2.R39-M249-reduced.bam" "$tmp/bam1filt.bam"
   python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
-    "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
-    "$dirname/pipeline/tmp"
+    "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
   #TODO: edit diff.sh to allow different paths in @PG command line.
   bash "$dirname/diff.sh" "$dirname/pipeline/out3.R39-M249-reduced.bam" \
-    "$dirname/pipeline/tmp/bam1dedup.bam"
-  rm -r "$dirname/pipeline/tmp"
+    "$tmp/bam1dedup.bam"
+  rm -r "$tmp"
 }
 
 # Test the pipeline all the way through.
 function pipefull {
   echo -e "\tpipeline.py steps 1-11 ::: R39-M249-reduced.bam:"
-  mkdir "$dirname/pipeline/tmp" || failout "Error: tmp dir $dirname/pipeline/tmp exists."
+  mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   python "$dirname/../pipeline.py" -E 11 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
-    "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
-    "$dirname/pipeline/tmp"
-  if diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$dirname/pipeline/tmp/nvc.vcf" >/dev/null
+    "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
+  if diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$tmp/nvc.vcf" >/dev/null
   then
     echo "Output nvc.vcf and expected out11.R39-M249-reduced.vcf are identical"
   else
     echo "Output nvc.vcf and expected out11.R39-M249-reduced.vcf differ. Diff line count:"
-    diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$dirname/pipeline/tmp/nvc.vcf" | wc -l
+    diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$tmp/nvc.vcf" | wc -l
   fi
-  rm -r "$dirname/pipeline/tmp"
+  rm -r "$tmp"
 }
 
 main "$@"
