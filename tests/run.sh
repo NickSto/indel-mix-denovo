@@ -13,18 +13,24 @@ function main {
     return
   fi
 
+  verbose=''
   # Run the requested tests
-  for test in "$@"; do
-    case "$test" in
-      pipeline)
-        pipeline;;
-      pipeline2)
-        pipeline2;;
-      pipeline3)
-        pipeline3;;
-      pipefull)
-        pipefull;;
-    esac
+  for arg in "$@"; do
+    # Check for options
+    if [[ $arg == '-v' ]]; then
+      verbose=true
+      continue
+    fi
+    # Execute valid tests (if they're existing functions).
+    if [[ $(type -t $arg) == function ]]; then
+      if [[ $verbose ]]; then
+        $arg
+      else
+        $arg 2>/dev/null
+      fi
+    else
+      echo "Unrecognized test \"$arg\"." >&2
+    fi
   done
 }
 
@@ -44,7 +50,7 @@ function pipeline2 {
   mkdir "$dirname/pipeline/tmp" || return
   python "$dirname/../pipeline.py" -E 2 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
-    "$dirname/pipeline/tmp" 2>/dev/null
+    "$dirname/pipeline/tmp"
   #TODO: edit diff.sh to allow different paths in @PG command line.
   bash "$dirname/diff.sh" "$dirname/pipeline/out2.R39-M249-reduced.bam" \
     "$dirname/pipeline/tmp/bam1filt.bam"
@@ -58,7 +64,7 @@ function pipeline3 {
   cp "$dirname/pipeline/out2.R39-M249-reduced.bam" "$dirname/pipeline/tmp/bam1filt.bam"
   python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
-    "$dirname/pipeline/tmp" 2>/dev/null
+    "$dirname/pipeline/tmp"
   #TODO: edit diff.sh to allow different paths in @PG command line.
   bash "$dirname/diff.sh" "$dirname/pipeline/out3.R39-M249-reduced.bam" \
     "$dirname/pipeline/tmp/bam1dedup.bam"
@@ -72,7 +78,8 @@ function pipefull {
   python "$dirname/../pipeline.py" -E 11 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
     "$dirname/pipeline/tmp"
-  if diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$dirname/pipeline/tmp/nvc.vcf" >/dev/null; then
+  if diff "$dirname/pipeline/out11.R39-M249-reduced.vcf" "$dirname/pipeline/tmp/nvc.vcf" >/dev/null
+  then
     echo "Output nvc.vcf and expected out11.R39-M249-reduced.vcf are identical"
   else
     echo "Output nvc.vcf and expected out11.R39-M249-reduced.vcf differ. Diff line count:"
