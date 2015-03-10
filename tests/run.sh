@@ -52,6 +52,16 @@ function main {
   fi
 }
 
+function fail {
+  echo "$@" >&2
+  exit 1
+}
+
+function failout {
+  echo "$@"
+  exit 1
+}
+
 
 ########## Functional tests ##########
 
@@ -70,7 +80,7 @@ function pipeline {
 # Test up through step 2 of the pipeline.
 function pipeline2 {
   echo -e "\tpipeline.py steps 1 and 2 ::: R39-M249-reduced.bam:"
-  mkdir "$dirname/pipeline/tmp" || return
+  mkdir "$dirname/pipeline/tmp" || failout "Error: tmp dir $dirname/pipeline/tmp exists."
   python "$dirname/../pipeline.py" -E 2 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
     "$dirname/pipeline/tmp"
@@ -83,7 +93,7 @@ function pipeline2 {
 # Test step 3 of the pipeline.
 function pipeline3 {
   echo -e "\tpipeline.py step 3 ::: R39-M249-reduced.bam:"
-  mkdir "$dirname/pipeline/tmp" || return
+  mkdir "$dirname/pipeline/tmp" || failout "Error: tmp dir $dirname/pipeline/tmp exists."
   cp "$dirname/pipeline/out2.R39-M249-reduced.bam" "$dirname/pipeline/tmp/bam1filt.bam"
   python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
@@ -97,7 +107,7 @@ function pipeline3 {
 # Test the pipeline all the way through.
 function pipefull {
   echo -e "\tpipeline.py steps 1-11 ::: R39-M249-reduced.bam:"
-  mkdir "$dirname/pipeline/tmp" || return
+  mkdir "$dirname/pipeline/tmp" || failout "Error: tmp dir $dirname/pipeline/tmp exists."
   python "$dirname/../pipeline.py" -E 11 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" \
     "$dirname/pipeline/tmp"
