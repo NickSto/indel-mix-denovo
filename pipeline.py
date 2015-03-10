@@ -22,8 +22,7 @@ def main(argv):
   parser.set_defaults(**OPT_DEFAULTS)
 
   parser.add_argument('ref', metavar='reference.fa',
-    help='Reference genome, including any other mapping targets you want to include for filtering '
-         'purposes.')
+    help='The reference genome.')
   parser.add_argument('fastq1', metavar='reads_1.fq',
     help='Input reads, mate 1.')
   parser.add_argument('fastq2', metavar='reads_2.fq',
@@ -34,6 +33,11 @@ def main(argv):
     help='The sample id.')
   parser.add_argument('-r', '--refname', metavar='chrName', required=True,
     help='Id of reference sequence. Reads will be filtered for those that map to this sequence.')
+  parser.add_argument('-R', '--filter-ref', metavar='filter-ref.fa',
+    help='A reference consisting of the reference genome plus any other mapping targets you want '
+         'to include for filtering purposes. Will filter the reads in the first step by mapping '
+         'to this reference, then selecting only reads which map to the sequence identified by '
+         '--refname. Optional. Will use the main reference genome by default.')
   parser.add_argument('-N', '--simulate', action='store_true',
     help='Only simulate execution. Print commands, but do not execute them.')
   parser.add_argument('-b', '--to-script', metavar='path/to/script.sh',
@@ -104,11 +108,13 @@ def main(argv):
       continue
     assert arg not in params, '{} in params. value: {}'.format(arg, params[arg])
     params[arg] = getattr(args, arg)
+  if not args.filter_ref:
+    params['filter_ref'] = args.ref
 
   # Map reads to reference.
   #   BWA MEM
   if args.begin <= 1 and args.end >= 1:
-    align(args.fastq1, args.fastq2, args.ref, params['bam1raw'], args.sample, runner)
+    align(args.fastq1, args.fastq2, params['filter_ref'], params['bam1raw'], args.sample, runner)
   else:
     print 'Skipping step 1.'
 
