@@ -4,9 +4,14 @@ import os
 import sys
 import argparse
 import subprocess
+import distutils.spawn
 
 PLATFORM = 'ILLUMINA'
-PICARDIR = 'src/picard-tools-1.100'
+PICARDIR_DEFAULT = 'src/picard-tools-1.100'
+REQUIRED_COMMANDS = ('rm', 'bwa', 'samtools', 'spades.py', 'lastz', 'naive_variant_caller.py')
+REQUIRED_SCRIPTS = ('heteroplasmy/pre-process-mt.sh', 'asm-unifier.py', 'nvc-filter.py',
+                    'inspect-reads.py', 'quick-liftover.py')
+REQUIRED_PICARDS = ('SamToFastq.jar',)
 
 OPT_DEFAULTS = {'begin':0, 'end':14, 'rlen':250, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1,
                 'margin':600, 'kmers':'21,33,55,77'}
@@ -96,8 +101,6 @@ def main(argv):
   if args.to_script:
     runner.to_script(args.to_script)
 
-  #TODO: Check for required commands.
-
   # Create paths to files and directories
   #TODO: Use a tmp directory for intermediate files
   params = {}
@@ -106,7 +109,7 @@ def main(argv):
     assert base not in params, '{} in params. value: {}'.format(base, params[base])
     params[base] = os.path.join(args.outdir, filename)
   params['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
-  params['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR)
+  params['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR_DEFAULT)
   # Add arguments from command line.
   for arg in dir(args):
     if arg.startswith('_'):
@@ -115,6 +118,21 @@ def main(argv):
     params[arg] = getattr(args, arg)
   if not args.filter_ref:
     params['filter_ref'] = args.ref
+
+  # Check for required commands.
+  for command in REQUIRED_COMMANDS:
+    if not distutils.spawn.find_executable(command):
+      raise Exception('Required command "'+command+'" not found.')
+  # Check for required scripts.
+  for script in REQUIRED_SCRIPTS:
+    scriptpath = os.path.join(params['scriptdir'], script)
+    if not os.path.isfile(scriptpath):
+      raise Exception('Required script "'+scriptpath+'" not found.')
+  # Check for Picard jars
+  for jar in REQUIRED_PICARDS:
+    jarpath = os.path.join(params['picardir'], jar)
+    if not os.path.isfile(jarpath):
+      raise Exception('Required Picard jar "'+jarpath+'" not found.')
 
   # Map reads to reference.
   #   BWA MEM
@@ -165,8 +183,8 @@ def main(argv):
   # Clean assembly
   #   asm-unifier.py
   if args.begin <= 6 and args.end >= 6:
-    runner.run('asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta -o {asm} -l {asmlog}'
-               .format(**params))
+    runner.run('python {scriptdir}/asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta '
+               '-o {asm} -l {asmlog}'.format(**params))
   else:
     print 'Skipping step 6.'
 
@@ -214,7 +232,8 @@ def main(argv):
   # nvc-filter.py
   #TODO: Allow for samples with no indels (empty {nvc}).
   if args.begin <= 12 and args.end >= 12:
-    runner.run('nvc-filter.py -r S -c {cvg} -f {freq} {nvc} > {nvcfilt}'.format(**params))
+    runner.run('python {scriptdir}/nvc-filter.py -r S -c {cvg} -f {freq} {nvc} > {nvcfilt}'
+               .format(**params))
   else:
     print 'Skipping step 12.'
 
@@ -222,14 +241,14 @@ def main(argv):
   # Note: -S overwrites read group names with the given sample name. Don't use in multi-sample
   # analysis.
   if args.begin <= 13 and args.end >= 13:
-    runner.run('inspect-reads.py -tl -s {strand} -m {mate} -S {sample} {bam2dedup} -V {nvcfilt} '
-               '-r {asm} > {vars_asm}'.format(**params))
+    runner.run('python {scriptdir}/inspect-reads.py -tl -s {strand} -m {mate} -S {sample} '
+               '{bam2dedup} -V {nvcfilt} -r {asm} > {vars_asm}'.format(**params))
   else:
     print 'Skipping step 13.'
 
   # quick-liftover.py
   if args.begin <= 14 and args.end >= 14:
-    runner.run('quick-liftover.py {lav} {vars_asm} > {vars}'.format(**params))
+    runner.run('python {scriptdir}/quick-liftover.py {lav} {vars_asm} > {vars}'.format(**params))
   else:
     print 'Skipping step 14.'
 
@@ -297,10 +316,6 @@ class Runner(object):
     self._output = open(path, 'w')
   #TODO: close filehandle on exit or when done
 
-
-def fail(message):
-  sys.stderr.write(message+"\n")
-  sys.exit(1)
 
 if __name__ == '__main__':
   sys.exit(main(sys.argv))
