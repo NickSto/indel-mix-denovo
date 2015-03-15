@@ -149,10 +149,10 @@ def main():
     variants.extend(variants_from_vcf(args.vcf))
   if args.variants:
     variants.extend(variants_from_str(args.variants))
-  if not variants:
+  if not (args.vcf or args.variants):
     parser.print_help()
     fail("\nError: Please provide a list of variants in either a VCF file or a "
-      +"command line option.")
+         "command line option.")
   # eliminate variants that aren't one of the specified types
   variants[:] = [var for var in variants if var['type'] in args.vartypes]
 
