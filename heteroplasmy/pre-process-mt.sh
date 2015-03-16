@@ -11,6 +11,7 @@ CHROM_DEFAULT="chrM"
 CHROM_LEN_DEFAULT=""
 MARGIN_DEFAULT=""
 BOUNDS_DEFAULT="600 16000"
+MIN_LEN_DEFAULT="100"
 REQUIRED_SCRIPTS="rm_chim_in_pair.py nm-ratio.select.py get_major_from_bam.py"
 REQUIRED_COMMANDS="java bamtools samtools bamleftalign"
 PICARD_DIR=${PICARD_DIR:-~/src/picard-tools-1.100}
@@ -32,7 +33,8 @@ N.B.: If you give a temporary directory name, it will not be deleted at the end.
     and end aren't mistakenly discarded as chimeric.
 -B: Bounds to hand to rm_chim_in_pair.py. Default: $BOUNDS_DEFAULT
 -L: The length of the target chromosome. Should not be necessary, as the script should be able to
-    determine this using the reference file and the target chromosome name (-c)."
+    determine this using the reference file and the target chromosome name (-c).
+-M: The minimum read length to accept when filtering reads in rm_chim_in_pair.py. Default: $MIN_LEN_DEFAULT"
 
 function fail {
   echo "Error: $1" >&2
@@ -42,14 +44,23 @@ function fail {
 # Get this script's actual directory, resolving links.
 function real_dir {
   if readlink -f dummy >/dev/null 2>/dev/null; then
-    dirname $(readlink -f $0)
+    dirname $(readlink -f ${BASH_SOURCE[0]})
   else
     # readlink -f doesn't work on BSD
-    cd $(dirname $0)
-    script=$(basename $0)
-    link=$(ls -l $script | awk '{print $NF}')
-    cd $(dirname $link)
-    pwd
+    unset CDPATH
+    local source="${BASH_SOURCE[0]}"
+    while [[ -h "$source" ]]; do
+      local dir="$(cd -P $(dirname "$source") && pwd)"
+      local link="$(ls -l "$source" | awk '{print $NF}')"
+      # absolute or relative path?
+      if [[ "$link" == /* ]]; then
+        source="$link"
+      else
+        source="$dir/$link"
+      fi
+    done
+    dir="$(cd -P $(dirname "$source") && pwd)"
+    echo "$dir"
   fi
 }
 
@@ -61,8 +72,9 @@ chrom="$CHROM_DEFAULT"
 margin="$MARGIN_DEFAULT"
 chrom_len="$CHROM_LEN_DEFAULT"
 chim_bounds="$BOUNDS_DEFAULT"
+min_len="$MIN_LEN_DEFAULT"
 stopat=''
-while getopts ":r:s:c:B:m:L:h" opt; do
+while getopts ":r:s:c:B:m:L:M:h" opt; do
   case "$opt" in
     r) ref="$OPTARG";;
     s) stopat="$OPTARG";;
@@ -70,6 +82,7 @@ while getopts ":r:s:c:B:m:L:h" opt; do
     B) chim_bounds="$OPTARG";;
     m) margin="$OPTARG";;
     L) chrom_len="$OPTARG";;
+    M) min_len="$OPTARG";;
     h) echo "$USAGE" >&2
        exit 1;;
   esac
@@ -219,14 +232,27 @@ java -jar $PICARD_DIR/SortSam.jar \
   O="$tmpdir/$output"             \
   SO=queryname
 
-# Remove chimeric reads and reads < 100bp
+# Remove chimeric reads and reads < $min_len bp
+#TODO: Instead of giving $min_len directly with -M, allow giving an input read
+#      length and minimum length in percent.
 echo "--- dechim and rlen started ---"
 input="sorted2.bam"
 output="dechim.rlen.bam"
 if [[ $chrom_len ]] && [[ $margin ]]; then
-  python "$scriptdir/rm_chim_in_pair.py" -r $chrom -m $margin -L $chrom_len "$tmpdir/$input" "$tmpdir/$output"
+  python "$scriptdir/rm_chim_in_pair.py" \
+    -r $chrom                            \
+    -l $min_len                          \
+    -m $margin                           \
+    -L $chrom_len                        \
+    "$tmpdir/$input"                     \
+    "$tmpdir/$output"
 else
-  python "$scriptdir/rm_chim_in_pair.py" -r $chrom -b $chim_bounds "$tmpdir/$input" "$tmpdir/$output"
+  python "$scriptdir/rm_chim_in_pair.py" \
+    -r $chrom                            \
+    -l $min_len                          \
+    -b $chim_bounds                      \
+    "$tmpdir/$input"                     \
+    "$tmpdir/$output"
 fi
 
 if [[ $stopat == 'chimrlen' ]]; then
