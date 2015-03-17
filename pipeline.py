@@ -312,11 +312,14 @@ class Runner(object):
     if not self.simulate:
       try:
         subprocess.check_call(command, shell=True)
-      except subprocess.CalledProcessError:
+      except subprocess.CalledProcessError as cpe:
+        sys.stderr.write("Command '{}' returned non-zero exit status {}\n"
+                         .format(cpe.cmd, cpe.returncode))
         if not ignore_err:
-          raise
-        else:
-          sys.stderr.write('non-zero exit status on command\n$ '+command+'\n')
+          if __name__ == '__main__':
+            sys.exit(cpe.returncode)
+          else:
+            raise
   def to_script(self, path):
     """Print the commands to a ready-to-run bash script instead of executing them."""
     self.quiet = False
