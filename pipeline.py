@@ -125,7 +125,7 @@ def main(argv):
   if not params.get('rlen'):
     #TODO: Detect read length of FASTA files.
     raise Exception('Need to provide --read-length.')
-  params['rlen_thres'] = int(round(params['rlen'] * params['read_length_minimum'] / 100))
+  params['min_rlen'] = int(round(params['rlen'] * params['read_length_minimum'] / 100))
 
   # Check for required commands.
   for command in REQUIRED_COMMANDS:
@@ -162,7 +162,7 @@ def main(argv):
   if args.begin <= 2 and args.end >= 2:
     print step+':'
     runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} '
-               '-s realign -r {ref} {bam1raw} {bam1filt}'.format(**params))
+               '-M {min_rlen} -s realign -r {ref} {bam1raw} {bam1filt}'.format(**params))
   elif args.end > 2:
     print 'Skipping '+step+'.'
 
@@ -222,7 +222,7 @@ def main(argv):
   if args.begin <= 9 and args.end >= 9:
     print step+':'
     runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {sample} -m {margin} '
-               '-s realign -r {asm} {bam2raw} {bam2filt}'.format(**params))
+               '-M {min_rlen} -s realign -r {asm} {bam2raw} {bam2filt}'.format(**params))
   elif args.end > 9:
     print 'Skipping '+step+'.'
 
@@ -293,6 +293,7 @@ def align(fastq1, fastq2, ref, outbam, sample, runner):
   runner.run('bwa mem -M -t 16 -R {rg} {ref} {fq1} {fq2} > {base}.sam'.format(**params))
   runner.run('samtools view -Sb {base}.sam > {base}.tmp.bam'.format(**params))
   runner.run('samtools sort {base}.tmp.bam {base}'.format(**params))
+  #TODO: fixmate?
   runner.run('samtools index {base}.bam'.format(**params))
   runner.run('rm {base}.sam {base}.tmp.bam'.format(**params))
   return outbam
