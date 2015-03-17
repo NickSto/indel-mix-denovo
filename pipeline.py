@@ -13,8 +13,8 @@ REQUIRED_SCRIPTS = ('heteroplasmy/pre-process-mt.sh', 'asm-unifier.py', 'nvc-fil
                     'inspect-reads.py', 'quick-liftover.py')
 REQUIRED_PICARDS = ('SamToFastq.jar',)
 
-OPT_DEFAULTS = {'begin':0, 'end':14, 'rlen':250, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1,
-                'margin':600, 'kmers':'21,33,55,77'}
+OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1,
+                'margin':600, 'kmers':'21,33,55,77', 'read_length_minimum':40}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
@@ -55,11 +55,14 @@ def main(argv):
   parser.add_argument('-E', '--end', metavar='step', type=int,
     help='Stop after this many pipeline steps.')
   param = parser.add_argument_group('Analysis Parameters')
-  param.add_argument('-l', '--read-length', dest='rlen', type=int,
+  param.add_argument('-l', '--read-length', dest='rlen', required=True, type=int,
     help='Read length. Default: "%(default)s"')
+  param.add_argument('-L', '--read-length-minimum', metavar='PCT', type=float,
+    help='Read length threshold. Give the minimum percent of the read that must be present to '
+         'pass. Give in percent, not decimal ("10" for 10%%, not "0.1"). Default: "%(default)s"')
   param.add_argument('-f', '--freq-thres', dest='freq', type=float,
-    help='Minor allele frequency threshold for indel calling. Give in percent, not decimal ("10" '
-         'for 10%%, not "0.1"). Used in step 12 (nvc-filter.py). Default: "%(default)s"')
+    help='Minor allele frequency threshold for indel calling. Give in percent, not decimal. Used '
+         'in step 12 (nvc-filter.py). Default: "%(default)s"')
   param.add_argument('-c', '--cvg-thres', dest='cvg', type=int,
     help='Read depth of coverage threshold for indel calling. If the read depth at the indel is '
          'below this value, it will not be reported. Used in step 12 (nvc-filter.py). Default: '
@@ -101,7 +104,7 @@ def main(argv):
   if args.to_script:
     runner.to_script(args.to_script)
 
-  # Create paths to files and directories
+  # Create paths to files and directories.
   #TODO: Use a tmp directory for intermediate files
   params = {}
   for filename in FILENAMES:
@@ -116,8 +119,13 @@ def main(argv):
       continue
     assert arg not in params, '{} in params. value: {}'.format(arg, params[arg])
     params[arg] = getattr(args, arg)
+  # Compute some special arguments.
   if not args.filter_ref:
     params['filter_ref'] = args.ref
+  if not params.get('rlen'):
+    #TODO: Detect read length of FASTA files.
+    raise Exception('Need to provide --read-length.')
+  params['rlen_thres'] = int(round(params['rlen'] * params['read_length_minimum'] / 100))
 
   # Check for required commands.
   for command in REQUIRED_COMMANDS:
@@ -128,7 +136,7 @@ def main(argv):
     scriptpath = os.path.join(params['scriptdir'], script)
     if not os.path.isfile(scriptpath):
       raise Exception('Required script "'+scriptpath+'" not found.')
-  # Check for Picard jars
+  # Check for Picard jars.
   for jar in REQUIRED_PICARDS:
     jarpath = os.path.join(params['picardir'], jar)
     if not os.path.isfile(jarpath):
