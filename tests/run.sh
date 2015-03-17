@@ -75,12 +75,13 @@ function all {
 function pipeline {
   pipeline2 && echo
   pipeline3 && echo
-  pipefull11
+  pipefull11 && echo
+  pipefull
 }
 
 # Test up through step 2 of the pipeline.
 function pipeline2 {
-  echo -e "\tpipeline.py steps 1 and 2 ::: R39-M249-reduced.bam:"
+  echo -e "\tpipeline.py steps 1 and 2 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   python "$dirname/../pipeline.py" -E 2 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
@@ -92,7 +93,7 @@ function pipeline2 {
 
 # Test step 3 of the pipeline.
 function pipeline3 {
-  echo -e "\tpipeline.py step 3 ::: R39-M249-reduced.bam:"
+  echo -e "\tpipeline.py step 3 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   cp "$dirname/pipeline/out2.R39-M249-reduced.bam" "$tmp/bam1filt.bam"
   python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
@@ -105,7 +106,7 @@ function pipeline3 {
 
 # Test the pipeline from steps 1-11
 function pipefull11 {
-  echo -e "\tpipeline.py steps 1-11 ::: R39-M249-reduced.bam:"
+  echo -e "\tpipeline.py steps 1-11 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   python "$dirname/../pipeline.py" -E 11 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
@@ -124,6 +125,16 @@ function pipefull11 {
   else
     echo "FAIL: Output nvc.vcf and expected out11.R39-M249-reduced.vcf differ. Diff lines: $lines"
   fi
+  rm -r "$tmp"
+}
+
+# Test the pipeline all the way through
+function pipefull {
+  echo -e "\tpipeline.py all steps ::: G3825.1a_[12].fq:"
+  mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
+  python "$dirname/../pipeline.py" -s G3825.1a -r EBOV -l 100 -c 100 -m 0 "$dirname/EBOV.fa" \
+    "$dirname/pipeline/G3825.1a_1.fq" "$dirname/pipeline/G3825.1a_2.fq" "$tmp"
+  diff -s "$dirname/pipeline/out14.G3825.1a.tsv" "$tmp/vars.tsv"
   rm -r "$tmp"
 }
 
