@@ -32,9 +32,9 @@ parser.add_argument('-L', '--chr-length', type=int,
 args = parser.parse_args()
 
 bounds = args.bounds
-if args.margin and args.chr_length:
+if args.margin is not None and args.chr_length is not None:
   bounds = (args.margin, args.chr_length-args.margin)
-elif args.margin or args.chr_length:
+elif args.margin is None or args.chr_length is None:
   raise Exception('--margin and --chr-length must be used together.')
 
 if not args.output:
