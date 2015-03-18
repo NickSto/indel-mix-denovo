@@ -253,12 +253,11 @@ def main(argv):
     print 'Skipping '+step+'.'
 
   step = 'Step 13: Filter further by BAM stats with inspect-reads.py'
-  # Note: -S overwrites read group names with the given sample name. Don't use in multi-sample
-  # analysis.
+  # N.B.: inspect-reads.py takes the output sample name from the BAM read group.
   if args.begin <= 13 and args.end >= 13:
     print step+':'
-    runner.run('python {scriptdir}/inspect-reads.py -tl -s {strand} -m {mate} -S {sample} '
-               '{bam2dedup} -V {nvcfilt} -r {asm} > {vars_asm}'.format(**params))
+    runner.run('python {scriptdir}/inspect-reads.py -tl -s {strand} -m {mate} {bam2dedup} '
+               '-V {nvcfilt} -r {asm} > {vars_asm}'.format(**params))
   elif args.end > 13:
     print 'Skipping '+step+'.'
 
