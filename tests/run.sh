@@ -83,7 +83,7 @@ function pipeline {
 function pipeline2 {
   echo -e "\tpipeline.py steps 1 and 2 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
-  python "$dirname/../pipeline.py" -E 2 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
+  python "$dirname/../pipeline.py" -E 2 -s M249 -r chrM -l 250 "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
   #TODO: edit diff.sh to allow different paths in @PG command line.
   bash "$dirname/bam-diff.sh" "$dirname/pipeline/out2.R39-M249-reduced.bam" \
@@ -96,7 +96,7 @@ function pipeline3 {
   echo -e "\tpipeline.py step 3 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   cp "$dirname/pipeline/out2.R39-M249-reduced.bam" "$tmp/bam1filt.bam"
-  python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
+  python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 -r chrM -l 250 "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
   #TODO: edit diff.sh to allow different paths in @PG command line.
   bash "$dirname/bam-diff.sh" "$dirname/pipeline/out3.R39-M249-reduced.bam" \
@@ -108,7 +108,7 @@ function pipeline3 {
 function pipefull11 {
   echo -e "\tpipeline.py steps 1-11 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
-  python "$dirname/../pipeline.py" -E 11 -s M249 -r chrM "$dirname/chrM-rCRS.fa" \
+  python "$dirname/../pipeline.py" -E 11 -s M249 -r chrM -l 250 "$dirname/chrM-rCRS.fa" \
     "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
   # Diff the results. The date ends up in the final vcf, so omit that.
   exceptions='^##(reference|fileDate)='
