@@ -1,0 +1,649 @@
+#:lav
+d {
+  "lastz.v1.02.00 /home/me/bx/data/chrM-rCRS.fa orig/R23S3.fa --format=lav 
+     A    C    G    T
+    91 -114  -31 -123
+  -114  100 -125  -31
+   -31 -125  100 -114
+  -123  -31 -114   91
+  O = 400, E = 30, K = 3000, L = 3000, M = 0"
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 406 0 1
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-5"
+}
+a {
+  s 24308
+  b 12152 21
+  e 12536 405
+  l 12152 21 12536 405 84
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 404 0 2
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-6"
+}
+a {
+  s 32192
+  b 11330 2
+  e 11732 404
+  l 11330 2 11732 404 92
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 394 1 3
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-12 (reverse complement)"
+}
+a {
+  s 32426
+  b 6531 8
+  e 6917 394
+  l 6531 8 6917 394 94
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 394 1 4
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-11 (reverse complement)"
+}
+a {
+  s 30660
+  b 11740 2
+  e 12131 393
+  l 11740 2 12131 393 91
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 391 0 5
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-14"
+}
+a {
+  s 31284
+  b 10024 1
+  e 10414 391
+  l 10024 1 10414 391 91
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 411 0 6
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-4"
+}
+a {
+  s 31494
+  b 8471 1
+  e 8880 410
+  l 8471 1 8880 410 90
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 417 1 7
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-3 (reverse complement)"
+}
+a {
+  s 3324
+  b 6111 70
+  e 6158 117
+  l 6111 70 6158 117 85
+}
+a {
+  s 32059
+  b 6990 1
+  e 7393 410
+  l 6990 1 7073 84 87
+  l 7074 88 7093 107 90
+  l 7094 111 7393 410 94
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 396 1 8
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-9 (reverse complement)"
+}
+a {
+  s 31794
+  b 1465 2
+  e 1859 396
+  l 1465 2 1859 396 93
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 391 0 9
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-13"
+}
+a {
+  s 27111
+  b 11122 3
+  e 11508 389
+  l 11122 3 11508 389 86
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 383 0 10
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-18"
+}
+a {
+  s 30964
+  b 4070 2
+  e 4450 382
+  l 4070 2 4450 382 93
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 382 0 11
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-19"
+}
+a {
+  s 30959
+  b 7447 1
+  e 7828 382
+  l 7447 1 7828 382 92
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 395 0 12
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-10"
+}
+a {
+  s 30881
+  b 6126 1
+  e 6518 393
+  l 6126 1 6435 310 94
+  l 6437 311 6447 321 73
+  l 6448 323 6518 393 86
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 381 1 13
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-20 (reverse complement)"
+}
+a {
+  s 35628
+  b 7829 1
+  e 8209 381
+  l 7829 1 8209 381 99
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 257 1 14
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-21 (reverse complement)"
+}
+a {
+  s 24548
+  b 6162 1
+  e 6418 257
+  l 6162 1 6418 257 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 391 1 15
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-15 (reverse complement)"
+}
+a {
+  s 26949
+  b 1596 2
+  e 1985 391
+  l 1596 2 1985 391 86
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 230 1 16
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-30 (reverse complement)"
+}
+a {
+  s 21611
+  b 6317 1
+  e 6546 230
+  l 6317 1 6546 230 99
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 255 0 17
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-24"
+}
+a {
+  s 24064
+  b 10150 1
+  e 10404 255
+  l 10150 1 10404 255 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 217 0 18
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-32"
+}
+a {
+  s 20275
+  b 10150 1
+  e 10366 217
+  l 10150 1 10366 217 99
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 255 0 19
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-26"
+}
+a {
+  s 23945
+  b 10064 1
+  e 10318 255
+  l 10064 1 10318 255 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 175 0 20
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-33"
+}
+a {
+  s 16600
+  b 10192 1
+  e 10366 175
+  l 10192 1 10366 175 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 152 1 21
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-35 (reverse complement)"
+}
+a {
+  s 14275
+  b 6292 1
+  e 6443 152
+  l 6292 1 6443 152 99
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 144 0 22
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-36"
+}
+a {
+  s 13698
+  b 10162 1
+  e 10305 144
+  l 10162 1 10305 144 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 165 0 23
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-34"
+}
+a {
+  s 15627
+  b 10112 1
+  e 10276 165
+  l 10112 1 10276 165 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 140 0 24
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-37"
+}
+a {
+  s 13075
+  b 10179 1
+  e 10318 140
+  l 10179 1 10318 140 99
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 140 0 25
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-39"
+}
+a {
+  s 13280
+  b 10179 1
+  e 10318 140
+  l 10179 1 10318 140 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 140 0 26
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-38"
+}
+a {
+  s 13280
+  b 10179 1
+  e 10318 140
+  l 10179 1 10318 140 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 139 1 27
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-40 (reverse complement)"
+}
+a {
+  s 13207
+  b 10150 1
+  e 10288 139
+  l 10150 1 10288 139 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 133 1 28
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-42 (reverse complement)"
+}
+a {
+  s 12652
+  b 10156 1
+  e 10288 133
+  l 10156 1 10288 133 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 255 0 29
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-22"
+}
+a {
+  s 24073
+  b 10156 1
+  e 10410 255
+  l 10156 1 10410 255 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 400 0 30
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-7"
+}
+a {
+  s 30328
+  b 1804 1
+  e 2195 392
+  l 1804 1 2195 392 91
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 255 1 31
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-25 (reverse complement)"
+}
+a {
+  s 24330
+  b 6189 1
+  e 6443 255
+  l 6189 1 6443 255 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 391 1 32
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-16 (reverse complement)"
+}
+a {
+  s 28979
+  b 9500 12
+  e 9878 391
+  l 9500 12 9767 279 92
+  l 9768 281 9878 391 86
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 255 1 33
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-27 (reverse complement)"
+}
+a {
+  s 24087
+  b 10034 1
+  e 10288 255
+  l 10034 1 10288 255 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 255 1 34
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-23 (reverse complement)"
+}
+a {
+  s 23920
+  b 6189 1
+  e 6443 255
+  l 6189 1 6443 255 99
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 226 0 35
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-31"
+}
+a {
+  s 21065
+  b 10179 1
+  e 10404 226
+  l 10179 1 10404 226 99
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 242 0 36
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-29"
+}
+a {
+  s 21795
+  b 10192 1
+  e 10425 234
+  l 10192 1 10425 234 99
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 249 1 37
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-28 (reverse complement)"
+}
+a {
+  s 23387
+  b 10156 1
+  e 10404 249
+  l 10156 1 10404 249 99
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa" 1 400 0 38
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-8"
+}
+a {
+  s 37646
+  b 10034 1
+  e 10433 400
+  l 10034 1 10433 400 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 385 1 39
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-17 (reverse complement)"
+}
+a {
+  s 36799
+  b 6162 1
+  e 6546 385
+  l 6162 1 6546 385 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 3741 1 40
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-2 (reverse complement)"
+}
+a {
+  s 354644
+  b 6420 1
+  e 10160 3741
+  l 6420 1 10160 3741 100
+}
+#:lav
+s {
+  "/home/me/bx/data/chrM-rCRS.fa" 1 16569 0 1
+  "orig/R23S3.fa-" 1 12550 1 41
+}
+h {
+   ">chrM gi|251831106|ref|NC_012920.1| Homo sapiens mitochondrion, complete genome"
+   ">R23S3-1 (reverse complement)"
+}
+a {
+  s 594517
+  b 1 6264
+  e 6288 12550
+  l 1 6264 315 6578 99
+  l 316 6580 497 6761 100
+  l 499 6762 3106 9369 100
+  l 3108 9370 6288 12550 100
+}
+a {
+  s 592708
+  b 10307 1
+  e 16569 6263
+  l 10307 1 16569 6263 100
+}
+m {
+  n 0
+}
+#:eof

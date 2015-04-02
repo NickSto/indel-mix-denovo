@@ -157,10 +157,13 @@ function pipefull {
 
 # quick-liftover.py
 function liftover {
-  echo -e "\tquick-liftover.py ::: R19S1.lav:"
+  echo -e "\tquick-liftover.py ::: R19S1.lav, R23S3.lav:"
   python "$dirname/../quick-liftover.py" "$dirname/quick-liftover/R19S1.lav" \
     -s $(cat "$dirname/quick-liftover/R19S1-sites.in.txt") \
     | diff -s - "$dirname/quick-liftover/R19S1-sites.out.txt"
+  python "$dirname/../quick-liftover.py" "$dirname/quick-liftover/R23S3.lav" \
+    -s $(cat "$dirname/quick-liftover/R23S3-sites.in.txt") \
+    | diff -s - "$dirname/quick-liftover/R23S3-sites.out.txt"
 }
 
 main "$@"

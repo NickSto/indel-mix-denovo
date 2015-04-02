@@ -4,6 +4,7 @@ chrM:3629
 chrM:3630
 chrM:3929
 chrM:6247
+chrM:8407
 chrM:9998
 chrM:300
 chrM:307
@@ -12,6 +13,7 @@ R19S1-1:13450
 R19S1-1:13451
 chrM:310
 chrM:318
+chrM:2580
 chrM:3670
 chrM:3671
 R19S1-2:3451
