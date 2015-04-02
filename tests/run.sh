@@ -21,7 +21,10 @@ function main {
     if [[ ${arg:0:1} == '-' ]]; then
       case "$arg" in
         -h)
-          fail "$USAGE";;
+          echo "$USAGE" >&2
+          echo "Currently valid tests:" >&2
+          list_tests >&2
+          exit 1;;
         -v)
           verbose=true;;
         *)
@@ -63,6 +66,20 @@ function failout {
   exit 1
 }
 
+function list_tests {
+  while read declare f test; do
+    # Filter out functions that aren't tests.
+    if echo "$initial_declarations" | grep -qF 'declare -f '"$test"; then
+      continue
+    else
+      echo "$test"
+    fi
+  done < <(declare -F)
+}
+
+# Capture a list of all functions defined before the tests, to tell which are actual functions
+# and which are tests.
+initial_declarations=$(declare -F)
 
 ########## Functional tests ##########
 
