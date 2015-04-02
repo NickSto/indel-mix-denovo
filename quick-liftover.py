@@ -28,7 +28,7 @@ def main():
     help='The LASTZ alignment, in LAV format. Should be produced with the '
       'command "$ lastz reference.fa assembly.fa". This was developed for '
       'LASTZ version 1.02.00.')
-  parser.add_argument('sites_file', metavar='sites.txt', nargs='?',
+  parser.add_argument('sites_file', metavar='sites.tsv', nargs='?',
     help='A file containing the sites to convert. By default, should be in '
       'a tsv returned by inspect-reads.py. Can be omitted, if sites are given '
       'on command line.')
@@ -143,7 +143,7 @@ def parse_sites_string(sites_strs):
   for site_str in sites_strs:
     try:
       (chrom, coord) = site_str.split(':')
-      yield [chrom, int(coord), None, site_str]
+      yield [chrom, int(coord), None, site_str+'\n']
     except ValueError:
       fail('Error: Invalid site string "'+site_str+'"')
 
