@@ -66,15 +66,16 @@ def main():
 
   # For each site, compare it to every block to check if it's contained in it.
   # Use the longest one.
-  for site in sites:
-    if site[1] is None:
+  for (s_chrom, s_begin, s_end, string) in sites:
+    if s_begin is None:
       # if no start coordinate, just print the input line back out
-      sys.stdout.write(site[3])
+      sys.stdout.write(string)
       continue
     # Get a list of all blocks that contain the site.
     containing_blocks = []
     for block in table:
-      if site[0] == block[0] and block[1] <= site[1] <= block[2]:
+      (b_chrom1, b_begin, b_end) = block[:3]
+      if s_chrom == b_chrom1 and b_begin <= s_begin <= b_end:
         containing_blocks.append(block)
     # If there are no blocks that contain the site, there is no reference
     # sequence corresponding to this region. Just print the old site unedited.
@@ -82,21 +83,26 @@ def main():
       if args.null_note:
         raise NotImplementedError('--null-note not yet implemented.')
       else:
-        sys.stdout.write(site[3])
+        sys.stdout.write(string)
       continue
     # Find the longest block among the hits.
-    longest_block = (None, 0, 0, None, None, None)
+    longest_begin = 0
+    longest_end = 0
     for block in containing_blocks:
-      if block[2] - block[1] > longest_block[2] - longest_block[1]:
+      (b_begin, b_end) = block[1:3]
+      if b_end - b_begin > longest_end - longest_begin:
         longest_block = block
+        (longest_begin, longest_end) = longest_block[1:3]
+    (b_chrom1, b_begin, b_end, b_chrom2, b_strand, b_offset, b_id, b_score) = longest_block
     # Do the actual conversion.
     # get the chromosome name
-    site[0] = longest_block[3]
+    s_chrom = b_chrom2
     # calculate the new coordinate, using the conversion coefficients
-    site[1] = site[1] * longest_block[4] + longest_block[5]
-    if site[2]:
-      site[2] = site[2] * longest_block[4] + longest_block[5]
-    sys.stdout.write(edit_line(site, args, strand=longest_block[4]))
+    s_begin = s_begin * b_strand + b_offset
+    if s_end:
+      s_end = s_end * b_strand + b_offset
+    site = (s_chrom, s_begin, s_end, string)
+    sys.stdout.write(edit_line(site, args, strand=b_strand))
 
 
 def get_kept_contigs(lav, slop=20):
