@@ -1,4 +1,4 @@
-indel-mix-denovo
+![icon](http://v.nstoler.com/img/hg19-32.png) indel-mix-denovo
 ================
 
 Purpose
