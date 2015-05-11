@@ -15,8 +15,9 @@ REQUIRED_PICARDS = ('SamToFastq.jar',)
 
 OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1,
                 'margin':600, 'kmers':'21,33,55,77', 'read_length_minimum':40}
-USAGE = "%(prog)s [options]"
-DESCRIPTION = """"""
+DESCRIPTION = """Automate all steps of running the indel discovery pipeline on a single sample.
+Note: Set the directory containing the picard jars with the environment variable PICARD_DIR (if it's
+different from the default: ~/"""+PICARDIR_DEFAULT+').'
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
              'asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bam2raw.bam', 'bam2filt.bam',
              'bam2dedup.bam', 'nvc.vcf', 'nvcfilt.vcf', 'vars_asm.tsv', 'vars.tsv')
@@ -112,7 +113,10 @@ def main(argv):
     assert base not in params, '{} in params. value: {}'.format(base, params[base])
     params[base] = os.path.join(args.outdir, filename)
   params['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
-  params['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR_DEFAULT)
+  if 'PICARD_DIR' in os.environ:
+    params['picardir'] = os.environ['PICARD_DIR']
+  else:
+    params['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR_DEFAULT)
   # Add arguments from command line.
   for arg in dir(args):
     if arg.startswith('_'):
@@ -156,9 +160,6 @@ def main(argv):
 
   step = 'Step 2: Filter alignment with pre-process-mt.sh'
   #TODO: only use -s realign when necessary
-  # Example command: $ pre-process-mt.sh -r $root/asm/clean/G3825.1a.fa -c G3825.1a -B '0 18834' \
-  #                    -s realign $root/aln/raw/G3825.1a.bam $root/aln/filt/G3825.1a.bam \
-  #                    $root/aln/tmp/G3825.1a
   if args.begin <= 2 and args.end >= 2:
     print step+':'
     runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} '
@@ -184,8 +185,6 @@ def main(argv):
   step = 'Step 5: Assemble with SPAdes'
   #TODO: Set k-mers based on read length.
   #TODO: Check if successful (produces a contigs.fasta)
-  # Example: $ spades.py --careful -k 21,33,55,77 -1 $FASTQ_DIR/${sample}_1.fastq \
-  #            -2 $FASTQ_DIR/${sample}_2.fastq -o $ROOT/asm/orig/$sample
   if args.begin <= 5 and args.end >= 5:
     print step+':'
     runner.run('spades.py --careful -k {kmers} -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}'
