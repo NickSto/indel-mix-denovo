@@ -13,7 +13,7 @@ MARGIN_DEFAULT=""
 BOUNDS_DEFAULT="600 16000"
 MIN_LEN_DEFAULT="100"
 REQUIRED_SCRIPTS="rm_chim_in_pair.py nm-ratio.select.py get_major_from_bam.py"
-REQUIRED_COMMANDS="java bamtools samtools bamleftalign"
+REQUIRED_COMMANDS="dirname basename file java bamtools samtools bamleftalign"
 PICARD_DIR=${PICARD_DIR:-~/src/picard-tools-1.100}
 REGEX="[a-zA-Z0-9]+:[0-9]+:[a-zA-Z0-9-]+:[0-9]+:([0-9]+):([0-9]+):([0-9]+).*."
 USAGE="Usage: \$ $(basename $0) [-r reference.fa] input.bam [output-name.bam [tmp_dir_name]]
@@ -280,6 +280,8 @@ samtools index "$tmpdir/$output"
 if [[ $stopat == 'realign' ]]; then
   finish "$tmpdir/$output"
 fi
+
+#TODO: Make get_major_from_bam.py not hardcoded to chrM
 
 # Generate consensus sequence
 echo "--- major sequence started ---"
