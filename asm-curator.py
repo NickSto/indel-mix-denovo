@@ -3,11 +3,9 @@
 from __future__ import division
 import os
 import sys
-import random
 import argparse
 import subprocess
 import collections
-import quicksect
 import lavreader
 import fastareader
 import lavintervals

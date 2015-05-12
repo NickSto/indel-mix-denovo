@@ -215,7 +215,7 @@ unspecified by omitting it, but leaving the comma, like "100," """)
         if options.compliant and alt == site.get_ref():
           #TODO: add INFO flag
           continue
-        alts_new.append(alt)    
+        alts_new.append(alt)
 
       if alts_new:
         site.set_alt(alts_new)

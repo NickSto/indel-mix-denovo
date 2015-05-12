@@ -8,7 +8,8 @@ import distutils.spawn
 
 PLATFORM = 'ILLUMINA'
 PICARDIR_DEFAULT = 'src/picard-tools-1.100'
-REQUIRED_COMMANDS = ('rm', 'bwa', 'samtools', 'spades.py', 'lastz', 'naive_variant_caller.py')
+REQUIRED_COMMANDS = ('java', 'bash', 'python', 'bwa', 'samtools', 'spades.py', 'lastz',
+                     'naive_variant_caller.py')
 REQUIRED_SCRIPTS = ('heteroplasmy/pre-process-mt.sh', 'asm-unifier.py', 'nvc-filter.py',
                     'inspect-reads.py', 'quick-liftover.py')
 REQUIRED_PICARDS = ('SamToFastq.jar',)

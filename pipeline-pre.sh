@@ -99,8 +99,8 @@ sample:  $sample"
     -2 $dir/filt_2.fq -o $dir/asm"
 
   # Clean up assembly
-  exho "python $scriptdir/asm-unifier.py -n $chrom $ref \
-    $dir/asm/contigs.fasta -o $dir/asm.fa"
+  exho "python $scriptdir/asm-unifier.py -n $chrom $ref $dir/asm/contigs.fasta \
+    -o $dir/asm.fa"
 
   # Map to assembly
   map $dir/filt_1.fq $dir/filt_2.fq $dir/asm.fa $dir/asm_raw.bam $sample
@@ -272,5 +272,6 @@ function exho {
     eval "$1"
   fi
 }
+
 
 main "$@"
