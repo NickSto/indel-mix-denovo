@@ -3,8 +3,10 @@ from __future__ import division
 import re
 import os
 import sys
+import time
 import argparse
-import pipeline
+import subprocess
+import multiprocessing
 
 OPT_DEFAULTS = {}
 USAGE = "%(prog)s [options]"
@@ -18,6 +20,12 @@ def main(argv):
 
   parser.add_argument('ref', metavar='reference.fa',
     help='The reference genome.')
+  parser.add_argument('outdir', metavar='output/directory/path',
+    help='Destination directory to place the output.')
+  parser.add_argument('-r', '--refname', metavar='chrName', required=True,
+    help='Id of reference sequence. Reads will be filtered for those that map to this sequence.')
+  parser.add_argument('-l', '--read-length', required=True, type=int,
+    help='Read length. Default: "%(default)s"')
   parser.add_argument('-f', '--fastq-dir', required=True,
     help='Directory containing the fastq files. The filenames should be in the format '
          '{sampleid}_1.fastq.gz.')
@@ -26,19 +34,26 @@ def main(argv):
          'each family. The first column is the id of the family, and the following columns are the '
          'ids of the samples in that family.')
   parser.add_argument('-F', '--family-id')
+  parser.add_argument('-N', '--simulate', action='store_true',
+    help='Only simulate execution. Print commands, but do not execute them.')
+  parser.add_argument('-b', '--to-script', metavar='path/to/script.sh',
+    help='Instead of executing commands, write them to a bash script with this name.')
   parser.add_argument('pipeargs', metavar='...', nargs=argparse.REMAINDER,
     help='The remaining arguments will be passed directly to pipeline.py. Make sure to put them '
          'at the end, after the arguments for this script.')
 
   args = parser.parse_args(argv[1:])
 
+  script_dir = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
+  script_path = os.path.join(script_dir, 'pipeline.py')
+
   fastqs = get_fastqs(args.fastq_dir)
 
   families = read_families(args.families_table)
   for family_id, sample_ids in families.items():
-    print family_id
+    print 'family '+family_id
+    processes = []
     for sample_id in sample_ids:
-      print '\t'+sample_id
       if sample_id in fastqs:
         fastq_pair = fastqs[sample_id]
         if len(fastq_pair) != 2:
@@ -48,9 +63,19 @@ def main(argv):
         raise PipefamError('No fastq\'s found for sample ""'.format(sample_id))
       fastq1 = os.path.join(args.fastq_dir, fastq_pair[0])
       fastq2 = os.path.join(args.fastq_dir, fastq_pair[1])
-      print '\t\t'+fastq1
-      print '\t\t'+fastq2
-
+      command = ['python', script_path, '-s', sample_id, '-r', args.refname,
+                 '-l', str(args.read_length)]
+      command.extend(args.pipeargs)
+      command.extend([args.ref, fastq1, fastq2, args.outdir])
+      # command.extend(['-b', '/dev/null'])
+      print '$ '+' '.join(command)
+      if not args.simulate:
+        process = multiprocessing.Process(target=subprocess.call, args=(command,))
+        process.start()
+        processes.append(process)
+    while not processes_done(processes):
+      time.sleep(1)
+    print "family {} done!".format(family_id)
 
 
 def read_families(families_filepath):
@@ -97,15 +122,19 @@ def get_fastqs(fastq_dir):
   return fastqs
 
 
+def processes_done(processes):
+  """Return True if all processes are finished, False otherwise."""
+  for process in processes:
+    if process.is_alive():
+      return False
+  return True
+
+
 class PipefamError(Exception):
   def __init__(self, message=None):
     if message:
       Exception.__init__(self, message)
 
-
-def fail(message):
-  sys.stderr.write(message+"\n")
-  sys.exit(1)
 
 if __name__ == '__main__':
   sys.exit(main(sys.argv))
