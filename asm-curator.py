@@ -19,7 +19,7 @@ OPT_DEFAULTS = {'lav':'', 'asm':'', 'ref':'', 'report':'', 'fragmented':500,
   'minor_len':600, 'min_flank':75, 'min_gap':10, 'contig_limit':10000,
   'slop':20}
 USAGE = """%(prog)s -l align.lav [-r report.tsv] [-a asm.fa -o new-asm.fa]
-       %(prog)s -r ref.fa -a asm.fa [-l align.lav] [-r report.tsv] [-o new-asm.fa]"""
+       %(prog)s -r ref.fa -a asm.fa [-l align.lav] [-R report.tsv] [-o new-asm.fa]"""
 DESCRIPTION = """Analyze an assembly via its LASTZ alignment to the reference.
 In the most basic mode, you can provide a LASTZ alignment (in LAV format) and it
 will print a report on the quality of the assembly. If the assembly FASTA is
@@ -126,7 +126,7 @@ def main():
     parser.print_help()
     fail("\nError: To produce a curated assembly, an input assembly is required.")
   # Don't overwrite existing output assembly files
-  if os.path.exists(args.out):
+  if args.out and args.out != os.devnull and os.path.exists(args.out):
     fail('\nError: Curated assembly output file "'+args.out+'" already exists.')
 
   if args.report:
