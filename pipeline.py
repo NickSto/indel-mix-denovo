@@ -7,7 +7,7 @@ import subprocess
 import distutils.spawn
 
 PLATFORM = 'ILLUMINA'
-PICARDIR_DEFAULT = 'src/picard-tools-1.100'
+PICARDIR_DEFAULT = 'bx/src/picard-tools-1.100'
 REQUIRED_COMMANDS = ('java', 'bash', 'python', 'bwa', 'samtools', 'spades.py', 'lastz',
                      'naive_variant_caller.py')
 REQUIRED_SCRIPTS = ('heteroplasmy/pre-process-mt.sh', 'asm-unifier.py', 'nvc-filter.py',
@@ -19,6 +19,10 @@ OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1,
 DESCRIPTION = """Automate all steps of running the indel discovery pipeline on a single sample.
 Note: Set the directory containing the picard jars with the environment variable PICARD_DIR (if it's
 different from the default: ~/"""+PICARDIR_DEFAULT+').'
+# The intermediate files.
+# Their names, without extensions, will be used directly in the command templates below.
+# The intention is to make it easy to read the script and correlate filename placeholders in
+# commands with the actual ones in the filesystem.
 FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
              'asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bam2raw.bam', 'bam2filt.bam',
              'bam2dedup.bam', 'nvc.vcf', 'nvcfilt.vcf', 'vars_asm.tsv', 'vars.tsv')
@@ -41,6 +45,10 @@ def main(argv):
     help='The sample id.')
   parser.add_argument('-r', '--refname', metavar='chrName', required=True,
     help='Id of reference sequence. Reads will be filtered for those that map to this sequence.')
+  parser.add_argument('--refname2', metavar='chrName',
+    help='Id of the sequence to filter for, after assembly (if different from the sample id). '
+         'Normally only needed when starting the pipeline at a middle step after changing the '
+         'assembly file.')
   parser.add_argument('-R', '--filter-ref', metavar='filter-ref.fa',
     help='A reference consisting of the reference genome plus any other mapping targets you want '
          'to include for filtering purposes. Will filter the reads in the first step by mapping '
@@ -127,6 +135,8 @@ def main(argv):
   # Compute some special arguments.
   if not args.filter_ref:
     params['filter_ref'] = args.ref
+  if not args.refname2:
+    params['refname2'] = args.sample
   if not params.get('rlen'):
     #TODO: Detect read length of FASTA files.
     raise Exception('Need to provide --read-length.')
@@ -221,7 +231,7 @@ def main(argv):
   # In this second time around, might want to omit -s realign (do NM-edits filtering too).
   if args.begin <= 9 and args.end >= 9:
     print step+':'
-    runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {sample} -m {margin} '
+    runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname2} -m {margin} '
                '-M {min_rlen} -s realign -r {asm} {bam2raw} {bam2filt}'.format(**params))
   elif args.end > 9:
     print 'Skipping '+step+'.'

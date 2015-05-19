@@ -4,6 +4,7 @@ import re
 import os
 import sys
 import time
+import shutil
 import argparse
 import subprocess
 import collections
@@ -62,17 +63,17 @@ def main(argv):
 
   script_dir = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
 
-  fastqs = get_fastqs(args.fastq_dir)
+  fastq_pairs = get_fastqs(args.fastq_dir)
 
-  outdirs = {}
   families = read_families(args.families_table)
   for family_id, sample_ids in families.items():
     print 'family '+family_id
     # Run first half of pipeline (up through assembly).
     processes = []
+    outdirs = {}
     for sample_id in sample_ids:
-      if sample_id in fastqs:
-        fastq_pair = fastqs[sample_id]
+      if sample_id in fastq_pairs:
+        fastq_pair = fastq_pairs[sample_id]
         if len(fastq_pair) != 2:
           raise PipefamError('Wrong number of fastq\'s associated with sample "{}": {}'
                              .format(sample_id, ', '.join(fastq_pair)))
@@ -84,12 +85,12 @@ def main(argv):
       # Build pipeline.py command.
       fastq1 = os.path.join(args.fastq_dir, fastq_pair[0])
       fastq2 = os.path.join(args.fastq_dir, fastq_pair[1])
-      command = ['python', script_dir, 'pipeline.py', '-s', sample_id, '-r', args.refname,
-                 '-l', str(args.read_length), '-E', '7']
+      command = ['python', os.path.join(script_dir, 'pipeline.py'), '-s', sample_id,
+                 '-r', args.refname, '-l', str(args.read_length), '-E', '7']
       command.extend(args.pipeargs)
       command.extend([args.ref, fastq1, fastq2, args.outdir])
       # command.extend(['-b', '/dev/null'])
-      print '$ '+' '.join(command)
+      print '+ '+' '.join(command)
       if not args.simulate:
         process = multiprocessing.Process(target=subprocess.call, args=(command,))
         process.start()
@@ -101,18 +102,54 @@ def main(argv):
     reports = {}
     for sample_id in sample_ids:
       asm_raw = os.path.join(outdirs[sample_id], 'asmdir', 'contigs.fasta')
-      lav = os.path.join(outdirs[sample_id], 'lav.lav')
-      if not os.path.isfile(asm_raw) or not os.path.isfile(lav):
+      if not os.path.isfile(asm_raw):
+        continue
+      # Align raw assembly to reference.
+      lav_path = os.path.join(outdirs[sample_id], 'lav_raw.lav')
+      command = ['lastz', args.ref, asm_raw]
+      with open(lav_path, 'w') as lav:
+        subprocess.call(command, stdout=lav)
+      if not os.path.isfile(lav_path) or os.path.getsize(lav_path) == 0:
         continue
       # Use asm-curator.py to generate statistics.
-      command = ['python', script_dir, 'asm-curator.py', '-l', lav]
-      process = subprocess.Popen(command, stdout=subprocess.PIPE)
-      reports[sample_id] = parse_report(subprocess.communicate()[0])
+      command = ['python', script_dir, 'asm-curator.py', '-l', lav_path]
+      print '+ '+' '.join(command)
+      if not args.simulate:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE)
+        reports[sample_id] = parse_report(subprocess.communicate()[0])
+    # Compare reports for all samples and choose the best assembly.
     if not reports:
       sys.stderr.write('No successful assemblies found for family "{}".\n'.format(family_id))
       continue
-    best_asm = choose_asm(reports, args.max_contigs, args.include_dup)
-
+    best_sample = choose_asm(reports, args.max_contigs, args.include_dup)
+    if best_sample is None:
+      sys.stderr.write('No high-quality assembly chosen for family "{}".\n'.format(family_id))
+      continue
+    best_asm = os.path.join(outdirs[best_sample], 'asm.fa')
+    if not os.path.isfile(best_asm):
+      continue
+    # Finish pipeline using one, best assembly for all samples.
+    processes = []
+    for sample_id in sample_ids:
+      asm = os.path.join(outdirs[sample_id], 'asm.fa')
+      #TODO: Catch shutil.Error and OSError (or IOError?)
+      shutil.copy2(best_asm, asm)
+      # Build pipeline.py command.
+      fastq_pair = fastq_pairs[sample_id]
+      fastq1 = os.path.join(args.fastq_dir, fastq_pair[0])
+      fastq2 = os.path.join(args.fastq_dir, fastq_pair[1])
+      command = ['python', os.path.join(script_dir, 'pipeline.py'), '-s', sample_id,
+                 '-r', args.refname, '-l', str(args.read_length), '-B', '8']
+      print '+ '+' '.join(command)
+      if not args.simulate:
+        process = multiprocessing.Process(target=subprocess.call, args=(command,))
+        process.start()
+        processes.append(process)
+    while not processes_done(processes):
+      time.sleep(1)
+    print "Family {} done!".format(family_id)
+    #TODO: Consider bringing back group-filter.py method of allowing indels above bias thresholds
+    #      if there are others in the family that pass it.
 
 
 def read_families(families_filepath):
