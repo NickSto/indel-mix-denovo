@@ -1,2 +1,5 @@
 tests/pipeline
+tests/quick-liftover/*.fa
+tests/quick-liftover/*.png
 *.pyc
+
