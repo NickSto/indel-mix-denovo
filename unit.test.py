@@ -10,6 +10,7 @@ def main():
   FUNCTIONS = {
     'bamslicer.get_reads_and_stats':bamslicer_get_reads_and_stats,
     'inspect-reads.variants_from_vcf':inspect_reads_variants_from_vcf,
+    'pipeline-family.choose_asm':pipeline_family_choose_asm,
   }
 
   OPT_DEFAULTS = {'bam':'', 'vcf':'', 'variants':'', 'no_reads':False}
@@ -36,6 +37,7 @@ provided, it will select any read with that type of variant at that location."""
   parser.add_option('-R', '--no-reads', dest='no_reads', action='store_const',
     const=not OPT_DEFAULTS.get('no_reads'), default=OPT_DEFAULTS.get('no_reads'),
     help="Don't print info on individual reads.")
+  parser.add_option('-r', '--reports-dir', dest='reports_dir')
 
   (options, arguments) = parser.parse_args()
 
@@ -108,6 +110,29 @@ def inspect_reads_variants_from_vcf(options):
     if variant.get('alt') is not None:
       sys.stdout.write(':'+str(variant.get('alt')))
     print
+
+
+def pipeline_family_choose_asm(options):
+  pipeline_family = __import__("pipeline-family")
+  # Find, read, and parse reports.
+  # Then print their parsed representation and store in a dict.
+  reports = {}
+  for filename in os.listdir(options.reports_dir):
+    if not filename.endswith('.tsv'):
+      continue
+    report_path = os.path.join(options.reports_dir, filename)
+    if not os.path.isfile(report_path):
+      continue
+    with open(report_path) as report_file:
+      report = pipeline_family.parse_report(report_file.read())
+    print filename
+    for key, value in report.items():
+      print "\t{}\t{}".format(key, value)
+    reports[filename] = report
+  max_contigs = pipeline_family.OPT_DEFAULTS['max_contigs']
+  include_dup = False
+  best_asm = pipeline_family.choose_asm(reports, max_contigs, include_dup)
+  print 'chose: '+best_asm
 
 
 ##### UTILITY FUNCTIONS #####

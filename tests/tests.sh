@@ -8,7 +8,12 @@ echo -e "\tbamslicer.get_reads_and_stats ::: cigar-tests.bam:"
 $dirname/../unit.test.py bamslicer.get_reads_and_stats -b $dirname/cigar-tests.bam -v $BAMSLICER_VARS | diff -s - $dirname/cigar-tests.bamslicer.out
 
 echo -e "\tinspect-reads.variants_from_vcf ::: R19S5-head.vcf.in:"
-$dirname/../unit.test.py inspect-reads.variants_from_vcf -V $dirname/R19S5-head.vcf.in | diff -s - $dirname/R19S5-head.var_from_vcf.out 
+$dirname/../unit.test.py inspect-reads.variants_from_vcf -V $dirname/R19S5-head.vcf.in | diff -s - $dirname/R19S5-head.var_from_vcf.out
+
+echo -e "\tpipeline-family.choose_asm ::: reports1/:"
+$dirname/../unit.test.py pipeline-family.choose_asm -r $dirname/pipeline-family/reports1/ | diff -s - $dirname/pipeline-family/reports1.out.txt
+echo -e "\tpipeline-family.choose_asm ::: reports2/:"
+$dirname/../unit.test.py pipeline-family.choose_asm -r $dirname/pipeline-family/reports2/ | diff -s - $dirname/pipeline-family/reports2.out.txt
 
 
 # functional tests
