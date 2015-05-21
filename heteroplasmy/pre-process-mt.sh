@@ -192,6 +192,7 @@ echo "--- sort by coordinate started ---"
 input="$inpath"
 output="sorted1.bam"
 java -jar $PICARD_DIR/SortSam.jar \
+  VALIDATION_STRINGENCY=SILENT    \
   I="$input"                      \
   O="$tmpdir/$output"             \
   SO=coordinate
@@ -202,6 +203,7 @@ input="sorted1.bam"
 output="dupmarked.bam"
 output2="dupmarked.metrics"
 java -jar $PICARD_DIR/MarkDuplicates.jar \
+  VALIDATION_STRINGENCY=SILENT           \
   I="$tmpdir/$input"                     \
   O="$tmpdir/$output"                    \
   METRICS_FILE="$tmpdir/$output2"        \
@@ -228,6 +230,7 @@ echo "--- sort by name started ---"
 input="filtered1.bam"
 output="sorted2.bam"
 java -jar $PICARD_DIR/SortSam.jar \
+  VALIDATION_STRINGENCY=SILENT    \
   I="$tmpdir/$input"              \
   O="$tmpdir/$output"             \
   SO=queryname
@@ -271,6 +274,7 @@ echo "--- sort by coordinate started ---"
 input="realigned.bam"
 output="sorted3.bam"
 java -jar $PICARD_DIR/SortSam.jar \
+  VALIDATION_STRINGENCY=SILENT    \
   I="$tmpdir/$input"              \
   O="$tmpdir/$output"             \
   SO=coordinate
@@ -304,6 +308,7 @@ echo "--- sort by name 2 started ---"
 input="nm-recalc.bam"
 output="sorted4.bam"
 java -jar $PICARD_DIR/SortSam.jar \
+  VALIDATION_STRINGENCY=SILENT    \
   I="$tmpdir/$input"              \
   O="$tmpdir/$output"             \
   SO=queryname
