@@ -4,6 +4,7 @@ import re
 import os
 import sys
 import time
+import copy
 import shutil
 import argparse
 import subprocess
@@ -58,8 +59,17 @@ def main(argv):
   parser.add_argument('pipeargs', metavar='...', nargs=argparse.REMAINDER,
     help='The remaining arguments will be passed directly to pipeline.py. Make sure to put them '
          'at the end, after the arguments for this script.')
+  parser.add_argument('-p', '--pre', metavar='cmd -arg1',
+    help='A command to prepend to all shell commands. For instance, "-p srun" to run the commands '
+         'on the SLURM job manager. You can give arguments to the command too; just put the whole '
+         'thing in a quoted string, like so: "-p \'srun -C grp1\'". This will transform a command '
+         'line like "$ python pipeline.py -s 1" into "$ srun -C grp1 python pipeline.py -s 1".')
 
   args = parser.parse_args(argv[1:])
+
+  pre = []
+  if args.pre:
+    pre = args.pre.split()
 
   script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
 
@@ -85,8 +95,9 @@ def main(argv):
       # Build pipeline.py command.
       fastq1 = os.path.join(args.fastq_dir, fastq_pair[0])
       fastq2 = os.path.join(args.fastq_dir, fastq_pair[1])
-      command = ['python', os.path.join(script_dir, 'pipeline.py'), '-s', sample_id,
-                 '-r', args.refname, '-l', str(args.read_length), '-E', '7']
+      command = copy.copy(pre)
+      command.extend(['python', os.path.join(script_dir, 'pipeline.py'), '-s', sample_id,
+                      '-r', args.refname, '-l', str(args.read_length), '-E', '7'])
       command.extend(args.pipeargs)
       command.extend([args.ref, fastq1, fastq2, outdirs[sample_id]])
       # command.extend(['-b', '/dev/null'])
@@ -106,13 +117,15 @@ def main(argv):
         continue
       # Align raw assembly to reference.
       lav_path = os.path.join(outdirs[sample_id], 'lav_raw.lav')
-      command = ['lastz', args.ref, asm_raw]
+      command = copy.copy(pre)
+      command.extend(['lastz', args.ref, asm_raw])
       with open(lav_path, 'w') as lav:
         subprocess.call(command, stdout=lav)
       if not os.path.isfile(lav_path) or os.path.getsize(lav_path) == 0:
         continue
       # Use asm-curator.py to generate statistics.
-      command = ['python', os.path.join(script_dir, 'asm-curator.py'), '-l', lav_path]
+      command = copy.copy(pre)
+      command.extend(['python', os.path.join(script_dir, 'asm-curator.py'), '-l', lav_path])
       print '+ $ '+' '.join(command)
       if not args.simulate:
         process = subprocess.Popen(command, stdout=subprocess.PIPE)
@@ -138,8 +151,9 @@ def main(argv):
       fastq_pair = fastq_pairs[sample_id]
       fastq1 = os.path.join(args.fastq_dir, fastq_pair[0])
       fastq2 = os.path.join(args.fastq_dir, fastq_pair[1])
-      command = ['python', os.path.join(script_dir, 'pipeline.py'), '-s', sample_id,
-                 '-r', args.refname, '-l', str(args.read_length), '-B', '8']
+      command = copy.copy(pre)
+      command.extend(['python', os.path.join(script_dir, 'pipeline.py'), '-s', sample_id,
+                      '-r', args.refname, '-l', str(args.read_length), '-B', '8'])
       print '+ $ '+' '.join(command)
       if not args.simulate:
         process = multiprocessing.Process(target=subprocess.call, args=(command,))
