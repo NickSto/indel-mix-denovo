@@ -11,21 +11,14 @@ import simplewrap
 import vcfreader
 import bamslicer
 
-EXPECTED_VERSIONS = {'vcfreader':'0.51', 'bamslicer':'0.6', 'simplewrap':'0.6'}
+EXPECTED_VERSIONS = {'vcfreader':'0.51', 'bamslicer':'0.6', 'simplewrap':'0.7'}
 
-# Need to use argparse.RawTextHelpFormatter to preserve formatting in the
-# description of columns in the tsv output. But to still accommodate different
-# terminal widths, dynamic wrapping with simplewrap will be necessary.
-WIDTH = simplewrap.termwidth(70)
-wrapper = simplewrap.Wrapper(width=WIDTH)
-wrap = wrapper.wrap
-
-OPT_DEFAULTS = {'human':True, 'tsv':False, 'vartypes':'ID',
-  'strand_bias':0, 'mate_bias':0}
-USAGE = "%(prog)s [options] -v variantslist -V variants.vcf reads.bam"
-DESCRIPTION = wrap("Retrieve the reads supporting a given set of "
-  "indels, and report statistics on them. Provide the variants in a VCF "
-  "and/or in a list on the command line.")
+OPT_DEFAULTS = {'human':True, 'tsv':False, 'vartypes':'ID', 'strand_bias':0,
+  'mate_bias':0}
+USAGE = '%(prog)s [options] -v variantslist -V variants.vcf reads.bam'
+DESCRIPTION = ('Retrieve the reads supporting a given set of indels, and '
+'report statistics on them. Provide the variants in a VCF and/or in a list on '
+'the command line.')
 
 VALID_BASES = 'GATCNgatcn'
 LABELS = """Sample Chrom Coord Type Alt Covg Reads Freq Unmap Improp Fwd First
@@ -33,15 +26,21 @@ LABELS = """Sample Chrom Coord Type Alt Covg Reads Freq Unmap Improp Fwd First
   Seq"""
 LABEL_LINE = '\t'.join(LABELS.split())
 
+
 def main():
   version_check(EXPECTED_VERSIONS)
 
-  wrapper.width = WIDTH-24
+  # Need to use argparse.RawTextHelpFormatter to preserve formatting in the
+  # description of columns in the tsv output. But to still accommodate different
+  # terminal widths, dynamic wrapping with simplewrap will be necessary.
+  wrapper = simplewrap.Wrapper()
+  wrap = wrapper.wrap
 
-  parser = argparse.ArgumentParser(usage=USAGE, description=DESCRIPTION,
+  parser = argparse.ArgumentParser(usage=USAGE, description=wrap(DESCRIPTION),
     formatter_class=argparse.RawTextHelpFormatter)
   parser.set_defaults(**OPT_DEFAULTS)
 
+  wrapper.width = wrapper.width - 24
   parser.add_argument('bamfilepath', metavar='reads.bam',
     help='the input reads')
   parser.add_argument('-v', '--variants',
