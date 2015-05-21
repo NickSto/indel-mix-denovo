@@ -61,7 +61,7 @@ def main(argv):
 
   args = parser.parse_args(argv[1:])
 
-  script_dir = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
+  script_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
 
   fastq_pairs = get_fastqs(args.fastq_dir)
 
@@ -88,9 +88,9 @@ def main(argv):
       command = ['python', os.path.join(script_dir, 'pipeline.py'), '-s', sample_id,
                  '-r', args.refname, '-l', str(args.read_length), '-E', '7']
       command.extend(args.pipeargs)
-      command.extend([args.ref, fastq1, fastq2, args.outdir])
+      command.extend([args.ref, fastq1, fastq2, outdirs[sample_id]])
       # command.extend(['-b', '/dev/null'])
-      print '+ '+' '.join(command)
+      print '+ $ '+' '.join(command)
       if not args.simulate:
         process = multiprocessing.Process(target=subprocess.call, args=(command,))
         process.start()
@@ -112,8 +112,8 @@ def main(argv):
       if not os.path.isfile(lav_path) or os.path.getsize(lav_path) == 0:
         continue
       # Use asm-curator.py to generate statistics.
-      command = ['python', script_dir, 'asm-curator.py', '-l', lav_path]
-      print '+ '+' '.join(command)
+      command = ['python', os.path.join(script_dir, 'asm-curator.py'), '-l', lav_path]
+      print '+ $ '+' '.join(command)
       if not args.simulate:
         process = subprocess.Popen(command, stdout=subprocess.PIPE)
         reports[sample_id] = parse_report(subprocess.communicate()[0])
@@ -140,7 +140,7 @@ def main(argv):
       fastq2 = os.path.join(args.fastq_dir, fastq_pair[1])
       command = ['python', os.path.join(script_dir, 'pipeline.py'), '-s', sample_id,
                  '-r', args.refname, '-l', str(args.read_length), '-B', '8']
-      print '+ '+' '.join(command)
+      print '+ $ '+' '.join(command)
       if not args.simulate:
         process = multiprocessing.Process(target=subprocess.call, args=(command,))
         process.start()
