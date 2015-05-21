@@ -153,7 +153,8 @@ def main(argv):
       fastq2 = os.path.join(args.fastq_dir, fastq_pair[1])
       command = copy.copy(pre)
       command.extend(['python', os.path.join(script_dir, 'pipeline.py'), '-s', sample_id,
-                      '-r', args.refname, '-l', str(args.read_length), '-B', '8'])
+                      '--refname2', best_sample, '-r', args.refname, '-l', str(args.read_length),
+                      '-B', '8'])
       print '+ $ '+' '.join(command)
       if not args.simulate:
         process = multiprocessing.Process(target=subprocess.call, args=(command,))
