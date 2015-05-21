@@ -34,7 +34,7 @@ args = parser.parse_args()
 bounds = args.bounds
 if args.margin is not None and args.chr_length is not None:
   bounds = (args.margin, args.chr_length-args.margin)
-elif args.margin is None or args.chr_length is None:
+elif not (args.margin is None and args.chr_length is None):
   raise Exception('--margin and --chr-length must be used together.')
 
 if not args.output:
