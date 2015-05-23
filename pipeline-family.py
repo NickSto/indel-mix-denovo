@@ -121,7 +121,7 @@ def main(argv):
     command.extend(['python', os.path.join(script_dir, 'asm-curator.py'), '-l', lav_path])
     print '+ $ '+' '.join(command)
     process = subprocess.Popen(command, stdout=subprocess.PIPE)
-    reports[sample_id] = parse_report(subprocess.communicate()[0])
+    reports[sample_id] = parse_report(process.communicate()[0])
   # Compare reports for all samples and choose the best assembly.
   if not reports:
     sys.stderr.write('No successful assemblies found for family "{}".\n'.format(args.family_id))
@@ -137,8 +137,13 @@ def main(argv):
   processes = []
   for sample_id in sample_ids:
     asm = os.path.join(outdirs[sample_id], 'asm.fa')
-    #TODO: Catch shutil.Error and OSError (or IOError?)
-    shutil.copy2(best_asm, asm)
+    if best_sample != sample_id:
+      try:
+        shutil.copy2(best_asm, asm)
+      except (OSError, IOError, shutil.Error) as error:
+        sys.stderr.write('Error copying chosen assembly into directory for {}:\n'.format(sample_id))
+        sys.stderr.write(str(error)+'\n')
+        continue
     # Build pipeline.py command.
     fastq_pair = fastq_pairs[sample_id]
     fastq1 = os.path.join(args.fastq_dir, fastq_pair[0])
@@ -147,6 +152,8 @@ def main(argv):
     command.extend(['python', os.path.join(script_dir, 'pipeline.py'), '-s', sample_id,
                     '--refname2', best_sample, '-r', args.refname, '-l', str(args.read_length),
                     '-B', '8'])
+    command.extend(args.pipeargs)
+    command.extend([args.ref, fastq1, fastq2, outdirs[sample_id]])
     print '+ $ '+' '.join(command)
     process = multiprocessing.Process(target=subprocess.call, args=(command,))
     process.start()
