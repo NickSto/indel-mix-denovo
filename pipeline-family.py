@@ -6,12 +6,13 @@ import sys
 import time
 import copy
 import shutil
+import logging
 import argparse
 import subprocess
 import collections
 import multiprocessing
 
-OPT_DEFAULTS = {'max_contigs':500}
+OPT_DEFAULTS = {'max_contigs':500, 'verbosity':logging.WARNING}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 FASTQ_NAME_REGEX = r'(.+)_[12]\.(fastq|fq)(\.gz)?$'
@@ -59,8 +60,21 @@ def main(argv):
   parser.add_argument('pipeargs', metavar='...', nargs=argparse.REMAINDER,
     help='The remaining arguments will be passed directly to pipeline.py. Make sure to put them '
          'at the end, after the arguments for this script.')
+  parser.add_argument('-L', '--log',
+    help='Log to this file instead of printing to stderr.')
+  parser.add_argument('-v', '--verbose', dest='verbosity', action='store_const', const=logging.INFO)
+  parser.add_argument('-q', '--quiet', dest='verbosity', action='store_const',
+    const=logging.CRITICAL)
 
   args = parser.parse_args(argv[1:])
+
+  if not os.path.exists(args.outdir):
+    os.mkdir(args.outdir)
+
+  if args.log:
+    logging.basicConfig(filename=args.log, filemode='a', level=args.verbosity, format='%(message)s')
+  else:
+    logging.basicConfig(stream=sys.stderr, level=args.verbosity, format='%(message)s')
 
   pre = []
   if args.pre:
@@ -79,10 +93,10 @@ def main(argv):
     if sample_id in fastq_pairs:
       fastq_pair = fastq_pairs[sample_id]
       if len(fastq_pair) != 2:
-        raise PipefamError('Wrong number of fastq\'s associated with sample "{}": {}'
-                           .format(sample_id, ', '.join(fastq_pair)))
+        log_and_raise('Wrong number of fastq\'s associated with sample {}:\n\t{}'
+                      .format(sample_id, '\n\t'.join(fastq_pair)))
     else:
-      raise PipefamError('No fastq\'s found for sample ""'.format(sample_id))
+      log_and_raise('No fastq\'s found for sample '+sample_id)
     # Make output directory.
     outdirs[sample_id] = os.path.join(args.outdir, sample_id)
     makedir_and_check(outdirs[sample_id])
@@ -107,6 +121,7 @@ def main(argv):
   for sample_id in sample_ids:
     asm_raw = os.path.join(outdirs[sample_id], 'asmdir', 'contigs.fasta')
     if not os.path.isfile(asm_raw):
+      logging.error('No successful assembly found for sample '+sample_id)
       continue
     # Align raw assembly to reference.
     lav_path = os.path.join(outdirs[sample_id], 'lav_raw.lav')
@@ -115,6 +130,7 @@ def main(argv):
     with open(lav_path, 'w') as lav:
       subprocess.call(command, stdout=lav)
     if not os.path.isfile(lav_path) or os.path.getsize(lav_path) == 0:
+      logging.error('No output found from LASTZ for sample '+sample_id)
       continue
     # Use asm-curator.py to generate statistics.
     command = copy.copy(pre)
@@ -124,11 +140,11 @@ def main(argv):
     reports[sample_id] = parse_report(process.communicate()[0])
   # Compare reports for all samples and choose the best assembly.
   if not reports:
-    sys.stderr.write('No successful assemblies found for family "{}".\n'.format(args.family_id))
+    logging.error('No successful assemblies found for family '+args.family_id)
     return
   best_sample = choose_asm(reports, args.max_contigs, args.include_dup)
   if best_sample is None:
-    sys.stderr.write('No high-quality assembly chosen for family "{}".\n'.format(args.family_id))
+    logging.warn('No high-quality assembly chosen for family '+args.family_id)
     return
   best_asm = os.path.join(outdirs[best_sample], 'asm.fa')
   if not os.path.isfile(best_asm):
@@ -141,8 +157,8 @@ def main(argv):
       try:
         shutil.copy2(best_asm, asm)
       except (OSError, IOError, shutil.Error) as error:
-        sys.stderr.write('Error copying chosen assembly into directory for {}:\n'.format(sample_id))
-        sys.stderr.write(str(error)+'\n')
+        logging.error('Error copying chosen assembly into directory for {}:\n{}'
+                      .format(sample_id, error))
         continue
     # Build pipeline.py command.
     fastq_pair = fastq_pairs[sample_id]
@@ -165,24 +181,10 @@ def main(argv):
   print "Family {} done!".format(args.family_id)
 
 
-def read_families(families_filepath):
-  """Read the families tsv file and return a dict mapping family ID's to lists of sample ID's in
-  that family."""
-  families = {}
-  with open(families_filepath) as families_file:
-    for line in families_file:
-      fields = line.rstrip('\r\n').split('\t')
-      if len(fields) < 2:
-        continue
-      family_id = None
-      sample_ids = []
-      for field in fields:
-        if family_id is None:
-          family_id = field
-        else:
-          sample_ids.append(field)
-      families[family_id] = sample_ids
-  return families
+def log_and_raise(message):
+  error = PipefamError(message)
+  logging.critical('Critical: '+error.message)
+  raise error
 
 
 def get_fastqs(fastq_dir):
@@ -203,8 +205,8 @@ def get_fastqs(fastq_dir):
   # Check and sort the fastq filename lists.
   for sample_id, fastq_pair in fastqs.items():
     if len(fastq_pair) != 2:
-      raise PipefamError('More or less than 2 files match the same sample ID "{}": {}'
-                         .format(sample_id, ', '.join(fastq_pair)))
+      log_and_raise('More or less than 2 files match the same sample ID "{}": {}'
+                    .format(sample_id, ', '.join(fastq_pair)))
     fastq_pair.sort()
   return fastqs
 
@@ -221,9 +223,9 @@ def makedir_and_check(dirpath):
   """Make the directory if it does not exist already.
   Raise exception if the path already exists and a) is not a directory or b) is not empty."""
   if os.path.exists(dirpath) and not os.path.isdir(dirpath):
-    raise PipefamError('Output directory path '+dirpath+' exists but is not a directory.')
+    log_and_raise('Output directory path '+dirpath+' exists but is not a directory.')
   elif os.path.isdir(dirpath) and os.listdir(dirpath):
-    raise PipefamError('Output directory '+dirpath+' is not empty.')
+    log_and_raise('Output directory '+dirpath+' is not empty.')
   elif not os.path.exists(dirpath):
     os.makedirs(dirpath)
 
