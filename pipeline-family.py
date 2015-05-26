@@ -147,15 +147,23 @@ def main(argv):
     logging.warn('No high-quality assembly chosen for family '+args.family_id)
     return
   best_asm = os.path.join(outdirs[best_sample], 'asm.fa')
+  best_lav = os.path.join(outdirs[best_sample], 'lav.lav')
   if not os.path.isfile(best_asm):
+    logging.error('Error finding best assembly '+best_asm)
+    return
+  if not os.path.isfile(best_lav):
+    logging.error('Error finding best assembly LAV file '+best_lav)
     return
   # Finish pipeline using one, best assembly for all samples.
   processes = []
   for sample_id in sample_ids:
+    # Copy best assembly (and its LAV) to all sample directories.
     asm = os.path.join(outdirs[sample_id], 'asm.fa')
+    lav = os.path.join(outdirs[sample_id], 'lav.lav')
     if best_sample != sample_id:
       try:
         shutil.copy2(best_asm, asm)
+        shutil.copy2(best_lav, lav)
       except (OSError, IOError, shutil.Error) as error:
         logging.error('Error copying chosen assembly into directory for {}:\n{}'
                       .format(sample_id, error))
