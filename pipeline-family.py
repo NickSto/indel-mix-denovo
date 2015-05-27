@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import copy
+import errno
 import shutil
 import logging
 import argparse
@@ -68,8 +69,9 @@ def main(argv):
 
   args = parser.parse_args(argv[1:])
 
-  if not os.path.exists(args.outdir):
-    os.mkdir(args.outdir)
+  #TODO: When starting many runs using pipeline-families.sh, args.outdir might not be empty by the
+  #      time the last instance starts. Find a way to check it's not empty in the "right way"?
+  makedir_and_check(args.outdir)
 
   if args.log:
     logging.basicConfig(filename=args.log, filemode='a', level=args.verbosity, format='%(message)s')
@@ -230,12 +232,18 @@ def processes_done(processes):
 def makedir_and_check(dirpath):
   """Make the directory if it does not exist already.
   Raise exception if the path already exists and a) is not a directory or b) is not empty."""
-  if os.path.exists(dirpath) and not os.path.isdir(dirpath):
-    log_and_raise('Output directory path '+dirpath+' exists but is not a directory.')
-  elif os.path.isdir(dirpath) and os.listdir(dirpath):
-    log_and_raise('Output directory '+dirpath+' is not empty.')
-  elif not os.path.exists(dirpath):
+  try:
     os.makedirs(dirpath)
+  except OSError as error:
+    if error.errno == errno.EEXIST:
+      if not os.path.isdir(dirpath):
+        log_and_raise('Output directory path '+dirpath+' exists but is not a directory.')
+      elif os.listdir(dirpath):
+        log_and_raise('Output directory '+dirpath+' is not empty.')
+      else:
+        pass  # Directory exists and is empty (acceptable).
+    else:
+      log_and_raise('Error creating output directory:\n'+str(error))
 
 
 def parse_report(report_str):
