@@ -39,13 +39,15 @@ def main():
 
   args = parser.parse_args()
 
-  # set as global to allow access from cleanup() function
-  global infiles
-  global outfiles
-  global success
+  # Define variables used in cleanup function and set it to close open
+  # filehandles on any exception.
   infiles = []
   outfiles = []
   success = False
+  def cleanup_excepthook(exceptype, value, traceback):
+    cleanup(infiles, outfiles, success)
+    sys.__excepthook__(exceptype, value, traceback)
+  sys.excepthook = cleanup_excepthook
 
   # open input and output filehandles
   for infile in args.infiles:
@@ -80,20 +82,20 @@ def main():
       fields = line.strip().split('\t')
       # format check; only require columns that are actually needed
       if len(fields) < 2:
-        format_fail("Too few columns on line %d of file %s.", place)
+        raise FormatError('Too few columns on line {} of file {}.'.format(*place))
       # site matches up with the ones in the other files?
       this_site = (fields[1], fields[2])
       if last_site and last_site != this_site:
-        fail("Error: lines do not match up (mismatching site on line %d of "
-          "file %s)." % place)
+        raise FilterError('Lines do not match up (mismatching site on line {} '
+          'of file {}'.format(*place))
       last_site = this_site
       # apply filters
       try:
         this_passed = passes(fields, args)
       except ValueError:
-        format_fail("Wrong type found when parsing line %d of file %s.", place)
+        raise FormatError('Wrong type found when parsing line {} of file {}.'.format(*place))
       except IndexError:
-        format_fail("Too few columns on line %d of file %s.", place)
+        raise FormatError('Too few columns on line {} of file {}.'.format(*place))
       if args.any:
         all_passed = all_passed and this_passed
       else:
@@ -105,7 +107,7 @@ def main():
         outfile.write(line)
 
   success = True
-  cleanup()
+  cleanup(infiles, outfiles, success)
 
 
 def get_outfile_name(infile, args):
@@ -117,7 +119,7 @@ def get_outfile_name(infile, args):
     count+=1
     name = base+str(count)+ext
     if count > 1000:
-      fail("Error: How many files can you have named "+base+ext+"?")
+      raise FilterError('Too many files named  like "{}"'.format(base+ext))
   return name
 
 
@@ -132,7 +134,7 @@ def passes(fields, args):
   return passed
 
 
-def cleanup():
+def cleanup(infiles, outfiles, success):
   for infile in infiles:
     if isinstance(infile, file):
       infile.close()
@@ -145,15 +147,14 @@ def cleanup():
       os.remove(outfile.name)
 
 
-def format_fail(message, place):
-  fail_message = "Format Error: "+message % place
-  fail(fail_message)
+class FilterError(Exception):
+  def __init__(self, message=None):
+    if message:
+      Exception.__init__(self, message)
 
 
-def fail(message):
-  cleanup()
-  sys.stderr.write(message+"\n")
-  sys.exit(1)
+class FormatError(FilterError):
+  pass
 
 
 if __name__ == '__main__':
