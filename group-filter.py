@@ -6,11 +6,10 @@ import argparse
 
 OPT_DEFAULTS = {'ending':'filt'}
 USAGE = "%(prog)s [options] -e ending infile1.tsv [infile2.tsv [..]]"
-DESCRIPTION = """Filter variant files as a group. By default, if a site passes
-all filters in at least one file, it will be kept (in all files)."""
-EPILOG = """*IMPORTANT* All files must contain the same sites
-on the same lines. If site locations are not the same for a given line number,
-this will fail."""
+DESCRIPTION = """Filter variant files as a group. By default, if a site passes all filters in at
+least one file, it will be kept (in all files)."""
+EPILOG = """*IMPORTANT* All files must contain the same sites on the same lines. If site locations
+are not the same for a given line number, this will fail."""
 
 def main():
 
@@ -19,28 +18,24 @@ def main():
   parser.set_defaults(**OPT_DEFAULTS)
 
   parser.add_argument('infiles', metavar='infile.tsv', nargs='+',
-    help="""Input file. Format must be the tsv output of inspect-reads.py.""")
+    help='Input file. Format must be the tsv output of inspect-reads.py.')
   parser.add_argument('-e', '--ending',
-    help="""The ending to append to the output filename (before the extension.
-      E.g. "-e nobias" on file "R19S1.tsv" will write to the file
-      "R19S1-nobias.tsv". Default: "%(default)s".""")
+    help='The ending to append to the output filename (before the extension. E.g. "-e nobias" on '
+         'file "R19S1.tsv" will write to the file "R19S1-nobias.tsv". Default: "%(default)s".')
   parser.add_argument('-s', '--strand-bias', metavar='BIAS', type=float,
-    help="""Strand bias threshold. Sites with a bias above this value fail.
-      Sites with no strand bias reported always fail.
-      The bias statistic is method 1 (SB) of Guo et al., 2012.""")
+    help='Strand bias threshold. Sites with a bias above this value fail. Sites with no strand '
+         'bias reported always fail. The bias statistic is method 1 (SB) of Guo et al., 2012.')
   parser.add_argument('-m', '--mate-bias', metavar='BIAS', type=float,
-    help="""Mate bias threshold. Sites with a bias above this value fail.
-      Sites with no mate bias reported always fail.
-      The bias statistic is calculated identically to the strand bias, replacing
-      forward/reverse strands with first/second mate in the pair.""")
+    help='Mate bias threshold. Sites with a bias above this value fail. Sites with no mate bias '
+         'reported always fail. The bias statistic is calculated identically to the strand bias, '
+         'replacing forward/reverse strands with first/second mate in the pair.')
   parser.add_argument('-a', '--any', action='store_true',
-    help="""**Not tested yet** Remove a site if fails a filter in *any*
-      file (default is to remove if it fails in *all* files).""")
+    help='**Not tested yet** Remove a site if fails a filter in *any* file (default is to remove '
+         'if it fails in *all* files).')
 
   args = parser.parse_args()
 
-  # Define variables used in cleanup function and set it to close open
-  # filehandles on any exception.
+  # Define variables used in cleanup function and set it to close open filehandles on any exception.
   infiles = []
   outfiles = []
   success = False
@@ -49,13 +44,13 @@ def main():
     sys.__excepthook__(exceptype, value, traceback)
   sys.excepthook = cleanup_excepthook
 
-  # open input and output filehandles
+  # Open input and output filehandles.
   for infile in args.infiles:
     infiles.append(open(infile, 'rU'))
     outfile = get_outfile_name(infile, args)
     outfiles.append(open(outfile, 'w'))
 
-  # main loop
+  # Main loop.
   eof = False
   linenum = 0
   while not eof:
@@ -65,7 +60,7 @@ def main():
       all_passed = True
     else:
       all_passed = False
-    # check each infile to see if the site passes the filters
+    # Check each infile to see if the site passes the filters.
     lines = []
     for infile in infiles:
       place = (linenum, infile.name)
@@ -80,16 +75,16 @@ def main():
         all_passed = True
         continue
       fields = line.strip().split('\t')
-      # format check; only require columns that are actually needed
+      # Format check; only require columns that are actually needed.
       if len(fields) < 2:
         raise FormatError('Too few columns on line {} of file {}.'.format(*place))
-      # site matches up with the ones in the other files?
+      # Site matches up with the ones in the other files?
       this_site = (fields[1], fields[2])
       if last_site and last_site != this_site:
-        raise FilterError('Lines do not match up (mismatching site on line {} '
-          'of file {}'.format(*place))
+        raise FilterError('Lines do not match up (mismatching site on line {} of file {}'
+                          .format(*place))
       last_site = this_site
-      # apply filters
+      # Apply filters.
       try:
         this_passed = passes(fields, args)
       except ValueError:
@@ -141,7 +136,7 @@ def cleanup(infiles, outfiles, success):
   for outfile in outfiles:
     if isinstance(outfile, file):
       outfile.close()
-  # delete output files if it aborted mid-way
+  # Delete output files if it aborted mid-way.
   if not success:
     for outfile in outfiles:
       os.remove(outfile.name)
