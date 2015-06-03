@@ -121,7 +121,7 @@ def main(argv):
     base = os.path.splitext(filename)[0]
     assert base not in params, '{} in params. value: {}'.format(base, params[base])
     params[base] = os.path.join(args.outdir, filename)
-  params['scriptdir'] = os.path.relpath(os.path.dirname(os.path.realpath(sys.argv[0])))
+  params['scriptdir'] = os.path.dirname(os.path.realpath(sys.argv[0]))
   if 'PICARD_DIR' in os.environ:
     params['picardir'] = os.environ['PICARD_DIR']
   else:
