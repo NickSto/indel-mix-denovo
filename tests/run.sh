@@ -166,4 +166,10 @@ function liftover {
     | diff -s - "$dirname/quick-liftover/R23S3-sites.out.txt"
 }
 
+# power.R
+function power {
+  echo -e "\tpower.R ::: power.in.tsv:"
+  Rscript "$dirname/../power.R" "$dirname/power.in.tsv" | diff -s - "$dirname/power.out.tsv"
+}
+
 main "$@"
