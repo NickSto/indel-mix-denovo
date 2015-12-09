@@ -90,10 +90,12 @@ def main():
       '22: The total number of supporting reads with each SAM flag. This is a '
           'comma-separated list of the total for each flag, from lowest to '
           'highest bit value.\n'
-      '23: The distribution of where the variant occurs along the supporting '
-          'reads.\n'
-      '24: The reference sequence surrounding the variant ("." if no reference'
-          'file is given).',
+      '23: The distribution of where the variant occurs along the reads. Gives '
+          '10 comma-separated values, one for each 10th of the read length. '
+          'Each is the number of reads where the variant occurred in that 10%% '
+          'of the read.\n'
+      '24: The reference sequence surrounding the variant ("." if no '
+          'reference file is given).',
       lspace=4, indent=-4))
   parser.add_argument('-l', '--labels', action='store_true',
     help=wrap('If tsv output is selected, print column labels. The first line '
