@@ -41,30 +41,17 @@ function fail {
   exit 1
 }
 
-# Get this script's actual directory, resolving links.
-function real_dir {
+# Create an equivalent of readlink -f for systems that lack it (BSD).
+function readlink_f {
   if readlink -f dummy >/dev/null 2>/dev/null; then
-    dirname $(readlink -f ${BASH_SOURCE[0]})
+    readlink -f "$1"
   else
-    # readlink -f doesn't work on BSD
-    unset CDPATH
-    local source="${BASH_SOURCE[0]}"
-    while [[ -h "$source" ]]; do
-      local dir="$(cd -P $(dirname "$source") && pwd)"
-      local link="$(ls -l "$source" | awk '{print $NF}')"
-      # absolute or relative path?
-      if [[ "$link" == /* ]]; then
-        source="$link"
-      else
-        source="$dir/$link"
-      fi
-    done
-    dir="$(cd -P $(dirname "$source") && pwd)"
-    echo "$dir"
+    perl -MCwd -le 'print Cwd::abs_path(shift)' "$1"
   fi
 }
 
-scriptdir=$(real_dir)
+# Get this script's actual directory, resolving links.
+scriptdir=$(dirname $(readlink_f ${BASH_SOURCE[0]}))
 
 # read in arguments
 ref="$REF_DEFAULT"
@@ -125,7 +112,7 @@ fi
 if [[ ! -s "$inpath" ]]; then
   fail "input BAM \"$inpath\" not found or empty"
 fi
-type=$(file -b --mime-type "$inpath")
+type=$(file -b --mime-type "$(readlink_f "$inpath")")
 if [[ $type != "application/gzip" ]] && [[ $type != "application/x-gzip" ]]; then
   fail "input file \"$inpath\" type is \"$type\", must be \"application/gzip\""
 fi
