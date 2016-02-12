@@ -3,7 +3,6 @@
 # also need a BAM file named by the sample name from the input file
 # - uses read groups from the BAM file to get the sample name
 from __future__ import division
-import os
 import sys
 import pysam
 import argparse

@@ -2,6 +2,19 @@
 import sys
 import pysam
 import argparse
+import distutils.version
+
+# Broken by PySAM 0.8.1.
+# Fails with error:
+# AttributeError: 'pysam.calignmentfile.PileupRead' object has no attribute 'qpos'
+# on line:
+#             read.alignment.seq[read.qpos] == minor and
+# Looks they probably renamed qpos to something like query_alignment_position, though they don't
+# specifically mention it in the release notes:
+# http://pysam.readthedocs.org/en/latest/release.html#release-0-8-1
+version = pysam.__version__
+if distutils.version.StrictVersion(version) >= distutils.version.StrictVersion('0.8.1'):
+  raise Exception('Not compatible with PySAM versions > 0.8.0. Current version: '+version)
 
 OPT_DEFAULTS = {'chrom':'chrM', 'length':16569, 'min_phred':30, 'min_mapq':20,
                 'flags':'147,99,163,83,1107,1187,1123,1171'}
