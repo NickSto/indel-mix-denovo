@@ -101,9 +101,8 @@ name=$(basename "$inpath" .bam)
 if [[ ! $outfile ]]; then
   outfile="$bamdir/$name.filt.bam"
 fi
-# If -m was given but not -L, need to use either bioawk or seqlen.awk to
-# determine target sequence length.
-if [[ $margin ]] && ! [[ $chrom_len ]]; then
+# If -L was not given, need to use either bioawk or seqlen.awk to determine target sequence length.
+if ! [[ $chrom_len ]]; then
   if ! which bioawk >/dev/null 2>/dev/null; then
     REQUIRED_SCRIPTS="$REQUIRED_SCRIPTS seqlen.awk"
   fi
@@ -153,8 +152,8 @@ else
 fi
 mkdir "$tmpdir"
 
-# If -m but not -L was given, use bioawk or seqlen.awk to determine target chromosome length.
-if [[ $margin ]] && ! [[ $chrom_len ]]; then
+# If -L not was given, use bioawk or seqlen.awk to determine target chromosome length.
+if ! [[ $chrom_len ]]; then
   if which bioawk >/dev/null 2>/dev/null; then
     chrom_len=$(bioawk -c fastx '$name == "'$chrom'" { print length($seq) }' $ref | head -n 1)
   else
@@ -285,14 +284,15 @@ if [[ $stopat == 'realign' ]]; then
   finish "$tmpdir/$output"
 fi
 
-#TODO: Make get_major_from_bam.py not hardcoded to chrM
-
 # Generate consensus sequence
 echo "--- major sequence started ---"
 input="sorted3.bam"
-output="sorted3.bam.major.fa"  # this script gives a hardcoded output name
-output2="sorted3.bam.major.fa.fai"
-python "$scriptdir/get_major_from_bam.py" "$tmpdir/$input"
+output="sorted3.bam.major.fa"
+python "$scriptdir/get_major_from_bam.py" \
+  -c $chrom                               \
+  -l $chrom_len                           \
+  "$tmpdir/$input"                        \
+  -o "$tmpdir/$output"
 
 # Recalculate NM-tag using new consensus
 echo "--- recalculate NM started ---"
