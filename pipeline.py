@@ -23,9 +23,8 @@ different from the default: ~/"""+PICARDIR_DEFAULT+').'
 # Their names, without extensions, will be used directly in the command templates below.
 # The intention is to make it easy to read the script and correlate filename placeholders in
 # commands with the actual ones in the filesystem.
-FILENAMES = ('bam1raw.bam', 'bam1filt.bam', 'bam1dedup.bam', 'cleanfq1.fq', 'cleanfq2.fq',
-             'asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bam2raw.bam', 'bam2filt.bam',
-             'bam2dedup.bam', 'nvc.vcf', 'nvcfilt.vcf', 'vars_asm.tsv', 'vars.tsv')
+FILENAMES = ('asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bamraw.bam', 'bamfilt.bam',
+             'bamdedup.bam', 'nvc.vcf', 'nvcfilt.vcf', 'vars_asm.tsv', 'vars.tsv')
 
 
 def main(argv):
@@ -42,19 +41,8 @@ def main(argv):
   parser.add_argument('outdir', metavar='output/directory/path',
     help='Destination directory to place the output.')
   parser.add_argument('-s', '--sample', metavar='id', required=True,
-    help='The sample id.')
-  parser.add_argument('-r', '--refname', metavar='chrName', required=True,
-    help='Id of reference sequence. Reads will be filtered for those that map to this sequence.')
-  parser.add_argument('--refname2', metavar='chrName',
-    help='Id of the sequence to filter for, after assembly (if different from the sample id). '
-         'Normally only needed when starting the pipeline at a middle step after changing the '
-         'assembly file.')
-  parser.add_argument('-R', '--filter-ref', metavar='filter-ref.fa',
-    help='A reference consisting of the reference genome plus any other mapping targets you want '
-         'to include for filtering purposes. Will filter the reads in the first step by mapping '
-         'to this reference, then selecting only reads which map to the sequence identified by '
-         '--refname. Optional. Will use the main reference genome by default.')
-  parser.add_argument('-N', '--simulate', action='store_true',
+    help='The sample id. Required.')
+  parser.add_argument('-n', '--simulate', action='store_true',
     help='Only simulate execution. Print commands, but do not execute them.')
   parser.add_argument('-b', '--to-script', metavar='path/to/script.sh',
     help='Instead of executing commands, write them to a bash script with this name.')
@@ -110,6 +98,8 @@ def main(argv):
       # Make the output directory if it doesn't exist.
       os.makedirs(args.outdir)
 
+  # Create a Runner and set it to execute the commands immediately, just print them to stdout
+  # (simulate), or output them to a script file.
   runner = Runner()
   runner.simulate = args.simulate
   if args.to_script:
@@ -134,10 +124,6 @@ def main(argv):
     assert arg not in params, '{} in params. value: {}'.format(arg, params[arg])
     params[arg] = getattr(args, arg)
   # Compute some special arguments.
-  if not args.filter_ref:
-    params['filter_ref'] = args.ref
-  if not args.refname2:
-    params['refname2'] = args.sample
   if not params.get('rlen'):
     #TODO: Detect read length of FASTA files.
     raise Exception('Need to provide --read-length.')
@@ -163,48 +149,17 @@ def main(argv):
 
   #TODO: Maybe eliminate some repetition and store command format strings in a simple list?
 
-  step = 'Step 1: Align to reference with BWA MEM'
-  if args.begin <= 1 and args.end >= 1:
-    print step+':'
-    align(args.fastq1, args.fastq2, params['filter_ref'], params['bam1raw'], args.sample, runner)
-  elif args.end > 1:
-    print 'Skipping '+step+'.'
-
-  step = 'Step 2: Filter alignment with pre-process-mt.sh'
-  #TODO: only use -s realign when necessary
-  if args.begin <= 2 and args.end >= 2:
-    print step+':'
-    runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} '
-               '-M {min_rlen} -s realign -r {ref} {bam1raw} {bam1filt}'.format(**params))
-  elif args.end > 2:
-    print 'Skipping '+step+'.'
-
-  step = 'Step 3: Remove duplicates with Samtools'
-  if args.begin <= 3 and args.end >= 3:
-    print step+':'
-    dedup(params['bam1filt'], params['bam1dedup'], runner)
-  elif args.end > 3:
-    print 'Skipping '+step+'.'
-
-  step = 'Step 4: Extract reads with Picard SamToFastq'
-  if args.begin <= 4 and args.end >= 4:
-    print step+':'
-    runner.run('java -jar {picardir}/SamToFastq.jar VALIDATION_STRINGENCY=SILENT INPUT={bam1dedup} '
-               'FASTQ={cleanfq1} SECOND_END_FASTQ={cleanfq2}'.format(**params), ignore_err=True)
-  elif args.end > 4:
-    print 'Skipping '+step+'.'
-
-  step = 'Step 5: Assemble with SPAdes'
+  step = 'Step 1: Assemble with SPAdes'
   #TODO: Set k-mers based on read length.
-  #TODO: Check if successful (produces a contigs.fasta)
+  #TODO: Check if successful (produces a contigs.fasta).
   if args.begin <= 5 and args.end >= 5:
     print step+':'
-    runner.run('spades.py --careful -k {kmers} -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}'
+    runner.run('spades.py --careful -k {kmers} -1 {fastq1} -2 {fastq2} -o {asmdir}'
                .format(**params))
   elif args.end > 5:
     print 'Skipping '+step+'.'
 
-  step = 'Step 6: Clean assembly with asm-unifier.py'
+  step = 'Step 2: Clean assembly with asm-unifier.py'
   if args.begin <= 6 and args.end >= 6:
     print step+':'
     runner.run('python {scriptdir}/asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta '
@@ -212,49 +167,49 @@ def main(argv):
   elif args.end > 6:
     print 'Skipping '+step+'.'
 
-  step = 'Step 7: Align assembly to reference with LASTZ'
+  step = 'Step 3: Align assembly to reference with LASTZ'
   if args.begin <= 7 and args.end >= 7:
     print step+':'
     runner.run('lastz {ref} {asm} > {lav}'.format(**params))
   elif args.end > 7:
     print 'Skipping '+step+'.'
 
-  step = 'Step 8: Align to assembly with BWA MEM'
+  step = 'Step 4: Align to assembly with BWA MEM'
   if args.begin <= 8 and args.end >= 8:
     print step+':'
-    align(params['cleanfq1'], params['cleanfq2'], params['asm'], params['bam2raw'], args.sample,
+    align(params['fastq1'], params['fastq2'], params['asm'], params['bamraw'], args.sample,
           runner)
   elif args.end > 8:
     print 'Skipping '+step+'.'
 
-  step = 'Step 9: Filter alignment with pre-process-mt.sh'
-  # See notes for step 2.
+  step = 'Step 5: Filter alignment with pre-process-mt.sh'
   # In this second time around, might want to omit -s realign (do NM-edits filtering too).
+  #TODO: Check what -c names are valid (name of the assembly sequence).
   if args.begin <= 9 and args.end >= 9:
     print step+':'
-    runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname2} -m {margin} '
-               '-M {min_rlen} -s realign -r {asm} {bam2raw} {bam2filt}'.format(**params))
+    runner.run('bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {sample} -m {margin} '
+               '-M {min_rlen} -s realign -r {asm} {bamraw} {bamfilt}'.format(**params))
   elif args.end > 9:
     print 'Skipping '+step+'.'
 
-  step = 'Step 10: Remove duplicates with Samtools:'
+  step = 'Step 6: Remove duplicates with Samtools:'
   if args.begin <= 10 and args.end >= 10:
     print step+':'
-    dedup(params['bam2filt'], params['bam2dedup'], runner)
+    dedup(params['bamfilt'], params['bamdedup'], runner)
   elif args.end > 10:
     print 'Skipping '+step+'.'
 
-  step = 'Step 11: Extract variants with Naive Variant Caller'
+  step = 'Step 7: Extract variants with Naive Variant Caller'
   #TODO: Allow setting -q and -m.
   if args.begin <= 11 and args.end >= 11:
     print step+':'
     runner.run('naive_variant_caller.py -q 30 -m 20 --ploidy 2 --use_strand '
-               '--coverage_dtype uint32 --allow_out_of_bounds_positions --bam {bam2dedup} '
-               '--index {bam2dedup}.bai -r {asm} -o {nvc}'.format(**params))
+               '--coverage_dtype uint32 --allow_out_of_bounds_positions --bam {bamdedup} '
+               '--index {bamdedup}.bai -r {asm} -o {nvc}'.format(**params))
   elif args.end > 11:
     print 'Skipping '+step+'.'
 
-  step = 'Step 12: Filter variants with nvc-filter.py'
+  step = 'Step 8: Filter variants with nvc-filter.py'
   #TODO: Allow for samples with no indels (empty {nvc}).
   if args.begin <= 12 and args.end >= 12:
     print step+':'
@@ -263,16 +218,16 @@ def main(argv):
   elif args.end > 12:
     print 'Skipping '+step+'.'
 
-  step = 'Step 13: Filter further by BAM stats with inspect-reads.py'
+  step = 'Step 9: Filter further by BAM stats with inspect-reads.py'
   # N.B.: inspect-reads.py takes the output sample name from the BAM read group.
   if args.begin <= 13 and args.end >= 13:
     print step+':'
-    runner.run('python {scriptdir}/inspect-reads.py -tl -s {strand} -m {mate} {bam2dedup} '
+    runner.run('python {scriptdir}/inspect-reads.py -tl -s {strand} -m {mate} {bamdedup} '
                '-V {nvcfilt} -r {asm} > {vars_asm}'.format(**params))
   elif args.end > 13:
     print 'Skipping '+step+'.'
 
-  step = 'Step 14: Convert to reference coordinates with quick-liftover.py'
+  step = 'Step 10: Convert to reference coordinates with quick-liftover.py'
   if args.begin <= 14 and args.end >= 14:
     print step+':'
     runner.run('python {scriptdir}/quick-liftover.py {lav} {vars_asm} > {vars}'.format(**params))
