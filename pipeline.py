@@ -66,7 +66,8 @@ def main(argv):
     help='Stop after this many pipeline steps.')
   param = parser.add_argument_group('Analysis Parameters')
   param.add_argument('-l', '--read-length', dest='rlen', required=True, type=int,
-    help='Read length. Default: "%(default)s"')
+    help='Read length. Note: all reads don\'t have to be this length (variable length reads are '
+         'accepted). Default: "%(default)s"')
   param.add_argument('-L', '--read-length-minimum', metavar='PCT', type=float,
     help='Read length threshold. Give the minimum percent of the read that must be present to '
          'pass. Give in percent, not decimal ("10" for 10%%, not "0.1"). Default: "%(default)s"')
