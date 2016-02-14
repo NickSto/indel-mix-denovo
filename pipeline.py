@@ -27,68 +27,57 @@ FILENAMES = ('asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bamraw.bam', 'bamfilt
              'bamdedup.bam', 'nvc.vcf', 'nvcfilt.vcf', 'vars_asm.tsv', 'vars.tsv')
 
 
-def add_main_arguments(parser):
-  opts = []
-  opts.append(parser.add_argument('ref', metavar='reference.fa',
-    help='The reference genome.'))
-  opts.append(parser.add_argument('fastq1', metavar='reads_1.fq',
-    help='Input reads, mate 1.'))
-  opts.append(parser.add_argument('fastq2', metavar='reads_2.fq',
-    help='Input reads, mate 2.'))
-  opts.append(parser.add_argument('outdir', metavar='output/directory/path',
-    help='Destination directory to place the output.'))
-  opts.append(parser.add_argument('-s', '--sample', metavar='id', required=True,
-    help='The sample id. Required.'))
-  opts.append(parser.add_argument('-n', '--simulate', action='store_true',
-    help='Only simulate execution. Print commands, but do not execute them.'))
-  opts.append(parser.add_argument('-b', '--to-script', metavar='path/to/script.sh',
-    help='Instead of executing commands, write them to a bash script with this name.'))
-  opts.append(parser.add_argument('-B', '--begin', metavar='step', type=int,
-    help='Start at this step. The input files are the normal intermediate files generated if the '
-         'full pipeline were run with the same arguments. WARNING: Any existing intermediate files '
-         'in the output directory from later steps will be overwritten.'))
-  opts.append(parser.add_argument('-E', '--end', metavar='step', type=int,
-    help='Stop after this many pipeline steps.'))
-  return parser, opts
-
-
-def add_parameters(parser):
-  param = parser.add_argument_group('Analysis Parameters')
-  opts = []
-  opts.append(param.add_argument('-l', '--read-length', dest='rlen', required=True, type=int,
-    help='Read length. Note: all reads don\'t have to be this length (variable length reads are '
-         'accepted). Default: "%(default)s"'))
-  opts.append(param.add_argument('-L', '--read-length-minimum', metavar='PCT', type=float,
-    help='Read length threshold. Give the minimum percent of the read that must be present to '
-         'pass. Give in percent, not decimal ("10" for 10%%, not "0.1"). Default: "%(default)s"'))
-  opts.append(param.add_argument('-F', '--freq-thres', dest='freq', type=float,
-    help='Minor allele frequency threshold for indel calling. Give in percent, not decimal. Used '
-         'in step 12 (nvc-filter.py). Default: "%(default)s"'))
-  opts.append(param.add_argument('-c', '--cvg-thres', dest='cvg', type=int,
-    help='Read depth of coverage threshold for indel calling. If the read depth at the indel is '
-         'below this value, it will not be reported. Used in step 12 (nvc-filter.py). Default: '
-         '"%(default)s"'))
-  opts.append(param.add_argument('-S', '--strand-bias', dest='strand', type=float,
-    help='Strand bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"'))
-  opts.append(param.add_argument('-M', '--mate-bias', dest='mate', type=float,
-    help='Mate bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"'))
-  opts.append(param.add_argument('-k', '--k-mers', dest='kmers',
-    help='K-mers for assembly. Comma-delimited list of ascending integers. Will be passed directly '
-         'to spades.py. Default: "%(default)s"'))
-  opts.append(param.add_argument('-m', '--margin', type=int,
-    help='Size of the regions at either end of the reference where chimeric reads are allowed. '
-         'Used for circular chromosomes where reads spanning the start coordinate appear as '
-         'chimeric but aren\'t. Give a size in nucleotides. Both margins, at the start and end, '
-         'will be this size. Set to 0 for no margins. Default: "%(default)s"'))
-  return parser, opts, param
-
-
 def main(argv):
 
   parser = argparse.ArgumentParser(description=DESCRIPTION)
   parser.set_defaults(**OPT_DEFAULTS)
-  add_main_arguments(parser)
-  add_parameters(parser)
+
+  parser.add_argument('ref', metavar='reference.fa',
+    help='The reference genome.')
+  parser.add_argument('fastq1', metavar='reads_1.fq',
+    help='Input reads, mate 1.')
+  parser.add_argument('fastq2', metavar='reads_2.fq',
+    help='Input reads, mate 2.')
+  parser.add_argument('outdir', metavar='output/directory/path',
+    help='Destination directory to place the output.')
+  parser.add_argument('-s', '--sample', metavar='id', required=True,
+    help='The sample id. Required.')
+  parser.add_argument('-n', '--simulate', action='store_true',
+    help='Only simulate execution. Print commands, but do not execute them.')
+  parser.add_argument('-b', '--to-script', metavar='path/to/script.sh',
+    help='Instead of executing commands, write them to a bash script with this name.')
+  parser.add_argument('-B', '--begin', metavar='step', type=int,
+    help='Start at this step. The input files are the normal intermediate files generated if the '
+         'full pipeline were run with the same arguments. WARNING: Any existing intermediate files '
+         'in the output directory from later steps will be overwritten.')
+  parser.add_argument('-E', '--end', metavar='step', type=int,
+    help='Stop after this many pipeline steps.')
+  param = parser.add_argument_group('Analysis Parameters')
+  param.add_argument('-l', '--read-length', dest='rlen', required=True, type=int,
+    help='Read length. Note: all reads don\'t have to be this length (variable length reads are '
+         'accepted). Default: "%(default)s"')
+  param.add_argument('-L', '--read-length-minimum', metavar='PCT', type=float,
+    help='Read length threshold. Give the minimum percent of the read that must be present to '
+         'pass. Give in percent, not decimal ("10" for 10%%, not "0.1"). Default: "%(default)s"')
+  param.add_argument('-f', '--freq-thres', dest='freq', type=float,
+    help='Minor allele frequency threshold for indel calling. Give in percent, not decimal. Used '
+         'in step 12 (nvc-filter.py). Default: "%(default)s"')
+  param.add_argument('-c', '--cvg-thres', dest='cvg', type=int,
+    help='Read depth of coverage threshold for indel calling. If the read depth at the indel is '
+         'below this value, it will not be reported. Used in step 12 (nvc-filter.py). Default: '
+         '"%(default)s"')
+  param.add_argument('-S', '--strand-bias', dest='strand', type=float,
+    help='Strand bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"')
+  param.add_argument('-M', '--mate-bias', dest='mate', type=float,
+    help='Mate bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"')
+  param.add_argument('-k', '--k-mers', dest='kmers',
+    help='K-mers for assembly. Comma-delimited list of ascending integers. Will be passed directly '
+         'to spades.py. Default: "%(default)s"')
+  param.add_argument('-m', '--margin', type=int,
+    help='Size of the regions at either end of the reference where chimeric reads are allowed. '
+         'Used for circular chromosomes where reads spanning the start coordinate appear as '
+         'chimeric but aren\'t. Give a size in nucleotides. Both margins, at the start and end, '
+         'will be this size. Set to 0 for no margins. Default: "%(default)s"')
   args = parser.parse_args(argv[1:])
 
   # Check output directory.
