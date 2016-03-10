@@ -29,6 +29,8 @@ FILENAMES = ('asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bamraw.bam', 'bamfilt
 
 #################### PIPELINE STEPS ####################
 
+# Steps are either a command template that's filled in with parameters and file paths before
+# execution by the shell or a call to a function.
 STEPS = [
   #TODO: Set k-mers based on read length.
   #TODO: Check if successful (produces a contigs.fasta).
@@ -196,15 +198,19 @@ def main(argv):
 
   #################### EXECUTE STEPS ####################
 
+  # Get a dict of the global variables so we can look up functions by name.
   globals_dict = globals()
   for step in STEPS:
     if args.begin <= step['num'] and args.end >= step['num']:
       print 'Step {num}: {desc}.'.format(**step)
       if step['type'] == 'command':
+        # Fill in the placeholders in the command and have the Runner "execute" it.
         runner.run(step['command'].format(**params))
       elif step['type'] == 'function':
+        # Look up the requested function and its arguments, then call it.
         function = globals_dict[step['function']]
-        function(runner, *[params[arg] for arg in step['args']])
+        arguments = [params[arg] for arg in step['args']]
+        function(runner, *arguments)
     elif args.end > step['num']:
       print 'Skipping step {num}: {desc}.'.format(**step)
 
