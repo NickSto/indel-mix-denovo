@@ -184,14 +184,13 @@ def main():
         sys.stdout.write(humanize(output_stats))
 
 
-
 def variants_from_str(variants_str):
   """Parse the list of variants passed in from the command line.
-  Example list: "chrM:310-S,1:2345-D:2,pUC18:4210-I:GAT"
+  Example list: "chrM:310-S,1:2345-D:2,pUC18-c:4210-I:GAT"
   Will return: [
     {'chrom':'chrM', 'coord':310, 'type':'S', 'alt':None},
     {'chrom':'1', 'coord':2345, 'type':'D', 'alt':'2'},
-    {'chrom':'pUC18', 'coord':4210, 'type':'I', 'alt':'GAT'},
+    {'chrom':'pUC18-c', 'coord':4210, 'type':'I', 'alt':'GAT'},
   ]
   """
   variants = []
