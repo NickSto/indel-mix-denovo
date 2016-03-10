@@ -5,77 +5,25 @@ import sys
 import argparse
 import subprocess
 import distutils.spawn
+import yaml
 
 PLATFORM = 'ILLUMINA'
-PICARDIR_DEFAULT = 'bx/src/picard-tools-1.100'
-REQUIRED_COMMANDS = ('java', 'bash', 'python', 'bwa', 'samtools', 'spades.py', 'lastz',
-                     'naive_variant_caller.py')
-REQUIRED_SCRIPTS = ('heteroplasmy/pre-process-mt.sh', 'asm-unifier.py', 'nvc-filter.py',
-                    'inspect-reads.py', 'quick-liftover.py')
-REQUIRED_PICARDS = ('SamToFastq.jar',)
+PICARDIR_DEFAULT = '~/bx/src/picard-tools-1.100'
 
 OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1,
                 'margin':600, 'kmers':'21,33,55,77', 'read_length_minimum':40}
 DESCRIPTION = """Automate all steps of running the indel discovery pipeline on a single sample.
 Note: Set the directory containing the picard jars with the environment variable PICARD_DIR (if it's
-different from the default: ~/"""+PICARDIR_DEFAULT+').'
-# The intermediate files.
-# Their names, without extensions, will be used directly in the command templates below.
+different from the default: """+PICARDIR_DEFAULT+').'
+
+# About "filenames" in YAML file:
+# You can use these names, without the extensions, directly in command templates.
+# The names, with extensions, will be substituted into the executed command.
 # The intention is to make it easy to read the script and correlate filename placeholders in
 # commands with the actual ones in the filesystem.
-FILENAMES = ('asmdir', 'asm.fa', 'asmlog.log', 'lav.lav', 'bamraw.bam', 'bamfilt.bam',
-             'bamdedup.bam', 'nvc.vcf', 'nvcfilt.vcf', 'vars_asm.tsv', 'vars.tsv')
 
 
 #################### PIPELINE STEPS ####################
-
-# Steps are either a command template that's filled in with parameters and file paths before
-# execution by the shell or a call to a function.
-STEPS = [
-  #TODO: Set k-mers based on read length.
-  #TODO: Check if successful (produces a contigs.fasta).
-  {'num':1, 'desc':'Assemble with SPAdes', 'type':'command',
-   'command':'spades.py --careful -k {kmers} -1 {fastq1} -2 {fastq2} -o {asmdir}'},
-
-  {'num':2, 'desc':'Clean assembly with asm-unifier.py', 'type':'command',
-   'command':'python {scriptdir}/asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta '
-             '-o {asm} -l {asmlog}'},
-
-  {'num':3, 'desc':'Align assembly to reference with LASTZ', 'type':'command',
-   'command':'lastz {ref} {asm} > {lav}'},
-
-  {'num':4, 'desc':'Align to assembly with BWA MEM', 'type':'function', 'function':'align',
-   'args':['fastq1', 'fastq2', 'asm', 'bamraw', 'sample']},
-
-  # In this second time around, might want to omit -s realign (do NM-edits filtering too).
-  #TODO: Check what -c names (name of the assembly sequence) are valid in pre-process-mt.sh.
-  {'num':5, 'desc':'Filter alignment with pre-process-mt.sh', 'type':'command',
-   'command':'bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {sample} -m {margin} '
-             '-M {min_rlen} -s realign -r {asm} {bamraw} {bamfilt}'},
-
-  {'num':6, 'desc':'Remove duplicates with Samtools:', 'type':'function', 'function':'dedup',
-   'args':['bamfilt', 'bamdedup']},
-
-  #TODO: Allow setting -q and -m.
-  {'num':7, 'desc':'Extract variants with Naive Variant Caller', 'type':'command',
-   'command':'naive_variant_caller.py -q 30 -m 20 --ploidy 2 --use_strand '
-             '--coverage_dtype uint32 --allow_out_of_bounds_positions --bam {bamdedup} '
-             '--index {bamdedup}.bai -r {asm} -o {nvc}'},
-
-  #TODO: Allow for samples with no indels (empty {nvc}).
-  #TODO: Postpone application of filters until the end so they can be tweaked. For instance,
-  #      we want to preserve information about all indels, even below the MAF threshold.
-  {'num':8, 'desc':'Filter variants with nvc-filter.py', 'type':'command',
-   'command':'python {scriptdir}/nvc-filter.py -r S -c {cvg} -f {freq} {nvc} > {nvcfilt}'},
-
-  # N.B.: inspect-reads.py takes the output sample name from the BAM read group.
-  {'num':9, 'desc':'Filter further by BAM stats with inspect-reads.py', 'type':'command',
-   'command':'python {scriptdir}/inspect-reads.py -tl -s {strand} -m {mate} {bamdedup} '
-             '-V {nvcfilt} -r {asm} > {vars_asm}'},
-
-  {'num':10, 'desc':'Convert to reference coordinates with quick-liftover.py', 'type':'command',
-   'command':'python {scriptdir}/quick-liftover.py {lav} {vars_asm} > {vars}'},
-]
 
 
 def main(argv):
@@ -83,6 +31,8 @@ def main(argv):
   parser = argparse.ArgumentParser(description=DESCRIPTION)
   parser.set_defaults(**OPT_DEFAULTS)
 
+  parser.add_argument('yaml',
+    help='A YAML file with the pipeline commands.')
   parser.add_argument('ref', metavar='reference.fa',
     help='The reference genome.')
   parser.add_argument('fastq1', metavar='reads_1.fq',
@@ -93,6 +43,15 @@ def main(argv):
     help='Destination directory to place the output.')
   parser.add_argument('-s', '--sample', metavar='id', required=True,
     help='The sample id. Required.')
+  parser.add_argument('--refname2', metavar='chrName',
+    help='Id of the sequence to filter for, after assembly (if different from the sample id). '
+         'Normally only needed when starting the pipeline at a middle step after changing the '
+         'assembly file.')
+  parser.add_argument('-R', '--filter-ref', metavar='filter-ref.fa',
+    help='A reference consisting of the reference genome plus any other mapping targets you want '
+         'to include for filtering purposes. Will filter the reads in the first step by mapping '
+         'to this reference, then selecting only reads which map to the sequence identified by '
+         '--refname. Optional. Will use the main reference genome by default.')
   parser.add_argument('-n', '--simulate', action='store_true',
     help='Only simulate execution. Print commands, but do not execute them.')
   parser.add_argument('-b', '--to-script', metavar='path/to/script.sh',
@@ -131,6 +90,9 @@ def main(argv):
          'will be this size. Set to 0 for no margins. Default: "%(default)s"')
   args = parser.parse_args(argv[1:])
 
+  with open(args.yaml) as yaml_file:
+    script = yaml.safe_load(yaml_file)
+
   # Check output directory.
   if args.begin > 1:
     # If beginning later in the pipeline, the outdir must exist and contain needed files.
@@ -150,16 +112,17 @@ def main(argv):
       os.makedirs(args.outdir)
 
   # Create a Runner and set it to execute the commands immediately, just print them to stdout
-  # (simulate), or output them to a script file.
+  # (simulate), or output them to a shell script file.
   runner = Runner()
   runner.simulate = args.simulate
   if args.to_script:
     runner.to_script(args.to_script)
 
-  # Create paths to files and directories.
+  # Gather all parameters: file paths from filenames in YAML, command line arguments, etc.
+  # File paths.
   #TODO: Use a tmp directory for intermediate files
   params = {}
-  for filename in FILENAMES:
+  for filename in script['filenames']:
     base = os.path.splitext(filename)[0]
     assert base not in params, '{} in params. value: {}'.format(base, params[base])
     params[base] = os.path.join(args.outdir, filename)
@@ -167,30 +130,32 @@ def main(argv):
   if 'PICARD_DIR' in os.environ:
     params['picardir'] = os.environ['PICARD_DIR']
   else:
-    params['picardir'] = os.path.join(os.path.expanduser('~'), PICARDIR_DEFAULT)
-  # Add arguments from command line.
+    params['picardir'] = os.path.expanduser(PICARDIR_DEFAULT)
+  # Command line arguments.
   for arg in dir(args):
     if arg.startswith('_'):
       continue
+    # Command line argument names can't conflict with filenames or other existing parameters.
     assert arg not in params, '{} in params. value: {}'.format(arg, params[arg])
     params[arg] = getattr(args, arg)
-  # Compute some special arguments.
+  # Compute some special parameters.
   if not params.get('rlen'):
-    #TODO: Detect read length of FASTA files.
+    #TODO: Detect read length of FASTQ files.
     raise Exception('Need to provide --read-length.')
   params['min_rlen'] = int(round(params['rlen'] * params['read_length_minimum'] / 100))
 
   # Check for required commands.
-  for command in REQUIRED_COMMANDS:
+  requirements = script.get('requirements', {})
+  for command in requirements.get('commands', ()):
     if not distutils.spawn.find_executable(command):
       raise Exception('Required command "'+command+'" not found.')
   # Check for required scripts.
-  for script in REQUIRED_SCRIPTS:
-    scriptpath = os.path.join(params['scriptdir'], script)
+  for script_name in requirements.get('scripts', ()):
+    scriptpath = os.path.join(params['scriptdir'], script_name)
     if not os.path.isfile(scriptpath):
       raise Exception('Required script "'+scriptpath+'" not found.')
   # Check for Picard jars.
-  for jar in REQUIRED_PICARDS:
+  for jar in requirements.get('picards', ()):
     jarpath = os.path.join(params['picardir'], jar)
     if not os.path.isfile(jarpath):
       raise Exception('Required Picard jar "'+jarpath+'" not found.')
@@ -198,14 +163,20 @@ def main(argv):
 
   #################### EXECUTE STEPS ####################
 
+  # Steps are either a command template that's filled in with parameters and file paths before
+  # execution by the shell or a call to a function.
+
   # Get a dict of the global variables so we can look up functions by name.
   globals_dict = globals()
-  for step in STEPS:
+  for step in script['steps']:
     if args.begin <= step['num'] and args.end >= step['num']:
       print 'Step {num}: {desc}.'.format(**step)
       if step['type'] == 'command':
+        kwargs = {}
+        if 'ignore_err' in step:
+          kwargs['ignore_err'] = step['ignore_err']
         # Fill in the placeholders in the command and have the Runner "execute" it.
-        runner.run(step['command'].format(**params))
+        runner.run(step['command'].format(**params), **kwargs)
       elif step['type'] == 'function':
         # Look up the requested function and its arguments, then call it.
         function = globals_dict[step['function']]
@@ -214,8 +185,9 @@ def main(argv):
     elif args.end > step['num']:
       print 'Skipping step {num}: {desc}.'.format(**step)
 
-  if args.end >= STEPS[-1]['num']:
-    print 'Finished. Final variants are in {vars}.'.format(**params)
+  last_step = script['steps'][-1]
+  if args.end >= last_step['num']:
+    print 'Finished. Final variants are in {output}.'.format(**script)
 
 
 def align(runner, fastq1, fastq2, ref, outbam, sample):
@@ -262,10 +234,10 @@ class Runner(object):
     self._output = sys.stdout
   def run(self, command, ignore_err=False):
     if not self.quiet:
-      self._output.write(self.prepend+command+'\n')
+      self._output.write(self.prepend+command.strip()+'\n')
     if not self.simulate:
       try:
-        subprocess.check_call(command, shell=True)
+        subprocess.check_call(command.strip(), shell=True)
       except subprocess.CalledProcessError as cpe:
         sys.stderr.write("Command '{}' returned non-zero exit status {}\n"
                          .format(cpe.cmd, cpe.returncode))

@@ -1,0 +1,75 @@
+requirements:
+  commands: [bash, python, bwa, samtools, spades.py, lastz, naive_variant_caller.py]
+  scripts: [heteroplasmy/pre-process-mt.sh, asm-unifier.py, nvc-filter.py, inspect-reads.py, quick-liftover.py]
+
+filenames: [asmdir, asm.fa, asmlog.log, lav.lav, bamraw.bam, bamfilt.bam, bamdedup.bam, nvc.vcf,
+            nvcfilt.vcf, vars_asm.tsv, vars.tsv]
+output: vars
+
+steps:
+  #TODO: Set k-mers based on read length.
+  #TODO: Check if successful (produces a contigs.fasta).
+  - num: 1
+    desc: Assemble with SPAdes
+    type: command
+    command: "spades.py --careful -k {kmers} -1 {fastq1} -2 {fastq2} -o {asmdir}"
+
+  - num: 2
+    desc: Clean assembly with asm-unifier.py
+    type: command
+    command: "python {scriptdir}/asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta -o {asm} -l {asmlog}"
+
+  - num: 3
+    desc: Align assembly to reference with LASTZ
+    type: command
+    command: "lastz {ref} {asm} > {lav}"
+
+  - num: 4
+    desc: Align to assembly with BWA MEM
+    type: function
+    function: align
+    args: [fastq1, fastq2, asm, bamraw, sample]
+
+  # In this second time around, might want to omit -s realign (do NM-edits filtering too).
+  #TODO: Check what -c names (name of the assembly sequence) are valid in pre-process-mt.sh.
+  - num: 5
+    desc: Filter alignment with pre-process-mt.sh
+    type: command
+    command: >
+      bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {sample} -m {margin} -M {min_rlen}
+      -s realign -r {asm} {bamraw} {bamfilt}
+
+  - num: 6
+    desc: Remove duplicates with Samtools
+    type: function
+    function: dedup
+    args: [bamfilt, bamdedup]
+
+  #TODO: Allow setting -q and -m.
+  - num: 7
+    desc: Extract variants with Naive Variant Caller
+    type: command
+    command: >
+      naive_variant_caller.py -q 30 -m 20 --ploidy 2 --use_strand --coverage_dtype uint32
+      --allow_out_of_bounds_positions --bam {bamdedup} --index {bamdedup}.bai -r {asm} -o {nvc}
+
+  #TODO: Allow for samples with no indels (empty {nvc}).
+  #TODO: Postpone application of filters until the end so they can be tweaked. For instance,
+  #      we want to preserve information about all indels, even below the MAF threshold.
+  - num: 8
+    desc: Filter variants with nvc-filter.py
+    type: command
+    command: "python {scriptdir}/nvc-filter.py -r S -c {cvg} -f {freq} {nvc} > {nvcfilt}"
+
+  # N.B.: inspect-reads.py takes the output sample name from the BAM read group.
+  - num: 9
+    desc: Filter further by BAM stats with inspect-reads.py
+    type: command
+    command: >
+      python {scriptdir}/inspect-reads.py -tl -s {strand} -m {mate} {bamdedup} -V {nvcfilt}
+      -r {asm} > {vars_asm}
+
+  - num: 10
+    desc: Convert to reference coordinates with quick-liftover.py
+    type: command
+    command: "python {scriptdir}/quick-liftover.py {lav} {vars_asm} > {vars}"
