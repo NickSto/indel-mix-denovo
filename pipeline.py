@@ -8,13 +8,11 @@ import distutils.spawn
 import yaml
 
 PLATFORM = 'ILLUMINA'
-PICARDIR_DEFAULT = '~/bx/src/picard-tools-1.100'
+PICARD_DIR_DEFAULT = '~/bx/src/picard-tools-1.100'
 
 OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1,
                 'margin':600, 'kmers':'21,33,55,77', 'read_length_minimum':40}
-DESCRIPTION = """Automate all steps of running the indel discovery pipeline on a single sample.
-Note: Set the directory containing the picard jars with the environment variable PICARD_DIR (if it's
-different from the default: """+PICARDIR_DEFAULT+').'
+DESCRIPTION = """Automate all steps of running the indel discovery pipeline on a single sample."""
 
 # About "filenames" in YAML file:
 # You can use these names, without the extensions, directly in command templates.
@@ -43,6 +41,8 @@ def main(argv):
     help='Destination directory to place the output.')
   parser.add_argument('-s', '--sample', metavar='id', required=True,
     help='The sample id. Required.')
+  parser.add_argument('--refname', metavar='chrName',
+    help='The id of the reference sequence.')
   parser.add_argument('--refname2', metavar='chrName',
     help='Id of the sequence to filter for, after assembly (if different from the sample id). '
          'Normally only needed when starting the pipeline at a middle step after changing the '
@@ -52,6 +52,10 @@ def main(argv):
          'to include for filtering purposes. Will filter the reads in the first step by mapping '
          'to this reference, then selecting only reads which map to the sequence identified by '
          '--refname. Optional. Will use the main reference genome by default.')
+  parser.add_argument('-P', '--picard-dir',
+    help='The directory containing Picard jar files. Default: the value of $PICARD_DIR, or '+
+          PICARD_DIR_DEFAULT+' if unset. Using this option sets $PICARD_DIR for this script and '
+          'its children.')
   parser.add_argument('-n', '--simulate', action='store_true',
     help='Only simulate execution. Print commands, but do not execute them.')
   parser.add_argument('-b', '--to-script', metavar='path/to/script.sh',
@@ -127,10 +131,13 @@ def main(argv):
     assert base not in params, '{} in params. value: {}'.format(base, params[base])
     params[base] = os.path.join(args.outdir, filename)
   params['scriptdir'] = os.path.dirname(os.path.realpath(sys.argv[0]))
-  if 'PICARD_DIR' in os.environ:
+  if args.picard_dir:
+    params['picardir'] = args.picard_dir
+    os.environ['PICARD_DIR'] = args.picard_dir
+  elif 'PICARD_DIR' in os.environ:
     params['picardir'] = os.environ['PICARD_DIR']
   else:
-    params['picardir'] = os.path.expanduser(PICARDIR_DEFAULT)
+    params['picardir'] = os.path.expanduser(PICARD_DIR_DEFAULT)
   # Command line arguments.
   for arg in dir(args):
     if arg.startswith('_'):
@@ -139,6 +146,10 @@ def main(argv):
     assert arg not in params, '{} in params. value: {}'.format(arg, params[arg])
     params[arg] = getattr(args, arg)
   # Compute some special parameters.
+  if not args.filter_ref:
+    params['filter_ref'] = args.ref
+  if not args.refname2:
+    params['refname2'] = args.sample
   if not params.get('rlen'):
     #TODO: Detect read length of FASTQ files.
     raise Exception('Need to provide --read-length.')

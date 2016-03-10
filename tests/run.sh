@@ -86,6 +86,8 @@ initial_declarations=$(declare -F)
 # Do all tests.
 function all {
   pipeline
+  liftover
+  power
 }
 
 # Do all pipeline tests.
@@ -100,10 +102,10 @@ function pipeline {
 function pipeline2 {
   echo -e "\tpipeline.py steps 1 and 2 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
-  python "$dirname/../pipeline.py" -E 2 -s M249 -r chrM -l 250 "$dirname/chrM-rCRS.fa" \
-    "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
-  #TODO: edit diff.sh to allow different paths in @PG command line.
-  bash "$dirname/bam-diff.sh" "$dirname/pipeline/out2.R39-M249-reduced.bam" \
+  python "$dirname/../pipeline.py" -E 2 -s M249 --refname chrM -l 250 "$dirname/../ref-filt.yaml" \
+    "$dirname/chrM-rCRS.fa" "$dirname/pipeline/R39-M249-reduced_1.fq" \
+    "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
+  python "$dirname/bam-diff.py" "$dirname/pipeline/out2.R39-M249-reduced.bam" \
     "$tmp/bam1filt.bam"
   rm -r "$tmp"
 }
@@ -113,10 +115,10 @@ function pipeline3 {
   echo -e "\tpipeline.py step 3 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   cp "$dirname/pipeline/out2.R39-M249-reduced.bam" "$tmp/bam1filt.bam"
-  python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 -r chrM -l 250 "$dirname/chrM-rCRS.fa" \
-    "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
-  #TODO: edit diff.sh to allow different paths in @PG command line.
-  bash "$dirname/bam-diff.sh" "$dirname/pipeline/out3.R39-M249-reduced.bam" \
+  python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 --refname chrM -l 250 \
+    "$dirname/../ref-filt.yaml" "$dirname/chrM-rCRS.fa" "$dirname/pipeline/R39-M249-reduced_1.fq" \
+    "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
+  python "$dirname/bam-diff.py" "$dirname/pipeline/out3.R39-M249-reduced.bam" \
     "$tmp/bam1dedup.bam"
   rm -r "$tmp"
 }
@@ -125,8 +127,9 @@ function pipeline3 {
 function pipefull11 {
   echo -e "\tpipeline.py steps 1-11 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
-  python "$dirname/../pipeline.py" -E 11 -s M249 -r chrM -l 250 "$dirname/chrM-rCRS.fa" \
-    "$dirname/pipeline/R39-M249-reduced_1.fq" "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
+  python "$dirname/../pipeline.py" -E 11 -s M249 --refname chrM -l 250 "$dirname/../ref-filt.yaml" \
+    "$dirname/chrM-rCRS.fa" "$dirname/pipeline/R39-M249-reduced_1.fq" \
+    "$dirname/pipeline/R39-M249-reduced_2.fq" "$tmp"
   # Diff the results. The date ends up in the final vcf, so omit that.
   exceptions='^##(reference|fileDate)='
   grep -Ev "$exceptions" "$dirname/pipeline/out11.R39-M249-reduced.vcf" \
@@ -149,8 +152,9 @@ function pipefull11 {
 function pipefull {
   echo -e "\tpipeline.py all steps ::: G3825.1a_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
-  python "$dirname/../pipeline.py" -s G3825.1a -r EBOV -l 100 -c 100 -m 0 "$dirname/EBOV.fa" \
-    "$dirname/pipeline/G3825.1a_1.fq" "$dirname/pipeline/G3825.1a_2.fq" "$tmp"
+  python "$dirname/../pipeline.py" -s G3825.1a --refname EBOV -l 100 -c 100 -m 0 \
+    "$dirname/../ref-filt.yaml" "$dirname/EBOV.fa" "$dirname/pipeline/G3825.1a_1.fq" \
+    "$dirname/pipeline/G3825.1a_2.fq" "$tmp"
   diff -s "$dirname/pipeline/out14.G3825.1a.tsv" "$tmp/vars.tsv"
   rm -r "$tmp"
 }
