@@ -138,11 +138,11 @@ def main():
 
   args = parser.parse_args()
 
-  variants = []
+  variants_list = []
   if args.vcf:
-    variants.extend(variants_from_vcf(args.vcf))
+    variants_list.extend(variants_from_vcf(args.vcf))
   if args.variants:
-    variants.extend(variants_from_str(args.variants))
+    variants_list.extend(variants_from_str(args.variants))
   if not (args.vcf or args.variants):
     parser.print_help()
     fail("\nError: Please provide a list of variants in either a VCF file or a "
@@ -150,17 +150,21 @@ def main():
 
   # shim for planned option
   setattr(args, 'vartypes', 'ID')
-  # eliminate variants that aren't one of the specified types
-  variants[:] = [var for var in variants if var['type'] in args.vartypes]
-
+  # Break variants list into sub-lists, one for each chromosome.
+  variants = {}
+  for variant in variants_list:
+    # Eliminate variants that aren't one of the specified types.
+    if variant['type'] not in args.vartypes:
+      continue
+    chrom = variant['chrom']
+    chrom_variants = variants.get(chrom, [])
+    chrom_variants.append(variant)
+    variants[chrom] = chrom_variants
   #TODO: make sure BAM is sorted
-  #TODO: take chrom in to account when sorting variants: use order in BAM header
-  # sort variants by coordinate
-  variants.sort(key=lambda variant: variant['coord'])
-
-  (read_sets, stat_sets) = bamslicer.get_reads_and_stats(
-    args.bamfilepath, variants, ref=args.ref
-  )
+  #TODO: take chrom in to account when sorting variants: use order in BAM file (from header?)
+  # Sort variants by coordinate.
+  for chrom_variants in variants.values():
+    chrom_variants.sort(key=lambda variant: variant['coord'])
 
   # Print header
   if args.tsv and args.labels:
@@ -168,16 +172,15 @@ def main():
       sys.stdout.write('#')
     print LABEL_LINE
 
-  # N.B.: Currently, read_sets is not actually used.
-  for (variant, read_set, stat_set) in zip(variants, read_sets, stat_sets):
-    for sample in read_set:
-      if filter_out(variant, read_set[sample], stat_set[sample], args):
+  for var_stats in bamslicer.get_variant_stats(args.bamfilepath, variants, ref=args.ref):
+    for sample, sample_stats in var_stats.items():
+      if filter_out(sample_stats, args):
         continue
       if args.sample_name:
         sample_name = args.sample_name
       else:
         sample_name = sample
-      output_stats = summarize_stats(sample_name, variant, stat_set[sample])
+      output_stats = summarize_stats(sample_stats, sample_name)
       if args.tsv:
         sys.stdout.write("\t".join(map(str, output_stats.values()))+"\n")
       else:
@@ -248,17 +251,17 @@ def valid_variant(vartype, alt):
 def variants_from_vcf(vcffilename):
   #TODO: support multiple samples
   variants = []
-  vcf = vcfreader.VCFReader(open(vcffilename, 'rU'))
-  for site in vcf:
-    chrom = site.get_chrom()
-    pos = site.get_pos()
-    ref = site.get_ref()
-    for alt in site.get_alt():
-      #TODO: make sure this is the desired handling of reference allele
-      if alt == ref:
-        continue
-      altstr = site.alt_to_variant(alt)
-      variants.append(parse_altstr(altstr, chrom, pos))
+  with open(vcffilename) as vcffile:
+    for site in vcfreader.VCFReader(vcffile):
+      chrom = site.get_chrom()
+      pos = site.get_pos()
+      ref = site.get_ref()
+      for alt in site.get_alt():
+        #TODO: make sure this is the desired handling of reference allele
+        if alt == ref:
+          continue
+        altstr = site.alt_to_variant(alt)
+        variants.append(parse_altstr(altstr, chrom, pos))
   return variants
 
 
@@ -285,10 +288,9 @@ def parse_altstr(altstr, chrom, coord):
     raise vcfreader.FormatError('Invalid alt string in sample column: '+altstr)
 
 
-def filter_out(variant, reads, stats, args):
+def filter_out(stats, args):
   """Decide whether to filter out this variant based on all the read stats.
-  Returns True if the variant should be filtered out.
-  N.B.: Currently only "stats" is currently used for filtering."""
+  Returns True if the variant should be filtered out."""
   filter_out = False
   if args.strand_bias and stats['strand_bias'] is not None:
     if stats['strand_bias'] > args.strand_bias:
@@ -299,10 +301,11 @@ def filter_out(variant, reads, stats, args):
   return filter_out
 
 
-def summarize_stats(sample, variant, stats):
+def summarize_stats(stats, sample):
   """Take the raw read data and transform them into useful statistics.
-  Input: A single variant and a stats dict for that variant from
-    bamslicer.get_reads_and_stats().
+  "stats" (dict) is the read statistics for a single variant from a single sample
+    (read group) from bamslicer.get_variant_stats().
+  "sample" (str) is the sample name
   Output: A dict of the summarized stats.
   Later, anything added here will automatically be printed as a column (if tsv).
   N.B.: If you do add a stat, add one to TOTAL_FIELDS. 
@@ -313,10 +316,10 @@ def summarize_stats(sample, variant, stats):
     output['sample']    = '__NONE__'
   else:
     output['sample']    = sample
-  output['chrom']       = variant.get('chrom')
-  output['coord']       = variant.get('coord')
-  output['type']        = variant.get('type')
-  output['alt']         = variant.get('alt')
+  output['chrom']       = stats['chrom']
+  output['coord']       = stats['coord']
+  output['type']        = stats['type']
+  output['alt']         = stats['alt']
   output['coverage']    = stats['supporting'] + stats['opposing']
   output['supporting']  = stats['supporting']
   # no valid freq if no reads at all

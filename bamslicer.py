@@ -2,7 +2,6 @@
 """Methods to select reads from a BAM that contain given variants, and return
 statistics on their characteristics."""
 from __future__ import division
-import os
 import sys
 import collections
 import pkg_resources
@@ -16,97 +15,151 @@ NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
 DEFAULT_FLANK_LEN = 15
 
-#TODO: Maybe make each of the two return values a dict of lists instead of a
-#      list of dicts?
-#TODO: Clean up mess of "read sets supporting" and "read sets opposing".
-#      Should probably forget about being able to return opposing reads.
-def get_reads_and_stats(bamfilepath, variants, ref=None, readgroups=None):
-  """Take a BAM and a list of variants, and return the reads supporting the
-  variants, as well as statistics on the reads covering it.
-  The BAM file and variants list should be sorted by start coordinate. Each
-  variant is a dict, e.g.:
+
+def get_variant_stats(bamfilepath, variants, ref=None):
+  """Take a BAM and a dict of lists of variants, and return statistics on the
+  reads covering each.
+  The BAM file should be sorted by chromosome, then coordinate (the standard
+  "samtools sort"), and the variants should be a dict mapping chromosome names to
+  lists of the variants on each chromosome, sorted by start coordinate.
+  Each variant is a dict, e.g.:
     {'chrom':'1', 'coord':2345, 'type':'D', 'alt':'2'}
     {'chrom':'pUC18', 'coord':4210, 'type':'I', 'alt':'GAT'}
     {'chrom':'chrM', 'coord':310, 'type':'S', 'alt':None}
   NOTE: Currently SNV's are not supported!
-  Return value: A 2-tuple of reads and stats. Both are lists where each element
-  corresponds to a variant of the same index in the input variants list. Each
-  element in the reads list is a list of BAMReads which support that variant.
-  The elements of the stats list summarize each set of reads. See the
-  description of get_read_stats() for the format.
-  N.B.: When looking for the variant in a read, this checks for the same ALT
-  allele, but only the length, not the identity. This only matters for
-  insertions, not deletions. So it will fail to distinguish insertions of the
-  same length but different sequences.
+  Return value: A list of read statistics.
+  Each value in the list represents the statistics for one variant.
+  Each value is a dict mapping sample (read group) names to statistics for the
+  variant in that sample. Each set of statistics is a dict mapping the names of
+  different statistics to their values. For convenience, the dicts include the
+  original variant information (the 'chrom', 'coord', etc keys above).
+  In addition, they currently include these statistics keys:
+  "supporting", "opposing", "mapqs", "flags", "flags_opposing", "strand_bias",
+  "mate_bias", "var_pos_dist", and "context" when a reference is given.
+  N.B.: When inspecting reads, this cannot distinguish between insertions of the
+  same length, but different inserted sequence. So this could falsely identify
+  reads as supporting a particular insertion when in fact they support a different
+  insertion of the same length. This is due to a limitation of pyBamParser (it
+  currently doesn't correlate the CIGAR string field with the sequence field).
   """
+  # This function relies on both the input BAM and list of variants being sorted by coordinate.
+  # It reads through this sorted BAM one read at a time. As it reads, it keeps a list of variants
+  # inside the footprint of the current read. They way it does this is that as it takes on each new
+  # read, it drops variants that are now to the left of the current read, and adds new variants
+  # which are now covered by the right side of the read. Then it checks each of these variants
+  # against each of the indels in the read.
 
   bam_reader = pyBamParser.bam.Reader(bamfilepath)
 
-  # pre-allocate lists of reads so they can be randomly accessed later
-  read_sets_supporting = [None] * len(variants)
-  read_sets_opposing = [None] * len(variants)
-  for i in range(len(variants)):
-    read_sets_supporting[i] = {}
-    read_sets_opposing[i] = {}
-
+  last_chrom = None
   for read in bam_reader:
-    # get sample name from read group (returns None if no RG tag)
-    sample = read.get_read_group()
 
-    read_rname = read.get_reference_name()
-    read_pos   = read.get_position()
+    #TODO: Check that bam is sorted by chromosome, then coordinate.
+    read_chrom = read.get_reference_name()
+    read_start = read.get_position()
     read_end   = read.get_end_position()
+
+    # If we're starting a new chromosome, re-initialize all variables.
+    if read_chrom != last_chrom:
+      chrom_variants = variants.get(read_chrom, [])
+      current_variants = []
+      reads_supporting = collections.defaultdict(dict)
+      reads_opposing = collections.defaultdict(dict)
+      current_start = read_start
+      current_end = read_start
+      variants_i = 0
+      last_chrom = read_chrom
+
+    # Pop variants off the left end and process them.
+    while (current_start < read_start and
+           current_variants and current_variants[0]['coord'] < read_start):
+      variant = current_variants.pop(0)
+      key = (variant['coord'], variant['type'], variant['alt'])
+      yield get_samples_read_stats(variant, reads_supporting[key], reads_opposing[key], ref)
+      del(reads_supporting[key])
+      del(reads_opposing[key])
+      if current_variants:
+        current_start = current_variants[0]['coord']
+        #TODO: Something smarter when the list is empty? This could happen when there's a big gap
+        #      between reads and we reach the end of the last one before the start of this one.
+
+    # Add new variants to the right end.
+    if current_end < read_end:
+      while variants_i < len(chrom_variants) and chrom_variants[variants_i]['coord'] <= read_end:
+        variant = chrom_variants[variants_i]
+        #TODO: We might skip some variants here (if they fall in gaps between reads). Should report
+        #      something about these variants? Basically that there was no information?
+        if variant['coord'] >= read_start:
+          current_variants.append(variant)
+          current_end = variant['coord']
+        variants_i += 1
+
+    # Make sure current_start is the first variant.
+    # Or, if there are none in this read, skip the rest.
+    if current_variants:
+      current_start = current_variants[0]['coord']
+    else:
+      continue
+
+    # Get sample name from read group (returns None if no RG tag).
+    sample = read.get_read_group()
     (read_ins, read_del) = read.get_indels()
 
-    #TODO: use deque for local variants by discarding variants we've moved past
-    #      and only adding ones to the end when needed
-    #current_variants = collections.deque()
-    for (i, variant) in enumerate(variants):
+    for variant in current_variants:
       var_pos = variant['coord']
-      if not (read_pos <= var_pos <= read_end):
+      # Double-check that the variant is in the footprint of the read.
+      if not (read_start <= var_pos <= read_end):
         continue
-      var_chrom = variant['chrom']
-      if read_rname != var_chrom:
-        continue
-      # now check if the read supports the variant
+      # Does the read support the variant?
       var_type = variant['type']
       var_alt = variant['alt']
       supports = False
       if var_type == 'I':
-        for (ins_pos, ins_len) in read_ins:
+        for ins_pos, ins_len in read_ins:
           if ins_pos == var_pos:
             if var_alt is None or ins_len == len(var_alt):
               supports = True
       elif var_type == 'D':
-        for (del_pos, del_len) in read_del:
+        for del_pos, del_len in read_del:
           if del_pos == var_pos:
             if var_alt is None or del_len == int(var_alt):
               supports = True
       else:
         raise NotImplementedError('Unsupported variant type "'+var_type+'"')
-      # add read to the appropriate list of reads
-      # if sample not in dict for this variant, add it
-      if sample not in read_sets_supporting[i]:
-        read_sets_supporting[i][sample] = []
-        read_sets_opposing[i][sample] = []
+      # Add read to the appropriate list of reads.
+      # If sample not in dict for this variant, add it.
+      key = (variant['coord'], variant['type'], variant['alt'])
       if supports:
-        read_sets_supporting[i][sample].append(read)
+        #TODO: Figure out how to make second-tier dict a defaultdict?
+        reads_supporting_list = reads_supporting[key].get(sample, [])
+        reads_supporting_list.append(read)
+        reads_supporting[key][sample] = reads_supporting_list
       else:
-        read_sets_opposing[i][sample].append(read)
+        #TODO: Figure out how to make second-tier dict a defaultdict?
+        reads_opposing_list = reads_opposing[key].get(sample, [])
+        reads_opposing_list.append(read)
+        reads_opposing[key][sample] = reads_opposing_list
 
-  # calculate sets of stats on the reads covering each variant
-  stat_sets = []
-  for (variant, reads_supporting, reads_opposing) in zip(
-      variants, read_sets_supporting, read_sets_opposing):
-    stat_set = {}
-    for sample in reads_supporting:
-      stats = get_read_stats(reads_supporting[sample], reads_opposing[sample])
-      stats['var_pos_dist'] = get_var_pos_dist(reads_supporting[sample], variant)
-      stats['context'] = get_context(variant, ref)
-      stat_set[sample] = stats
-    stat_sets.append(stat_set)
+  # Process the remaining variants.
+  for variant in current_variants:
+    key = (variant['coord'], variant['type'], variant['alt'])
+    yield get_samples_read_stats(variant, reads_supporting[key], reads_opposing[key], ref)
 
-  return (read_sets_supporting, stat_sets)
+
+def get_samples_read_stats(variant, sample_reads_supporting, sample_reads_opposing, ref=None):
+  """Compute read statistics for the variant in each sample.
+  Return a dict mapping sample names to statistics dicts."""
+  sample_stats = {}
+  for sample in sample_reads_supporting:
+    reads_supporting = sample_reads_supporting[sample]
+    reads_opposing   = sample_reads_opposing[sample]
+    var_stats = get_read_stats(reads_supporting, reads_opposing)
+    var_stats['var_pos_dist'] = get_var_pos_dist(reads_supporting, variant)
+    if ref:
+      var_stats['context'] = get_context(variant, ref)
+    var_stats.update(variant)
+    sample_stats[sample] = var_stats
+  return sample_stats
 
 
 def get_read_stats(reads_supporting, reads_opposing):
@@ -146,7 +199,7 @@ def get_read_stats(reads_supporting, reads_opposing):
   ***PLANNED*** NM tag edit distances.
   """
   #TODO: doublecheck values that could be incalculable given the input data
-  stats = collections.defaultdict(lambda: None)
+  stats = {}
 
   stats['supporting'] = len(reads_supporting)
   stats['opposing'] = len(reads_opposing)
@@ -251,6 +304,8 @@ def get_var_pos_dist(reads, variant):
   return var_pos_dist
 
 
+#TODO: Optimize. Currently, for every variant, this opens the ref file, reads through the entire
+#      reference until the variant's position, and closes the ref file again.
 def get_context(variant, refpath, flank_len=DEFAULT_FLANK_LEN):
   """Return the (reference) sequence context surrounding the variant.
   The returned sequence will be 2*flank_len long*, centered on variant['coord'].
