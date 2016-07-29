@@ -176,4 +176,14 @@ function power {
   Rscript "$dirname/../power.R" "$dirname/power.in.tsv" | diff -s - "$dirname/power.out.tsv"
 }
 
+# Test ability of bamslicer to properly keep track of reads and variants.
+function bamslicer {
+  echo -e "\tbamslicer.py ::: bamslicer/input.txt:"
+  vars=$(python "$dirname/bamslicer/prepare.py" -a "$dirname/bamslicer/input.txt" \
+           "$dirname/bamslicer/ref.fa" "$dirname/bamslicer/reads.fq" "$dirname/bamslicer/expected.tsv")
+  TEST_OUTPUT="$dirname/bamslicer/out.tsv" python "$dirname/../inspect-reads.py" -v "$vars" \
+    "$dirname/bamslicer/reads.bam" -r "$dirname/bamslicer/ref.fa"
+  diff -s "$dirname/bamslicer/out.tsv" "$dirname/bamslicer/expected.tsv"
+}
+
 main "$@"

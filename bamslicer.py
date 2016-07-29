@@ -2,6 +2,7 @@
 """Methods to select reads from a BAM that contain given variants, and return
 statistics on their characteristics."""
 from __future__ import division
+import os
 import sys
 import collections
 import pkg_resources
@@ -14,7 +15,6 @@ EXPECTED_VERSIONS = {'fastareader':'0.7', 'pyBamParser':'0.0.1'}
 NUM_FLAGS = 12
 DEFAULT_MAX_MAPQ = 40
 DEFAULT_FLANK_LEN = 15
-
 
 def get_variant_stats(bamfilepath, variants, ref=None):
   """Take a BAM and a dict of lists of variants, and return statistics on the
@@ -49,6 +49,11 @@ def get_variant_stats(bamfilepath, variants, ref=None):
   # which are now covered by the right side of the read. Then it checks each of these variants
   # against each of the indels in the read.
 
+  if 'TEST_OUTPUT' in os.environ:
+    test_file = open(os.path.expanduser(os.environ['TEST_OUTPUT']), 'w')
+  else:
+    test_file = None
+
   bam_reader = pyBamParser.bam.Reader(bamfilepath)
 
   last_chrom = None
@@ -75,6 +80,8 @@ def get_variant_stats(bamfilepath, variants, ref=None):
            current_variants and current_variants[0]['coord'] < read_start):
       variant = current_variants.pop(0)
       key = (variant['coord'], variant['type'], variant['alt'])
+      if test_file:
+        _test_write(test_file, variant, reads_opposing[key])
       yield get_samples_read_stats(variant, reads_supporting[key], reads_opposing[key], ref)
       del(reads_supporting[key])
       del(reads_opposing[key])
@@ -143,6 +150,8 @@ def get_variant_stats(bamfilepath, variants, ref=None):
   # Process the remaining variants.
   for variant in current_variants:
     key = (variant['coord'], variant['type'], variant['alt'])
+    if test_file:
+      _test_write(test_file, variant, reads_opposing[key])
     yield get_samples_read_stats(variant, reads_supporting[key], reads_opposing[key], ref)
 
 
@@ -361,5 +370,15 @@ def version_check(expected):
       "Wrong version of "+module_name+". Expected: "+expected[module_name]
       +", actual: "+actual[module_name]
     )
+
+
+def _test_write(test_file, variant, reads_opposing):
+  all_reads = []
+  for reads_list in reads_opposing.values():
+    for read in reads_list:
+      all_reads.append(read)
+  reads = ','.join([read.get_read_name() for read in all_reads])
+  test_file.write('{coord}\t{type}\t{alt}\t{reads}\n'
+                   .format(reads=reads, **variant))
 
 version_check(EXPECTED_VERSIONS)

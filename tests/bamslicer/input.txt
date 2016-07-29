@@ -1,0 +1,11 @@
+#ref  ---------------------------------------------------------------------------------
+#vars     |            |                      |           |               |       |
+#reads ------   ------   -------     -------  ------    -------    ------    ------
+#        ------             -------    ----     ------    -------    ------    ------
+#                                                                                                   1                                                                                                   2
+#         1         2         3         4         5         6         7         8         9         0         1         2         3         4         5         6         7         8         9         0
+#12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
+v              C                                              A                                                  A                         G                                  T               A
+rTATCGCGAAAAGGTCTGTCGGCCCGCCGTCATGTGTTGCCGACTGTCCTGGAAAATATTGCACATCCCGCGGCATATGAGTGTACGTAGACTGTTCTGTACGGTGGGCGTCTAGCTGTACAATTAGGGCCAGCGCAATGGAAAAAGGCCCTTGTAACCTTATCTCATCATCTCTCCATGAGGCCGCTGTATGAACCATAT
+R 1:CGCGAAAAGGTCTGTCGGC                2:GACTGTCCTGGAAAATA        3:CGCGGCATATGAGTG       4:TGTTCTGTACGGTGGGC  5:AGCTGTACAATTAGGGC    6:AATGGAAAAAGGCC     7:CCTTATCTCATCA      8:TGAGGCCGCTGTA
+R       9:AAGGTCTGTCGGCCCGCCGT                                       10:GCATATGAGTGTACGTA    11:CTGTACGGT         12:GTACAATTAGGGCCAGC  13:GGAAAAAGGCCCTTG   14:TATCTCATCATCTCT    15:GCCGCTGTATGA
