@@ -88,6 +88,7 @@ function all {
   pipeline
   liftover
   power
+  bamslicer
 }
 
 # Do all pipeline tests.
@@ -95,7 +96,8 @@ function pipeline {
   pipeline2 && echo
   pipeline3 && echo
   pipefull11 && echo
-  pipefull
+  pipefull && echo
+  pipefree2
 }
 
 # Test up through step 2 of the pipeline.
@@ -156,6 +158,18 @@ function pipefull {
     "$dirname/../ref-filt.yaml" "$dirname/EBOV.fa" "$dirname/pipeline/G3825.1a_1.fq" \
     "$dirname/pipeline/G3825.1a_2.fq" "$tmp"
   diff -s "$dirname/pipeline/out14.G3825.1a.tsv" "$tmp/vars.tsv"
+  rm -r "$tmp"
+}
+
+# Test the reference-free version of the pipeline.
+# This is more of a regression test; I should check the correctness of the output a bit more.
+function pipefree2 {
+  echo -e "\tpipeline.py ref-free2.yaml all steps ::: G3825.1a_[12].fq:"
+  mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
+  python "$dirname/../pipeline.py" -s G3825.1a -l 100 -c 100 -m 0 --refname EBOV \
+    "$dirname/../ref-free2.yaml" "$dirname/EBOV.fa" "$dirname/pipeline/G3825.1a_1.fq" \
+    "$dirname/pipeline/G3825.1a_2.fq" "$tmp"
+  diff -s "$dirname/pipeline-free2/vars.tsv" "$tmp/vars.tsv"
   rm -r "$tmp"
 }
 
