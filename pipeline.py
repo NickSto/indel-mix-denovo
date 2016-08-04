@@ -14,7 +14,7 @@ OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1,
                 'margin':600, 'kmers':'21,33,55,77', 'read_length_minimum':40}
 DESCRIPTION = """Automate all steps of running the indel discovery pipeline on a single sample."""
 
-# About "filenames" in YAML file:
+# About "filenames" in YAML files:
 # You can use these names, without the extensions, directly in command templates.
 # The names, with extensions, will be substituted into the executed command.
 # The intention is to make it easy to read the script and correlate filename placeholders in
@@ -182,13 +182,13 @@ def main(argv):
   for step in script['steps']:
     if args.begin <= step['num'] and args.end >= step['num']:
       print 'Step {num}: {desc}.'.format(**step)
-      if step['type'] == 'command':
+      if 'command' in step:
         kwargs = {}
         if 'ignore_err' in step:
           kwargs['ignore_err'] = step['ignore_err']
         # Fill in the placeholders in the command and have the Runner "execute" it.
         runner.run(step['command'].format(**params), **kwargs)
-      elif step['type'] == 'function':
+      elif 'function' in step:
         # Look up the requested function and its arguments, then call it.
         function = globals_dict[step['function']]
         arguments = [params[arg] for arg in step['args']]

@@ -11,27 +11,23 @@ output: vars
 steps:
   - num: 1
     desc: Align to reference with BWA MEM
-    type: function
     function: align
     args: [fastq1, fastq2, filter_ref, bam1raw, sample]
 
   #TODO: Only use -s realign when necessary.
   - num: 2
     desc: Filter alignment with pre-process-mt.sh
-    type: command
     command: >
       bash {scriptdir}/heteroplasmy/pre-process-mt.sh -c {refname} -m {margin} -M {min_rlen}
       -s realign -r {ref} {bam1raw} {bam1filt}
 
   - num: 3
     desc: Remove duplicates with Samtools
-    type: function
     function: dedup
     args: [bam1filt, bam1dedup]
 
   - num: 4
     desc: Extract reads with Picard SamToFastq
-    type: command
     command: >
       java -jar {picardir}/SamToFastq.jar VALIDATION_STRINGENCY=SILENT INPUT={bam1dedup}
       FASTQ={cleanfq1} SECOND_END_FASTQ={cleanfq2}
@@ -41,22 +37,18 @@ steps:
   #TODO: Check if successful (produces a contigs.fasta).
   - num: 5
     desc: Assemble with SPAdes
-    type: command
     command: "spades.py --careful -k {kmers} -1 {cleanfq1} -2 {cleanfq2} -o {asmdir}"
 
   - num: 6
     desc: Clean assembly with asm-unifier.py
-    type: command
     command: "python {scriptdir}/asm-unifier.py -n {sample} {ref} {asmdir}/contigs.fasta -o {asm} -l {asmlog}"
 
   - num: 7
     desc: Align assembly to reference with LASTZ
-    type: command
     command: "lastz {ref} {asm} > {lav}"
 
   - num: 8
     desc: Align to assembly with BWA MEM
-    type: function
     function: align
     args: [cleanfq1, cleanfq2, asm, bam2raw, sample]
 
@@ -71,14 +63,12 @@ steps:
 
   - num: 10
     desc: Remove duplicates with Samtools
-    type: function
     function: dedup
     args: [bam2filt, bam2dedup]
 
   #TODO: Allow setting -q and -m.
   - num: 11
     desc: Extract variants with Naive Variant Caller
-    type: command
     command: >
       naive_variant_caller.py -q 30 -m 20 --ploidy 2 --use_strand --coverage_dtype uint32
       --allow_out_of_bounds_positions --bam {bam2dedup} --index {bam2dedup}.bai -r {asm} -o {nvc}
@@ -88,18 +78,15 @@ steps:
   #      we want to preserve information about all indels, even below the MAF threshold.
   - num: 12
     desc: Filter variants with nvc-filter.py
-    type: command
     command: "python {scriptdir}/nvc-filter.py -r S -c {cvg} -f {freq} {nvc} > {nvcfilt}"
 
   # N.B.: inspect-reads.py takes the output sample name from the BAM read group.
   - num: 13
     desc: Filter further by BAM stats with inspect-reads.py
-    type: command
     command: >
       python {scriptdir}/inspect-reads.py -tl -s {strand} -m {mate} {bam2dedup} -V {nvcfilt}
       -r {asm} > {vars_asm}
 
   - num: 14
     desc: Convert to reference coordinates with quick-liftover.py
-    type: command
     command: "python {scriptdir}/quick-liftover.py {lav} {vars_asm} > {vars}"
