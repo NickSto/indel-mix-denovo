@@ -102,7 +102,7 @@ function pipeline {
 
 # Test up through step 2 of the pipeline.
 function pipeline2 {
-  echo -e "\tpipeline.py steps 1 and 2 ::: R39-M249-reduced_[12].fq:"
+  echo -e "\tpipeline.py ref-filt.yaml steps 1 and 2 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   python "$dirname/../pipeline.py" -E 2 -s M249 --refname chrM -l 250 "$dirname/../ref-filt.yaml" \
     "$dirname/chrM-rCRS.fa" "$dirname/pipeline/R39-M249-reduced_1.fq" \
@@ -114,7 +114,7 @@ function pipeline2 {
 
 # Test step 3 of the pipeline.
 function pipeline3 {
-  echo -e "\tpipeline.py step 3 ::: R39-M249-reduced_[12].fq:"
+  echo -e "\tpipeline.py ref-filt.yaml step 3 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   cp "$dirname/pipeline/out2.R39-M249-reduced.bam" "$tmp/bam1filt.bam"
   python "$dirname/../pipeline.py" -B 3 -E 3 -s M249 --refname chrM -l 250 \
@@ -127,7 +127,7 @@ function pipeline3 {
 
 # Test the pipeline from steps 1-11
 function pipefull11 {
-  echo -e "\tpipeline.py steps 1-11 ::: R39-M249-reduced_[12].fq:"
+  echo -e "\tpipeline.py ref-filt.yaml steps 1-11 ::: R39-M249-reduced_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   python "$dirname/../pipeline.py" -E 11 -s M249 --refname chrM -l 250 "$dirname/../ref-filt.yaml" \
     "$dirname/chrM-rCRS.fa" "$dirname/pipeline/R39-M249-reduced_1.fq" \
@@ -152,7 +152,7 @@ function pipefull11 {
 
 # Test the pipeline all the way through
 function pipefull {
-  echo -e "\tpipeline.py all steps ::: G3825.1a_[12].fq:"
+  echo -e "\tpipeline.py ref-filt.yaml all steps ::: G3825.1a_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
   python "$dirname/../pipeline.py" -s G3825.1a --refname EBOV -l 100 -c 100 -m 0 \
     "$dirname/../ref-filt.yaml" "$dirname/EBOV.fa" "$dirname/pipeline/G3825.1a_1.fq" \
@@ -166,7 +166,7 @@ function pipefull {
 function pipefree2 {
   echo -e "\tpipeline.py ref-free2.yaml all steps ::: G3825.1a_[12].fq:"
   mkdir "$tmp" || failout "Error: tmp dir $tmp exists."
-  python "$dirname/../pipeline.py" -s G3825.1a -l 100 -c 100 -m 0 --refname EBOV \
+  python "$dirname/../pipeline.py" -s G3825.1a -l 100 -c 100 -m 0 \
     "$dirname/../ref-free2.yaml" "$dirname/EBOV.fa" "$dirname/pipeline/G3825.1a_1.fq" \
     "$dirname/pipeline/G3825.1a_2.fq" "$tmp"
   diff -s "$dirname/pipeline-free2/vars.tsv" "$tmp/vars.tsv"
