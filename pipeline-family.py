@@ -98,7 +98,6 @@ def main(argv):
                     .format(outdir))
       return 1
     if os.path.isdir(outdir):
-      print(outdir+' is an existing directory.')
       if os.listdir(outdir):
         logging.error('Output directory path "{}" already exists but is not empty.'.format(outdir))
         return 1
@@ -134,8 +133,8 @@ def main(argv):
       continue
     os.remove(asm)
     os.remove(os.path.join(outdir, 'lav.lav'))
-    os.symlink(best_asm, asm)
-    os.symlink(best_lav, lav)
+    relative_link(asm, best_asm)
+    relative_link(lav, best_lav)
 
   # Run second half of pipeline.
   run_pipelines(script_dir, args.ref, samples, fastqs1, fastqs2, outdirs, pipeline_args, begin=4)
@@ -332,6 +331,15 @@ def narrow_by(issue, samples, reports):
     return without
   else:
     return samples
+
+
+def relative_link(src, dst):
+  """Make a link to dst at the path src, using a relative path.
+  E.g. relative_link('tests/B/file.txt', 'tests/A/file.txt') will make a link at
+  'tests/B/file.txt' pointing to '../A/file.txt'."""
+  src_dir = os.path.dirname(src)
+  rel_path = os.path.relpath(dst, src_dir)
+  os.symlink(rel_path, src)
 
 
 def tone_down_logger():
