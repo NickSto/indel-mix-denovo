@@ -111,7 +111,6 @@ def main(argv):
     if os.path.split(args.to_script)[0] != '':
       logging.error('--to-script should be a filename, not a path ({}).')
       return 1
-    open(args.to_script, 'w').close()
 
   # Run first half of pipeline.
   run_pipelines(script_dir, args.ref, samples, fastqs1, fastqs2, outdirs, pipeline_args, end=3,
@@ -141,8 +140,10 @@ def main(argv):
     lav = os.path.join(outdir, 'lav.lav')
     if asm == best_asm and lav == best_lav:
       continue
-    os.remove(asm)
-    os.remove(os.path.join(outdir, 'lav.lav'))
+    if os.path.exists(asm):
+      os.rename(asm, os.path.join(outdir, 'asm.orig.fa'))
+    if os.path.exists(lav):
+      os.rename(lav, os.path.join(outdir, 'lav.orig.lav'))
     relative_link(asm, best_asm)
     relative_link(lav, best_lav)
 
