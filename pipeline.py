@@ -10,8 +10,8 @@ import yaml
 PLATFORM = 'ILLUMINA'
 PICARD_DIR_DEFAULT = '~/bx/src/picard-tools-1.100'
 
-OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1,
-                'margin':600, 'kmers':'21,33,55,77', 'read_length_minimum':40}
+OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1, 'margin':600,
+                'kmers':'21,33,55,77', 'read_length_minimum':40, 'execute':True, 'script_mode':'w'}
 DESCRIPTION = """Automate all steps of running the indel discovery pipeline on a single sample."""
 
 # About "filenames" in YAML files:
@@ -56,10 +56,13 @@ def main(argv):
     help='The directory containing Picard jar files. Default: the value of $PICARD_DIR, or '+
           PICARD_DIR_DEFAULT+' if unset. Using this option sets $PICARD_DIR for this script and '
           'its children.')
-  parser.add_argument('-n', '--simulate', action='store_true',
+  parser.add_argument('-n', '--simulate', dest='execute', action='store_false',
     help='Only simulate execution. Print commands, but do not execute them.')
   parser.add_argument('-b', '--to-script', metavar='path/to/script.sh',
-    help='Instead of executing commands, write them to a bash script with this name.')
+    help='Write the commands to this bash script.')
+  parser.add_argument('--script-mode', choices=('w', 'a'),
+    help='The file mode to write to the --to-script. "w" for write, "a" for append. Default: '
+         '%(default)s')
   parser.add_argument('-B', '--begin', metavar='step', type=int,
     help='Start at this step. The input files are the normal intermediate files generated if the '
          'full pipeline were run with the same arguments. WARNING: Any existing intermediate files '
@@ -115,12 +118,12 @@ def main(argv):
       # Make the output directory if it doesn't exist.
       os.makedirs(args.outdir)
 
-  # Create a Runner and set it to execute the commands immediately, just print them to stdout
-  # (simulate), or output them to a shell script file.
-  runner = Runner()
-  runner.simulate = args.simulate
+  # Create a Runner, with the user-requested settings.
+  runner = Runner(execute=args.execute)
   if args.to_script:
-    runner.to_script(args.to_script)
+    runner.script = open(args.to_script, args.script_mode)
+    if args.script_mode == 'w':
+      runner.script.write('#!/usr/bin/env bash\n')
 
   # Gather all parameters: file paths from filenames in YAML, command line arguments, etc.
   # File paths.
@@ -182,6 +185,8 @@ def main(argv):
   for step in script['steps']:
     if args.begin <= step['num'] and args.end >= step['num']:
       print 'Step {num}: {desc}.'.format(**step)
+      if runner.script:
+        runner.script.write('# Step {num}: {desc}.\n'.format(**step))
       if 'command' in step:
         kwargs = {}
         if 'ignore_err' in step:
@@ -192,7 +197,7 @@ def main(argv):
         # Look up the requested function and its arguments, then call it.
         function = globals_dict[step['function']]
         arguments = [params[arg] for arg in step['args']]
-        function(runner, *arguments)
+        function(runner.run, *arguments)
     elif args.end > step['num']:
       print 'Skipping step {num}: {desc}.'.format(**step)
 
@@ -201,11 +206,11 @@ def main(argv):
     print 'Finished. Final variants are in {output}.'.format(**script)
 
 
-def align(runner, fastq1, fastq2, ref, outbam, sample):
+def align(runfxn, fastq1, fastq2, ref, outbam, sample):
   """Map the reads in "fastq1" and "fastq2" to reference "ref", output to "outbam". "sample" will be
   used to label read groups."""
-  if runner is None:
-    runner = Runner()
+  if runfxn is None:
+    runfxn = Runner().run
   (base, ext) = os.path.splitext(outbam)
   if ext != '.bam':
     base = base+ext
@@ -216,39 +221,45 @@ def align(runner, fastq1, fastq2, ref, outbam, sample):
     if not os.path.isfile(ref+ext):
       #TODO: determine algorithm based on file size ("is" if size is less than 2000000000 bytes).
       algorithm = 'bwtsw'
-      runner.run('bwa index -a {algo} {ref}'.format(algo=algorithm, ref=ref))
+      runfxn('bwa index -a {algo} {ref}'.format(algo=algorithm, ref=ref))
       break
-  runner.run('bwa mem -M -t 16 -R {rg} {ref} {fq1} {fq2} > {base}.sam'.format(**params))
-  runner.run('samtools view -Sb {base}.sam > {base}.tmp.bam'.format(**params))
-  runner.run('samtools sort {base}.tmp.bam {base}'.format(**params))
+  runfxn('bwa mem -M -t 16 -R {rg} {ref} {fq1} {fq2} > {base}.sam'.format(**params))
+  runfxn('samtools view -Sb {base}.sam > {base}.tmp.bam'.format(**params))
+  runfxn('samtools sort {base}.tmp.bam {base}'.format(**params))
   #TODO: fixmate?
-  runner.run('samtools index {base}.bam'.format(**params))
-  runner.run('rm {base}.sam {base}.tmp.bam'.format(**params))
+  runfxn('samtools index {base}.bam'.format(**params))
+  runfxn('rm {base}.sam {base}.tmp.bam'.format(**params))
   return outbam
 
 
-def dedup(runner, inbam, outbam):
+def dedup(runfxn, inbam, outbam):
+  if runfxn is None:
+    runfxn = Runner().run
   (base, ext) = os.path.splitext(outbam)
   params = {'inbam':inbam, 'base':base}
-  runner.run('samtools view -b -F 1024 {inbam} > {base}.tmp.bam'.format(**params))
-  runner.run('samtools sort {base}.tmp.bam {base}'.format(**params))
-  runner.run('samtools index {base}.bam'.format(**params))
-  runner.run('rm {base}.tmp.bam'.format(**params))
+  runfxn('samtools view -b -F 1024 {inbam} > {base}.tmp.bam'.format(**params))
+  runfxn('samtools sort {base}.tmp.bam {base}'.format(**params))
+  runfxn('samtools index {base}.bam'.format(**params))
+  runfxn('rm {base}.tmp.bam'.format(**params))
 
 
 class Runner(object):
   """An object that will execute commands according to previously arranged settings."""
-  def __init__(self):
-    self.quiet = False
-    self.simulate = False
-    self.prepend = '+ '
-    self._output = sys.stdout
+  def __init__(self, execute=True, echo=True, prepend='+ ', stream=sys.stdout, script=None):
+    self.execute = execute
+    self.echo = echo
+    self.prepend = prepend
+    self.stream = stream
+    self.script = script
   def run(self, command, ignore_err=False):
-    if not self.quiet:
-      self._output.write(self.prepend+command.strip()+'\n')
-    if not self.simulate:
+    command_stripped = command.strip()
+    if self.echo:
+      self.stream.write(self.prepend+command_stripped+'\n')
+    if self.script:
+      self.script.write(command_stripped+'\n')
+    if self.execute:
       try:
-        subprocess.check_call(command.strip(), shell=True)
+        subprocess.check_call(command_stripped, shell=True)
       except subprocess.CalledProcessError as cpe:
         sys.stderr.write("Command '{}' returned non-zero exit status {}\n"
                          .format(cpe.cmd, cpe.returncode))
@@ -257,13 +268,6 @@ class Runner(object):
             sys.exit(cpe.returncode)
           else:
             raise
-  def to_script(self, path):
-    """Print the commands to a ready-to-run bash script instead of executing them."""
-    self.quiet = False
-    self.simulate = True
-    self.prepend = ''
-    self._output = open(path, 'w')
-  #TODO: close filehandle on exit or when done
 
 
 if __name__ == '__main__':
