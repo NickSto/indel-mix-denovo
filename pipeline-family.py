@@ -54,6 +54,8 @@ def main(argv):
   opts.append(parser.add_argument('-i', '--input-dir', metavar='path/to/input/directory',
     help='The directory where the FASTQ files are stored. Only needed if --fastqs1 and --fastqs2 '
          'are not provided.'))
+  opts.append(parser.add_argument('-b', '--to-script', metavar='script-name.sh',
+    help='Write the commands to scripts with this name in each sample directory.'))
   opts.append(parser.add_argument('-C', '--max-contigs',
     help='The maximum allowed number of contigs per assembly (approximated by the number of LASTZ '
          'hits to the reference). Set to 0 to allow any number. Default: %(default)s'))
@@ -104,8 +106,16 @@ def main(argv):
     else:
       os.makedirs(outdir)
 
+  # Check and overwrite the --to-script.
+  if args.to_script:
+    if os.path.split(args.to_script)[0] != '':
+      logging.error('--to-script should be a filename, not a path ({}).')
+      return 1
+    open(args.to_script, 'w').close()
+
   # Run first half of pipeline.
-  run_pipelines(script_dir, args.ref, samples, fastqs1, fastqs2, outdirs, pipeline_args, end=3)
+  run_pipelines(script_dir, args.ref, samples, fastqs1, fastqs2, outdirs, pipeline_args, end=3,
+                script=args.to_script)
 
   # Check the assemblies and choose the best.
   reports = {}
@@ -121,7 +131,7 @@ def main(argv):
     reports[sample] = parse_report(process.communicate()[0], REPORT_CODES)
   best_sample = choose_asm(reports, args.max_contigs, args.include_dup)
   if best_sample is None:
-    logging.warn('No high-quality assembly chosen.')
+    logging.error('No high-quality assembly chosen.')
     return 1
   best_asm = os.path.join(args.outdir, best_sample, 'asm.fa')
   best_lav = os.path.join(args.outdir, best_sample, 'lav.lav')
@@ -136,8 +146,17 @@ def main(argv):
     relative_link(asm, best_asm)
     relative_link(lav, best_lav)
 
+  # Align the reads to the assembly.
+  # This is done separately from the rest of the 2nd half of the pipeline because we need to give
+  # different values as the "sample name" in the two cases. Here, it's the actual sample names.
+  # Later, it's the name of the chosen assembly.
+  run_pipelines(script_dir, args.ref, samples, fastqs1, fastqs2, outdirs, pipeline_args, begin=4,
+                end=4, script=args.to_script)
+
   # Run second half of pipeline.
-  run_pipelines(script_dir, args.ref, samples, fastqs1, fastqs2, outdirs, pipeline_args, begin=4)
+  best_samples = (best_sample,) * len(samples)
+  run_pipelines(script_dir, args.ref, best_samples, fastqs1, fastqs2, outdirs, pipeline_args,
+                begin=5, script=args.to_script)
 
 
 def opts_to_dict(opts):
@@ -227,13 +246,20 @@ def find_fastq(fastq_base, fastq_exts):
                 '/[sample]_1'+fastq_exts[0]+'.')
 
 
-def run_pipelines(script_dir, ref, samples, fastqs1, fastqs2, outdirs, pipeline_args, begin=1, end=1000):
+def run_pipelines(script_dir, ref, samples, fastqs1, fastqs2, outdirs, pipeline_args, begin=1,
+                  end=1000, script=None):
   procs = []
   for sample, fastq1, fastq2, outdir in zip(samples, fastqs1, fastqs2, outdirs):
+    if script:
+      script_path = os.path.join(outdir, script)
+      script_args = '-b '+script_path+' --script-mode a'
+    else:
+      script_args = ''
     command = ('{script_dir}/pipeline.py {script_dir}/ref-free2.yaml {ref} {fastq1} {fastq2} '
-               '{outdir} -B {begin} -E {end} -s {sample} {pipeline_args}'
+               '{outdir} -B {begin} -E {end} -s {sample} {script_args} {pipeline_args}'
                .format(script_dir=script_dir, ref=ref, fastq1=fastq1, fastq2=fastq2, outdir=outdir,
-                       sample=sample, begin=begin, end=end, pipeline_args=' '.join(pipeline_args)))
+                       sample=sample, begin=begin, end=end, script_args=script_args,
+                       pipeline_args=' '.join(pipeline_args)))
     # Execute command in the background (child process).
     procs.append(subprocess.Popen(command, shell=True))
   # Wait until all samples are done.
