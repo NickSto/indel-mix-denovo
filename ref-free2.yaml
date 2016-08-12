@@ -60,4 +60,4 @@ steps:
     desc: Apply variant filters
     command: >
       awk -f {scriptdir}/var-filter.awk -v covg={cvg} -v freq={freq} -v strand={strand}
-      -v mate={mate} {vars_raw} > {vars}
+      -v mate={mate} -v excluded={excluded} {vars_raw} > {vars}

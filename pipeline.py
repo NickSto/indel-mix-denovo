@@ -87,6 +87,10 @@ def main(argv):
     help='Strand bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"')
   param.add_argument('-M', '--mate-bias', dest='mate', type=float,
     help='Mate bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"')
+  param.add_argument('-e', '--excluded', metavar="302-310,chrM:16183-16192",
+    help='Regions to exclude. Variants in these regions (including the ends) will be filtered out. '
+         'Chromosome names are optional; if not given, the region will be excluded from every '
+         'chromosome. N.B.: chromosome names can\'t contain a dash.')
   param.add_argument('-k', '--k-mers', dest='kmers',
     help='K-mers for assembly. Comma-delimited list of ascending integers. Will be passed directly '
          'to spades.py. Default: "%(default)s"')
