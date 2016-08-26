@@ -44,9 +44,9 @@ def main(argv):
   parser.add_argument('--refname', metavar='chrName',
     help='The id of the reference sequence.')
   parser.add_argument('--refname2', metavar='chrName',
-    help='Id of the sequence to filter for, after assembly (if different from the sample id). '
+    help='Id of the sequence to filter for, after assembly (if different from the --sample). '
          'Normally only needed when starting the pipeline at a middle step after changing the '
-         'assembly file.')
+         'assembly file. If not given, will default to the --sample.')
   parser.add_argument('-R', '--filter-ref', metavar='filter-ref.fa',
     help='A reference consisting of the reference genome plus any other mapping targets you want '
          'to include for filtering purposes. Will filter the reads in the first step by mapping '
