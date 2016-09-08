@@ -47,7 +47,7 @@ LASTZ_OPTS = ['--format=lav']
 #      Maybe use IntervalNode.linenum as unique identifier.
 #TODO: When a contig is made of multiple alignments, check whether they look
 #      incorrect (basically anything except a break at the reference edge).
-def main():
+def main(argv):
   version_check(EXPECTED_VERSIONS)
 
   parser = argparse.ArgumentParser(usage=USAGE, description=DESCRIPTION,
@@ -104,7 +104,7 @@ def main():
   params_group.add_argument('-T', '--test-output', action='store_true',
     help='Print legacy test output.')
 
-  args = parser.parse_args()
+  args = parser.parse_args(argv[1:])
 
   # An LAV file is required unless we're producing the alignment ourselves,
   # in which case we need to create the output LAV filename.
@@ -349,4 +349,4 @@ def fail(message):
 
 
 if __name__ == "__main__":
-  main()
+  sys.exit(main(sys.argv))
