@@ -1,8 +1,7 @@
 version: 23c0dee
 
-==========
 Description
-==========
+===========
 
 This issue is with converting coordinates with no clear equivalent in the reference (coordinates in insertions or deletions).
 
@@ -37,8 +36,8 @@ I say "repeating" in quotes because it won't necessarily be the same base. To un
 Now, "del2" is an example where it "repeats" 1bp, but a different base. This is just because the deletion in the second copy of the repeat is a bit different. It's a little smaller, so the final base comes 1bp later than the final base in the first copy. In the former case, it's a "T", and in the latter, it's an "A". So it's still repeating "the last base before the deletion", but it's a different base in each copy.
 
 
-==========
+
 Solution
-==========
+========
 
 It'd be relatively easy to catch this issue in the case of assembly deletions, by catching coordinate conversion errors (fail='throw'). But catching it for insertions would be hard. It might require pre-processing the LAV to build a table of indel locations, and checking it every time an interval is split to make sure the new endpoints don't fall in one.
