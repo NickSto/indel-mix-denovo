@@ -173,6 +173,9 @@ function pipefree2 {
   rm -r "$tmp"
 }
 
+#TODO: Test the family-wise script.
+# ../pipeline-family.py -r EBOV.fa -s A,B,C,D -o pipeline-family -i pipeline-family/fastq -l 101 -c 100 -m 0 -b commands.sh
+
 # quick-liftover.py
 function liftover {
   echo -e "\tquick-liftover.py ::: R19S1.lav, R23S3.lav:"
@@ -198,6 +201,8 @@ function bamslicer {
   TEST_OUTPUT="$dirname/bamslicer/out.tsv" python "$dirname/../inspect-reads.py" -v "$vars" \
     "$dirname/bamslicer/reads.bam" -r "$dirname/bamslicer/ref.fa"
   diff -s "$dirname/bamslicer/out.tsv" "$dirname/bamslicer/expected.tsv"
+  rm "$dirname/bamslicer/reads."* "$dirname/bamslicer/ref."* "$dirname/bamslicer/expected.tsv" \
+    "$dirname/bamslicer/out.tsv"
 }
 
 main "$@"
