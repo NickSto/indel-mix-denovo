@@ -9,9 +9,10 @@ import argparse
 LABELS = ('Family', 'Sample', 'Chrom', 'Coord', 'Type', 'Alt', 'Covg', 'Reads', 'Freq', 'Unmap',
           'Improp', 'Fwd', 'First', 'Sndary', 'Dup', 'Mapq0', 'Mapq20', 'Mapq30', 'MapqMax',
           'MapqMaxReads', 'SBias', 'MBias', 'Flags', 'PosDist', 'Seq', 'Context')
+MITO_SETTINGS = {'freq':1.0, 'covg':1000, 'strand':1.0, 'mate':1.0,
+                 'excluded':'chrM:302-310,chrM:16183-16192'}
 
-ARG_DEFAULTS = {'input':sys.stdin, 'covg':1000, 'freq':1.0, 'strand':1.0, 'mate':1.0,
-                'excluded':'chrM:302-310,chrM:16183-16192', 'pos_method':'range', 'pos_thres':3}
+ARG_DEFAULTS = {'input':sys.stdin, 'freq':0, 'covg':0, 'strand':0, 'mate':0, 'pos_thres':3}
 USAGE = "%(prog)s [options]"
 DESCRIPTION = """"""
 
@@ -23,34 +24,45 @@ def main(argv):
 
   parser.add_argument('input', metavar='vars_asm.tsv', type=argparse.FileType('r'), nargs='?',
     help='Output of inspect-reads.py')
-  parser.add_argument('-c', '--covg', type=int,
-    help='Coverage threshold. Variants with less than this depth of coverage will be filtered out. '
-         'Default: %(default)s')
   parser.add_argument('-f', '--freq', type=float,
     help='Minor allele frequency threshold, in percent. Variants with a lower MAF will be filtered '
          'out. Default: %(default)s%%')
+  parser.add_argument('-c', '--covg', type=int,
+    help='Coverage threshold. Variants with less than this depth of coverage will be filtered out. '
+         'Default: %(default)s')
   parser.add_argument('-s', '--strand', type=float,
-    help='Strand bias threshold. Variants with a higher strand bias will be filtered out. '
-         'Default: %(default)s')
+    help='Strand bias threshold. Variants with a higher strand bias will be filtered out. Set to 0 '
+         'to not filter by strand bias. Default: %(default)s')
   parser.add_argument('-m', '--mate', type=float,
-    help='Mate bias threshold. Variants with a higher mate bias will be filtered out. '
-         'Default: %(default)s')
+    help='Mate bias threshold. Variants with a higher mate bias will be filtered out. Set to 0 to '
+         'not filter by mate bias. Default: %(default)s')
   parser.add_argument('-e', '--excluded',
     help='Regions to exclude. Variants in these regions will be filtered out. '
          'Format for excluded: comma-separated regions. Format for regions: '
          '"[chrom]:[start]-[end]", e.g. "302-310", "chrM:302-310", "SC8-ch:302-310", '
          '"1:1507-1510", "1-12:1002-1100". [chrom] is optional. If omitted, the region will be '
          'assumed to apply to every chromosome. Default: %(default)s')
-  parser.add_argument('-M', '--pos-method', choices=('range', 'r', 'rsquared'))
+  parser.add_argument('-p', '--pos-method', choices=('range', 'r', 'rsquared'),
+    help='Method to use for filtering by variant position in read. Default: %(default)s')
   parser.add_argument('-t', '--pos-thres', type=float,
     help='Default: %(default)s')
   parser.add_argument('-r', '--max-r', type=float,
     help='Default: %(default)s')
+  parser.add_argument('-M', '--mito', action='store_true',
+    help='Mitochondrial analysis settings. Shortcut for "-f {freq} -c {covg} -s {strand} -m {mate} '
+         ' -e {excluded}"'.format(**MITO_SETTINGS))
   parser.add_argument('-D', '--debug', action='store_true')
 
   args = parser.parse_args(argv[1:])
 
-  excluded_regions = parse_excluded(args.excluded)
+  if args.mito:
+    for filt, value in MITO_SETTINGS.items():
+      setattr(args, filt, value)
+
+  if args.excluded:
+    excluded_regions = parse_excluded(args.excluded)
+  else:
+    excluded_regions = []
 
   labels = None
   header = True
@@ -89,13 +101,13 @@ def main(argv):
       passed = False
     elif variant['covg'] < args.covg:
       passed = False
-    elif variant['sbias'] > args.strand:
+    elif args.strand and variant['sbias'] > args.strand:
       passed = False
-    elif variant['mbias'] > args.mate:
+    elif args.mate and variant['mbias'] > args.mate:
       passed = False
     elif is_excluded(variant, excluded_regions):
       passed = False
-    elif is_position_biased(variant, args.pos_method, args.pos_thres):
+    elif args.pos_method and is_position_biased(variant, args.pos_method, args.pos_thres):
       passed = False
     # Print the variant, if it passed.
     if passed:
