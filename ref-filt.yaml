@@ -12,7 +12,7 @@ steps:
   - num: 1
     desc: Align to reference with BWA MEM
     function: align
-    args: [fastq1, fastq2, filter_ref, bam1raw, sample]
+    args: [fastq1, fastq2, filter_ref, bam1raw, sample, threads]
 
   #TODO: Only use -s realign when necessary.
   - num: 2
@@ -50,7 +50,7 @@ steps:
   - num: 8
     desc: Align to assembly with BWA MEM
     function: align
-    args: [cleanfq1, cleanfq2, asm, bam2raw, sample]
+    args: [cleanfq1, cleanfq2, asm, bam2raw, sample, threads]
 
   # In this second time around, might want to omit -s realign (do NM-edits filtering too).
   #TODO: Check what -c names (name of the assembly sequence) are valid in pre-process-mt.sh.

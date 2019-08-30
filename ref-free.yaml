@@ -24,7 +24,7 @@ steps:
   - num: 4
     desc: Align to assembly with BWA MEM
     function: align
-    args: [fastq1, fastq2, asm, bamraw, sample]
+    args: [fastq1, fastq2, asm, bamraw, sample, threads]
 
   # In this second time around, might want to omit -s realign (do NM-edits filtering too).
   #TODO: Check what -c names (name of the assembly sequence) are valid in pre-process-mt.sh.
