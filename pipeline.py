@@ -63,9 +63,9 @@ def main(argv):
     help='Start at this step. The input files are the normal intermediate files generated if the '
          'full pipeline were run with the same arguments. WARNING: Any existing intermediate files '
          'in the output directory from later steps will be overwritten.')
-  parser.add_argument('-E', '--end', metavar='step', type=int, default=14,
+  parser.add_argument('-E', '--end', metavar='step', type=int, default=9999,
     help='Stop after this many pipeline steps.')
-  parser.add_argument('-t', '--threads', type=int,
+  parser.add_argument('-t', '--threads', type=int, default=16,
     help='Number of threads to use for tools like bwa and SPAdes. Default: %(default)s')
   param = parser.add_argument_group('Analysis Parameters')
   param.add_argument('-l', '--read-length', dest='rlen', required=True, type=int,
