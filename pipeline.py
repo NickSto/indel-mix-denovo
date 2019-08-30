@@ -10,8 +10,6 @@ import yaml
 PLATFORM = 'ILLUMINA'
 PICARD_DIR_DEFAULT = '~/bx/src/picard-tools-1.100'
 
-OPT_DEFAULTS = {'begin':0, 'end':14, 'freq':1, 'cvg':1000, 'strand':1, 'mate':1, 'margin':600,
-                'kmers':'21,33,55,77', 'read_length_minimum':40, 'execute':True, 'script_mode':'w'}
 DESCRIPTION = """Automate all steps of running the indel discovery pipeline on a single sample."""
 
 # About "filenames" in YAML files:
@@ -27,8 +25,6 @@ DESCRIPTION = """Automate all steps of running the indel discovery pipeline on a
 def main(argv):
 
   parser = argparse.ArgumentParser(description=DESCRIPTION)
-  parser.set_defaults(**OPT_DEFAULTS)
-
   parser.add_argument('yaml',
     help='A YAML file with the pipeline commands.')
   parser.add_argument('ref', metavar='reference.fa',
@@ -56,18 +52,18 @@ def main(argv):
     help='The directory containing Picard jar files. Default: the value of $PICARD_DIR, or '+
           PICARD_DIR_DEFAULT+' if unset. Using this option sets $PICARD_DIR for this script and '
           'its children.')
-  parser.add_argument('-n', '--simulate', dest='execute', action='store_false',
+  parser.add_argument('-n', '--simulate', dest='execute', action='store_false', default=True,
     help='Only simulate execution. Print commands, but do not execute them.')
   parser.add_argument('-b', '--to-script', metavar='path/to/script.sh',
     help='Write the commands to this bash script.')
-  parser.add_argument('--script-mode', choices=('w', 'a'),
+  parser.add_argument('--script-mode', choices=('w', 'a'), default='w',
     help='The file mode to write to the --to-script. "w" for write, "a" for append. Default: '
          '%(default)s')
-  parser.add_argument('-B', '--begin', metavar='step', type=int,
+  parser.add_argument('-B', '--begin', metavar='step', type=int, default=0,
     help='Start at this step. The input files are the normal intermediate files generated if the '
          'full pipeline were run with the same arguments. WARNING: Any existing intermediate files '
          'in the output directory from later steps will be overwritten.')
-  parser.add_argument('-E', '--end', metavar='step', type=int,
+  parser.add_argument('-E', '--end', metavar='step', type=int, default=14,
     help='Stop after this many pipeline steps.')
   parser.add_argument('-t', '--threads', type=int,
     help='Number of threads to use for tools like bwa and SPAdes. Default: %(default)s')
@@ -75,28 +71,28 @@ def main(argv):
   param.add_argument('-l', '--read-length', dest='rlen', required=True, type=int,
     help='Read length. Note: all reads don\'t have to be this length (variable length reads are '
          'accepted). Default: "%(default)s"')
-  param.add_argument('-L', '--read-length-minimum', metavar='PCT', type=float,
+  param.add_argument('-L', '--read-length-minimum', metavar='PCT', type=float, default=40,
     help='Read length threshold. Give the minimum percent of the read that must be present to '
          'pass. Give in percent, not decimal ("10" for 10%%, not "0.1"). Default: "%(default)s"')
-  param.add_argument('-f', '--freq-thres', dest='freq', type=float,
+  param.add_argument('-f', '--freq-thres', dest='freq', type=float, default=1,
     help='Minor allele frequency threshold for indel calling. Give in percent, not decimal. Used '
          'in step 12 (nvc-filter.py). Default: "%(default)s"')
-  param.add_argument('-c', '--cvg-thres', dest='cvg', type=int,
+  param.add_argument('-c', '--cvg-thres', dest='cvg', type=int, default=1000,
     help='Read depth of coverage threshold for indel calling. If the read depth at the indel is '
          'below this value, it will not be reported. Used in step 12 (nvc-filter.py). Default: '
          '"%(default)s"')
-  param.add_argument('-S', '--strand-bias', dest='strand', type=float,
+  param.add_argument('-S', '--strand-bias', dest='strand', type=float, default=1,
     help='Strand bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"')
-  param.add_argument('-M', '--mate-bias', dest='mate', type=float,
+  param.add_argument('-M', '--mate-bias', dest='mate', type=float, default=1,
     help='Mate bias threshold. Used in step 13 (inspect-reads.py). Default: "%(default)s"')
   param.add_argument('-e', '--excluded', metavar="302-310,chrM:16183-16192",
     help='Regions to exclude. Variants in these regions (including the ends) will be filtered out. '
          'Chromosome names are optional; if not given, the region will be excluded from every '
          'chromosome. N.B.: chromosome names can\'t contain a dash.')
-  param.add_argument('-k', '--k-mers', dest='kmers',
+  param.add_argument('-k', '--k-mers', dest='kmers', default='21,33,55,77',
     help='K-mers for assembly. Comma-delimited list of ascending integers. Will be passed directly '
          'to spades.py. Default: "%(default)s"')
-  param.add_argument('-m', '--margin', type=int,
+  param.add_argument('-m', '--margin', type=int, default=600,
     help='Size of the regions at either end of the reference where chimeric reads are allowed. '
          'Used for circular chromosomes where reads spanning the start coordinate appear as '
          'chimeric but aren\'t. Give a size in nucleotides. Both margins, at the start and end, '
