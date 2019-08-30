@@ -11,7 +11,7 @@ steps:
   #TODO: Check if successful (produces a contigs.fasta).
   - num: 1
     desc: Assemble with SPAdes
-    command: "spades.py --careful -k {kmers} -1 {fastq1} -2 {fastq2} -o {asmdir}"
+    command: "spades.py --careful -t {threads} -k {kmers} -1 {fastq1} -2 {fastq2} -o {asmdir}"
 
   - num: 2
     desc: Clean assembly with asm-unifier.py

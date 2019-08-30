@@ -69,6 +69,8 @@ def main(argv):
          'in the output directory from later steps will be overwritten.')
   parser.add_argument('-E', '--end', metavar='step', type=int,
     help='Stop after this many pipeline steps.')
+  parser.add_argument('-t', '--threads', type=int,
+    help='Number of threads to use for tools like bwa and SPAdes. Default: %(default)s')
   param = parser.add_argument_group('Analysis Parameters')
   param.add_argument('-l', '--read-length', dest='rlen', required=True, type=int,
     help='Read length. Note: all reads don\'t have to be this length (variable length reads are '
@@ -210,7 +212,7 @@ def main(argv):
     print 'Finished. Final variants are in {output}.'.format(**script)
 
 
-def align(runfxn, fastq1, fastq2, ref, outbam, sample):
+def align(runfxn, fastq1, fastq2, ref, outbam, sample, threads):
   """Map the reads in "fastq1" and "fastq2" to reference "ref", output to "outbam". "sample" will be
   used to label read groups."""
   if runfxn is None:
@@ -219,7 +221,10 @@ def align(runfxn, fastq1, fastq2, ref, outbam, sample):
   if ext != '.bam':
     base = base+ext
   rg_line = "'@RG\\tID:{}\\tSM:{}\\tPL:{}'".format(sample, sample, PLATFORM)
-  params = {'rg':rg_line, 'ref':ref, 'fq1':fastq1, 'fq2':fastq2, 'outbam':outbam, 'base':base}
+  params = {
+    'rg':rg_line, 'ref':ref, 'fq1':fastq1, 'fq2':fastq2, 'outbam':outbam, 'base':base,
+    'threads':threads,
+  }
   # Index reference, if needed.
   for ext in ('.amb', '.ann', '.bwt', '.sa', '.pac'):
     if not os.path.isfile(ref+ext):
@@ -227,7 +232,7 @@ def align(runfxn, fastq1, fastq2, ref, outbam, sample):
       algorithm = 'bwtsw'
       runfxn('bwa index -a {algo} {ref}'.format(algo=algorithm, ref=ref))
       break
-  runfxn('bwa mem -M -t 16 -R {rg} {ref} {fq1} {fq2} > {base}.sam'.format(**params))
+  runfxn('bwa mem -M -t {threads} -R {rg} {ref} {fq1} {fq2} > {base}.sam'.format(**params))
   runfxn('samtools view -Sb {base}.sam > {base}.tmp.bam'.format(**params))
   runfxn('samtools sort {base}.tmp.bam {base}'.format(**params))
   #TODO: fixmate?
