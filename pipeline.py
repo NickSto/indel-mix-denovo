@@ -224,9 +224,7 @@ def align(runfxn, fastq1, fastq2, ref, outbam, sample, threads):
   used to label read groups."""
   if runfxn is None:
     runfxn = Runner().run
-  (base, ext) = os.path.splitext(outbam)
-  if ext != '.bam':
-    base = base+ext
+  base, ext = os.path.splitext(outbam)
   rg_line = "'@RG\\tID:{}\\tSM:{}\\tPL:{}'".format(sample, sample, PLATFORM)
   params = {
     'rg':rg_line, 'ref':ref, 'fq1':fastq1, 'fq2':fastq2, 'outbam':outbam, 'base':base,
@@ -239,30 +237,49 @@ def align(runfxn, fastq1, fastq2, ref, outbam, sample, threads):
       algorithm = 'bwtsw'
       runfxn('bwa index -a {algo} {ref}'.format(algo=algorithm, ref=ref))
       break
-  samtools_version = get_samtools_version()
-  if samtools_version is None:
-    logging.warning("Warning: Could not detect samtools version. Assuming it's < 1.0.")
-  if samtools_version is not None and samtools_version >= LooseVersion('1.0'):
-    sort_cmd = 'samtools sort -@ {threads} -O bam -o {base}.bam -'.format(**params)
-  else:
-    sort_cmd = 'samtools sort - {base}'.format(**params)
   runfxn('bwa mem -M -t {threads} -R {rg} {ref} {fq1} {fq2} > {base}.sam'.format(**params))
-  runfxn('samtools view -Sb {base}.sam | {sort_cmd}'.format(sort_cmd=sort_cmd, **params))
-  #TODO: fixmate?
-  runfxn('samtools index {base}.bam'.format(**params))
-  os.remove('{base}.sam'.format(**params))
+  sam_to_bam(runfxn, base+'.sam', outbam, threads=threads)
+  os.remove(base+'.sam'.format(**params))
   return outbam
 
 
-def dedup(runfxn, inbam, outbam):
+def dedup(runfxn, inbam, outbam, threads=1):
   if runfxn is None:
     runfxn = Runner().run
-  (base, ext) = os.path.splitext(outbam)
-  params = {'inbam':inbam, 'base':base}
-  runfxn('samtools view -b -F 1024 {inbam} > {base}.tmp.bam'.format(**params))
-  runfxn('samtools sort {base}.tmp.bam {base}'.format(**params))
-  runfxn('samtools index {base}.bam'.format(**params))
-  runfxn('rm {base}.tmp.bam'.format(**params))
+  base, ext = os.path.splitext(outbam)
+  params = {'inbam':inbam, 'outbam':outbam, 'base':base, 'threads':threads}
+  view_cmd = 'samtools view -b -F 1024 {inbam}'.format(**params)
+  sam_to_bam(runfxn, None, outbam, view_cmd=view_cmd, threads=threads)
+
+
+def sam_to_bam(runfxn, sam, bam, view_cmd=None, threads=1):
+  if runfxn is None:
+    runfxn = Runner().run
+  base, ext = os.path.splitext(bam)
+  params = {'sam':sam, 'bam':bam, 'base':base, 'threads':threads}
+  samtools_is_old = is_samtools_old('1.0')
+  if view_cmd is None:
+    view_cmd = 'samtools view -Sb {sam}'.format(**params)
+  if samtools_is_old:
+    sort_cmd = 'samtools sort - {base}.tmp'.format(**params)
+  else:
+    sort_cmd = 'samtools sort -@ {threads} -O bam -o {bam} -'.format(**params)
+  runfxn(view_cmd+' | '+sort_cmd)
+  if samtools_is_old:
+    os.rename(base+'.tmp.bam', bam)
+  #TODO: fixmate?
+  runfxn('samtools index {bam}'.format(**params))
+
+
+def is_samtools_old(new_version):
+  samtools_version = get_samtools_version()
+  if samtools_version is None or samtools_version < LooseVersion(new_version):
+    if samtools_version is None:
+      logging.warning("Warning: Could not detect samtools version. Assuming it's < {}."
+                      .format(new_version))
+    return True
+  else:
+    return False
 
 
 def get_samtools_version(exe='samtools'):
