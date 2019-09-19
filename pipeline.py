@@ -278,7 +278,6 @@ def get_samtools_version(exe='samtools'):
     int(ver_fields[1])
   except ValueError:
     return None
-  logging.info('Info: Successfully determined samtools version to be {}.'.format(ver_str))
   return LooseVersion(ver_str)
 
 
