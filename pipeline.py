@@ -2,6 +2,7 @@
 from __future__ import division
 import os
 import sys
+import logging
 import argparse
 import subprocess
 import distutils.spawn
@@ -98,7 +99,16 @@ def main(argv):
          'Used for circular chromosomes where reads spanning the start coordinate appear as '
          'chimeric but aren\'t. Give a size in nucleotides. Both margins, at the start and end, '
          'will be this size. Set to 0 for no margins. Default: "%(default)s"')
+  parser.add_argument('--log', type=argparse.FileType('w'), default=sys.stderr,
+    help='Print log messages to this file instead of to stderr. Warning: Will overwrite the file.')
+  volume = parser.add_mutually_exclusive_group()
+  volume.add_argument('-q', '--quiet', dest='volume', action='store_const', const=logging.CRITICAL,
+    default=logging.WARNING)
+  volume.add_argument('-v', '--verbose', dest='volume', action='store_const', const=logging.INFO)
+  volume.add_argument('-D', '--debug', dest='volume', action='store_const', const=logging.DEBUG)
   args = parser.parse_args(argv[1:])
+
+  logging.basicConfig(stream=args.log, level=args.volume, format='%(message)s')
 
   with open(args.yaml) as yaml_file:
     script = yaml.safe_load(yaml_file)
@@ -107,16 +117,16 @@ def main(argv):
   if args.begin > 1:
     # If beginning later in the pipeline, the outdir must exist and contain needed files.
     if not os.path.isdir(args.outdir):
-      raise Exception('Output directory "'+args.outdir+'" missing. Must be present and contain '
-                      'intermediate files if using --begin.')
+      fail('Output directory "'+args.outdir+'" missing. Must be present and contain '
+           'intermediate files if using --begin.')
   else:
     # Normally, output directory must either not exist or be empty.
     if os.path.exists(args.outdir):
       if os.path.isdir(args.outdir):
         if os.listdir(args.outdir):
-          raise Exception('Output directory "'+args.outdir+'" exists but is not empty.')
+          fail('Output directory "'+args.outdir+'" exists but is not empty.')
       else:
-        raise Exception('Output directory "'+args.outdir+'" exists but is not a directory.')
+        fail('Output directory "'+args.outdir+'" exists but is not a directory.')
     else:
       # Make the output directory if it doesn't exist.
       os.makedirs(args.outdir)
@@ -158,24 +168,24 @@ def main(argv):
     params['refname2'] = args.sample
   if not params.get('rlen'):
     #TODO: Detect read length of FASTQ files.
-    raise Exception('Need to provide --read-length.')
+    fail('Need to provide --read-length.')
   params['min_rlen'] = int(round(params['rlen'] * params['read_length_minimum'] / 100))
 
   # Check for required commands.
   requirements = script.get('requirements', {})
   for command in requirements.get('commands', ()):
     if not distutils.spawn.find_executable(command):
-      raise Exception('Required command "'+command+'" not found.')
+      fail('Required command "'+command+'" not found.')
   # Check for required scripts.
   for script_name in requirements.get('scripts', ()):
     scriptpath = os.path.join(params['scriptdir'], script_name)
     if not os.path.isfile(scriptpath):
-      raise Exception('Required script "'+scriptpath+'" not found.')
+      fail('Required script "'+scriptpath+'" not found.')
   # Check for Picard jars.
   for jar in requirements.get('picards', ()):
     jarpath = os.path.join(params['picardir'], jar)
     if not os.path.isfile(jarpath):
-      raise Exception('Required Picard jar "'+jarpath+'" not found.')
+      fail('Required Picard jar "'+jarpath+'" not found.')
 
 
   #################### EXECUTE STEPS ####################
@@ -230,6 +240,8 @@ def align(runfxn, fastq1, fastq2, ref, outbam, sample, threads):
       runfxn('bwa index -a {algo} {ref}'.format(algo=algorithm, ref=ref))
       break
   samtools_version = get_samtools_version()
+  if samtools_version is None:
+    logging.warning("Warning: Could not detect samtools version. Assuming it's < 1.0.")
   if samtools_version is not None and samtools_version >= LooseVersion('1.0'):
     sort_cmd = 'samtools sort -@ {threads} -O bam -o {base}.bam -'.format(**params)
   else:
@@ -278,6 +290,7 @@ def get_samtools_version(exe='samtools'):
     int(ver_fields[1])
   except ValueError:
     return None
+  logging.info('Info: Successfully determined samtools version to be {}.'.format(ver_str))
   return LooseVersion(ver_str)
 
 
@@ -306,6 +319,14 @@ class Runner(object):
             sys.exit(cpe.returncode)
           else:
             raise
+
+
+def fail(message):
+  if __name__ == '__main__':
+    logging.critical(message)
+    sys.exit(1)
+  else:
+    raise Exception('Critical: {}'.format(message))
 
 
 if __name__ == '__main__':
