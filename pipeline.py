@@ -5,6 +5,7 @@ import sys
 import argparse
 import subprocess
 import distutils.spawn
+from distutils.version import LooseVersion
 import yaml
 
 PLATFORM = 'ILLUMINA'
@@ -228,12 +229,16 @@ def align(runfxn, fastq1, fastq2, ref, outbam, sample, threads):
       algorithm = 'bwtsw'
       runfxn('bwa index -a {algo} {ref}'.format(algo=algorithm, ref=ref))
       break
+  samtools_version = get_samtools_version()
+  if samtools_version is not None and samtools_version >= LooseVersion('1.0'):
+    sort_cmd = 'samtools sort -@ {threads} -O bam -o {base}.bam -'.format(**params)
+  else:
+    sort_cmd = 'samtools sort - {base}'.format(**params)
   runfxn('bwa mem -M -t {threads} -R {rg} {ref} {fq1} {fq2} > {base}.sam'.format(**params))
-  runfxn('samtools view -Sb {base}.sam > {base}.tmp.bam'.format(**params))
-  runfxn('samtools sort {base}.tmp.bam {base}'.format(**params))
+  runfxn('samtools view -Sb {base}.sam | {sort_cmd}'.format(sort_cmd=sort_cmd, **params))
   #TODO: fixmate?
   runfxn('samtools index {base}.bam'.format(**params))
-  runfxn('rm {base}.sam {base}.tmp.bam'.format(**params))
+  os.remove('{base}.sam'.format(**params))
   return outbam
 
 
@@ -246,6 +251,34 @@ def dedup(runfxn, inbam, outbam):
   runfxn('samtools sort {base}.tmp.bam {base}'.format(**params))
   runfxn('samtools index {base}.bam'.format(**params))
   runfxn('rm {base}.tmp.bam'.format(**params))
+
+
+def get_samtools_version(exe='samtools'):
+  cmd = (exe,)
+  result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+  if result.returncode != 1:
+    return None
+  output = str(result.stderr, 'utf8')
+  # Find the version line.
+  line_fields = None
+  for line in output.splitlines():
+    if line.lower().startswith('version:'):
+      line_fields = line.split()
+  if line_fields is None:
+    return None
+  # Find the version number in the line.
+  ver_str = line_fields[1]
+  # Verify it looks like a version number: does it start with two decimal-separated integers?
+  ver_fields = ver_str.split('.')
+  if len(ver_fields) <= 1:
+    return None
+  try:
+    int(ver_fields[0])
+    int(ver_fields[1])
+  except ValueError:
+    return None
+  logging.info(f'Info: Successfully determined samtools version to be {ver_str}.')
+  return LooseVersion(ver_str)
 
 
 class Runner(object):
