@@ -255,13 +255,14 @@ def dedup(runfxn, inbam, outbam):
 
 def get_samtools_version(exe='samtools'):
   cmd = (exe,)
-  result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-  if result.returncode != 1:
+  with open(os.devnull) as devnull:
+    process = subprocess.Popen(cmd, stdout=devnull, stderr=subprocess.PIPE)
+  if process.wait() != 1:
     return None
-  output = str(result.stderr, 'utf8')
+  stdout, stderr = process.communicate()
   # Find the version line.
   line_fields = None
-  for line in output.splitlines():
+  for line in stderr.splitlines():
     if line.lower().startswith('version:'):
       line_fields = line.split()
   if line_fields is None:
@@ -277,7 +278,7 @@ def get_samtools_version(exe='samtools'):
     int(ver_fields[1])
   except ValueError:
     return None
-  logging.info(f'Info: Successfully determined samtools version to be {ver_str}.')
+  logging.info('Info: Successfully determined samtools version to be {}.'.format(ver_str))
   return LooseVersion(ver_str)
 
 
