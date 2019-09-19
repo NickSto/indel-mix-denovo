@@ -148,6 +148,8 @@ if ! [[ $chrom_len ]]; then
   fi
 fi
 
+samtools_version=$(samtools 2>&1 | sed -En 's/^[Vv]ersion: +([0-9]+)\.[0-9]+.*$/\1/p')
+
 # Save the given output file, remove the tmp dir, and exit.
 # The first argument is the full path to the final output file (in the tmp dir).
 # If it ends in .bam, any index file will also be moved and renamed.
@@ -311,8 +313,12 @@ echo "--- final sort and index ---"
 input="nm-ratio.sorted4.bam"
 output="sorted5.bam"
 output2="sorted5.bam.bai"
-samtools sort "$tmpdir/$input" "$tmpdir/$output.tmp"
-mv "$tmpdir/$output.tmp.bam" "$tmpdir/$output"
+if [[ "$samtools_version" ]] && [[ "$samtools_version" -ge 1 ]]; then
+  samtools sort -O bam "$tmpdir/input" > "$tmpdir/$output"
+else
+  samtools sort "$tmpdir/$input" "$tmpdir/$output.tmp"
+  mv "$tmpdir/$output.tmp.bam" "$tmpdir/$output"
+fi
 samtools index "$tmpdir/$output"
 
 finish "$tmpdir/$output"
